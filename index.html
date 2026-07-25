@@ -20,16 +20,17 @@
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;background:var(--bg);color:var(--ink);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    font-size:16px;line-height:1.4}
+    font-size:16px;line-height:1.4;overflow-wrap:break-word}
   body{padding:0 12px calc(96px + env(safe-area-inset-bottom)) 12px;max-width:720px;margin:0 auto}
   header{position:sticky;top:0;z-index:20;background:linear-gradient(var(--bg) 78%,rgba(15,23,32,0));
     padding:14px 2px 8px;margin:0 -2px}
   .block-name{font-weight:700;font-size:1.05rem;letter-spacing:.2px}
   .sub{color:var(--muted);font-size:.8rem;margin-top:2px}
   .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  .grow{flex:1 1 auto}
+  .grow{flex:1 1 auto;min-width:0}
   select,input,textarea,button{font:inherit;color:var(--ink);background:var(--panel);
-    border:1px solid var(--line);border-radius:10px;padding:9px 10px;outline:none}
+    border:1px solid var(--line);border-radius:10px;padding:9px 10px;outline:none;
+    max-width:100%;min-width:0}
   select{-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
     background-position:calc(100% - 16px) 55%,calc(100% - 11px) 55%;background-size:5px 5px;background-repeat:no-repeat;padding-right:30px}
   input:focus,textarea:focus,select:focus{border-color:var(--accent)}
@@ -38,9 +39,18 @@
   button.ghost{background:transparent}
   .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.72rem;font-weight:700}
   .selrow{display:flex;gap:8px;margin:6px 0 2px}
-  .selrow select{flex:1}
+  .selrow>*{min-width:0}
+  /* min-width:0 + ellipsis matter: day names in program.json are long enough that a
+     select's content-based minimum width would otherwise push the page off-screen. */
+  .selrow select{flex:1 1 0;text-overflow:ellipsis}
+  #weekSel{flex:0 1 auto}
+  #dateInp{flex:1 1 auto}
+  /* Fallback for the ellipsised day select; redundant once the select fits. */
+  .daytitle{color:var(--muted);font-size:.82rem;margin:10px 2px 0}
+  @media (min-width:560px){.daytitle{display:none}}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px;margin:10px 0}
   .ex-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+  .ex-head>div{min-width:0}
   .ex-name{font-weight:700;font-size:1rem}
   .rx{color:var(--muted);font-size:.86rem;margin-top:4px}
   .rx b{color:var(--ink);font-weight:600}
@@ -48,18 +58,25 @@
   details{margin-top:8px;border-top:1px dashed var(--line);padding-top:8px}
   summary{cursor:pointer;color:var(--accent2);font-size:.82rem;font-weight:600;list-style:none}
   summary::-webkit-details-marker{display:none}
-  details .body{color:var(--muted);font-size:.85rem;margin-top:6px;white-space:pre-wrap}
-  .log{margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  details .body{color:var(--muted);font-size:.85rem;margin-top:6px;white-space:pre-wrap;overflow-wrap:anywhere}
+  /* minmax(0,1fr) not 1fr: an input's default intrinsic width is wider than a
+     phone-sized column, and plain 1fr refuses to shrink below it. */
+  .log{margin-top:10px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .log>div{min-width:0}
+  .log input,.log select{width:100%}
   .log .full{grid-column:1 / -1}
   .lbl{display:block;font-size:.7rem;color:var(--muted);margin:0 0 3px 2px;text-transform:uppercase;letter-spacing:.5px}
   .hint{font-size:.76rem;color:var(--accent2);margin-top:6px;grid-column:1/-1}
   textarea{width:100%;min-height:54px;resize:vertical}
   .done{border-color:var(--good);box-shadow:inset 3px 0 0 var(--good)}
-  .sessioncard .log{grid-template-columns:1fr 1fr 1fr}
+  /* Three check-in fields per row only once there is room for them. */
+  @media (min-width:460px){.sessioncard .log{grid-template-columns:repeat(3,minmax(0,1fr))}}
   .footer-bar{position:fixed;left:0;right:0;bottom:0;z-index:30;
     background:var(--panel);border-top:1px solid var(--line);
     padding:10px 12px calc(10px + env(safe-area-inset-bottom));display:flex;gap:8px;align-items:center;max-width:720px;margin:0 auto}
-  .progress{flex:1;font-size:.85rem;color:var(--muted)}
+  .footer-bar button{flex:0 0 auto;white-space:nowrap}
+  .progress{flex:1 1 0;min-width:0;font-size:.85rem;color:var(--muted);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .progress b{color:var(--ink)}
   .toast{position:fixed;left:50%;bottom:88px;transform:translateX(-50%);background:#0b2e26;color:#c9f5e9;
     border:1px solid var(--accent);padding:9px 14px;border-radius:10px;font-size:.85rem;opacity:0;transition:opacity .2s;z-index:40;pointer-events:none;max-width:92%}
@@ -81,8 +98,10 @@
   </div>
   <div class="selrow">
     <select id="weekSel" aria-label="Week"></select>
+    <input id="dateInp" type="date" aria-label="Session date" />
+  </div>
+  <div class="selrow">
     <select id="daySel" aria-label="Day"></select>
-    <input id="dateInp" type="date" aria-label="Session date" style="flex:0 0 auto" />
   </div>
 </header>
 
@@ -160,6 +179,8 @@ function renderMain(){
   const m=$("#main");m.innerHTML="";
   if(!PROGRAM){return;}
   const s=getSession();
+  // The day select is ellipsised on narrow screens, so show the full title here.
+  if(STATE.day)m.append(el("div",{className:"daytitle"},shortDay(STATE.day)));
   m.append(sessionCard(s));
   const exs=PROGRAM.exercises.filter(e=>e.day===STATE.day);
   const authoredWeeks=[...new Set(PROGRAM.exercises.map(e=>e.week))];
@@ -191,7 +212,8 @@ function sessionCard(s){
   wrap.append(mk("amPainNextDay","Knee pain next AM /10","number",{min:0,max:10}));
   const hrv=el("input",{type:"text",value:s.session.hrvNote||"",attrs:{placeholder:"e.g. HRV 62, at baseline"}});
   hrv.oninput=()=>{s.session.hrvNote=hrv.value;saveSession(s);};
-  wrap.append(field("HRV / notes",hrv));
+  const hrvField=field("HRV / notes",hrv);hrvField.className="full";
+  wrap.append(hrvField);
   c.append(wrap);
   const ov=el("textarea",{value:s.session.overall||"",attrs:{placeholder:"Overall session notes…"}});
   ov.oninput=()=>{s.session.overall=ov.value;saveSession(s);};
@@ -248,7 +270,8 @@ function updateProgress(){
   const s=getSession();
   const exs=PROGRAM.exercises.filter(e=>e.day===STATE.day);
   const done=exs.filter(e=>s.entries[e.id]&&s.entries[e.id].done).length;
-  p.innerHTML=`<b>${done}</b>/${exs.length} done · ${shortDay(STATE.day)} · W${STATE.week}`;
+  // Day name is shown in the header, so keep this short enough to survive a 360px footer.
+  p.innerHTML=`<b>${done}</b>/${exs.length} done · W${STATE.week}`;
 }
 
 /* ---------- export ---------- */
