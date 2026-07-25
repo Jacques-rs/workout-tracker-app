@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Training Tracker</title>
+<meta name="theme-color" content="#0f1720" />
+<link rel="manifest" href="./manifest.webmanifest" />
+<link rel="apple-touch-icon" href="./icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Tracker" />
+<style>
+  :root{
+    --bg:#0f1720; --panel:#172230; --panel2:#1e2c3d; --line:#2a3a4d;
+    --ink:#e8eef5; --muted:#9fb0c3; --accent:#37c5a8; --accent2:#5b9bd5;
+    --warn:#e0b64a; --bad:#e06a5a; --good:#37c5a8;
+    --r:14px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.4}
+  body{padding:0 12px calc(96px + env(safe-area-inset-bottom)) 12px;max-width:720px;margin:0 auto}
+  header{position:sticky;top:0;z-index:20;background:linear-gradient(var(--bg) 78%,rgba(15,23,32,0));
+    padding:14px 2px 8px;margin:0 -2px}
+  .block-name{font-weight:700;font-size:1.05rem;letter-spacing:.2px}
+  .sub{color:var(--muted);font-size:.8rem;margin-top:2px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .grow{flex:1 1 auto}
+  select,input,textarea,button{font:inherit;color:var(--ink);background:var(--panel);
+    border:1px solid var(--line);border-radius:10px;padding:9px 10px;outline:none}
+  select{-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+    background-position:calc(100% - 16px) 55%,calc(100% - 11px) 55%;background-size:5px 5px;background-repeat:no-repeat;padding-right:30px}
+  input:focus,textarea:focus,select:focus{border-color:var(--accent)}
+  button{cursor:pointer;background:var(--panel2)}
+  button.primary{background:var(--accent);color:#062018;border-color:var(--accent);font-weight:700}
+  button.ghost{background:transparent}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.72rem;font-weight:700}
+  .selrow{display:flex;gap:8px;margin:6px 0 2px}
+  .selrow select{flex:1}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px;margin:10px 0}
+  .ex-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+  .ex-name{font-weight:700;font-size:1rem}
+  .rx{color:var(--muted);font-size:.86rem;margin-top:4px}
+  .rx b{color:var(--ink);font-weight:600}
+  .chk{width:26px;height:26px;flex:0 0 auto;accent-color:var(--accent)}
+  details{margin-top:8px;border-top:1px dashed var(--line);padding-top:8px}
+  summary{cursor:pointer;color:var(--accent2);font-size:.82rem;font-weight:600;list-style:none}
+  summary::-webkit-details-marker{display:none}
+  details .body{color:var(--muted);font-size:.85rem;margin-top:6px;white-space:pre-wrap}
+  .log{margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .log .full{grid-column:1 / -1}
+  .lbl{display:block;font-size:.7rem;color:var(--muted);margin:0 0 3px 2px;text-transform:uppercase;letter-spacing:.5px}
+  .hint{font-size:.76rem;color:var(--accent2);margin-top:6px;grid-column:1/-1}
+  textarea{width:100%;min-height:54px;resize:vertical}
+  .done{border-color:var(--good);box-shadow:inset 3px 0 0 var(--good)}
+  .sessioncard .log{grid-template-columns:1fr 1fr 1fr}
+  .footer-bar{position:fixed;left:0;right:0;bottom:0;z-index:30;
+    background:var(--panel);border-top:1px solid var(--line);
+    padding:10px 12px calc(10px + env(safe-area-inset-bottom));display:flex;gap:8px;align-items:center;max-width:720px;margin:0 auto}
+  .progress{flex:1;font-size:.85rem;color:var(--muted)}
+  .progress b{color:var(--ink)}
+  .toast{position:fixed;left:50%;bottom:88px;transform:translateX(-50%);background:#0b2e26;color:#c9f5e9;
+    border:1px solid var(--accent);padding:9px 14px;border-radius:10px;font-size:.85rem;opacity:0;transition:opacity .2s;z-index:40;pointer-events:none;max-width:92%}
+  .toast.show{opacity:1}
+  .muted{color:var(--muted)}
+  .mini{font-size:.75rem;padding:6px 9px}
+  a.link{color:var(--accent2)}
+  .banner{background:#20303f;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:.8rem;color:var(--muted);margin:8px 0}
+</style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <div class="grow">
+      <div class="block-name" id="blockName">Training Tracker</div>
+      <div class="sub" id="blockSub">Import a program to begin</div>
+    </div>
+    <button class="ghost mini" id="importBtn">Import</button>
+  </div>
+  <div class="selrow">
+    <select id="weekSel" aria-label="Week"></select>
+    <select id="daySel" aria-label="Day"></select>
+    <input id="dateInp" type="date" aria-label="Session date" style="flex:0 0 auto" />
+  </div>
+</header>
+
+<main id="main"></main>
+
+<div class="footer-bar">
+  <div class="progress" id="progress">—</div>
+  <button class="ghost mini" id="copyBtn">Copy JSON</button>
+  <button class="primary" id="exportBtn">Export session</button>
+</div>
+
+<div class="toast" id="toast"></div>
+<input type="file" id="fileInp" accept="application/json,.json" style="display:none" />
+
+<script>
+"use strict";
+const $ = (s,r=document)=>r.querySelector(s);
+const el = (t,props={},kids=[])=>{const n=document.createElement(t);Object.assign(n,props);
+  for(const[k,v]of Object.entries(props.attrs||{}))n.setAttribute(k,v);
+  (Array.isArray(kids)?kids:[kids]).forEach(c=>c!=null&&n.append(c.nodeType?c:document.createTextNode(c)));return n;};
+
+const LS = { prog:"tp_program_v1", sess:(d,day)=>`tp_sess_v1::${d}::${day}` };
+let PROGRAM=null, STATE={week:1,day:null,date:todayISO()};
+
+function todayISO(){const d=new Date();const z=n=>String(n).padStart(2,"0");return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`;}
+function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),1900);}
+function slug(s){return (s||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"").slice(0,40);}
+
+/* ---------- program loading ---------- */
+function loadProgram(obj){
+  if(!obj||!obj.meta||!Array.isArray(obj.exercises))throw new Error("Not a valid program.json (need meta + exercises).");
+  PROGRAM=obj; localStorage.setItem(LS.prog,JSON.stringify(obj));
+  STATE.week=1; STATE.day=(obj.meta.days&&obj.meta.days[0])||null; STATE.date=todayISO();
+  renderAll();
+}
+async function boot(){
+  const saved=localStorage.getItem(LS.prog);
+  if(saved){try{PROGRAM=JSON.parse(saved);}catch(e){}}
+  if(!PROGRAM){try{const r=await fetch("./program.json",{cache:"no-store"});if(r.ok)PROGRAM=await r.json();}catch(e){}}
+  if(PROGRAM){STATE.day=(PROGRAM.meta.days&&PROGRAM.meta.days[0])||null;}
+  renderAll();
+}
+
+/* ---------- session persistence ---------- */
+function sessionKey(){return LS.sess(STATE.date,STATE.day);}
+function getSession(){
+  const raw=localStorage.getItem(sessionKey());
+  if(raw){try{return JSON.parse(raw);}catch(e){}}
+  return {block:PROGRAM?PROGRAM.meta.block:"",athlete:PROGRAM?PROGRAM.meta.athlete:"",
+    week:STATE.week,day:STATE.day,date:STATE.date,
+    session:{bodyweightKg:"",sleep:"",readiness:"",hrvNote:"",amPainNextDay:"",overall:""},
+    entries:{}};
+}
+function saveSession(s){s.week=STATE.week;s.day=STATE.day;s.date=STATE.date;
+  localStorage.setItem(sessionKey(),JSON.stringify(s));updateProgress();}
+
+/* ---------- rendering ---------- */
+function renderAll(){
+  if(!PROGRAM){$("#blockName").textContent="Training Tracker";$("#blockSub").textContent="No program loaded — tap Import";
+    $("#main").innerHTML="";$("#main").append(el("div",{className:"banner"},"No program.json found. Tap Import and choose the program.json from your Drive folder."));
+    $("#weekSel").innerHTML="";$("#daySel").innerHTML="";updateProgress();return;}
+  $("#blockName").textContent=PROGRAM.meta.block||"Training block";
+  $("#blockSub").textContent=`${PROGRAM.meta.athlete||""} · ${PROGRAM.meta.weeks||"?"}-week block`;
+  // week + day selectors
+  const wk=$("#weekSel");wk.innerHTML="";
+  for(let i=1;i<=(PROGRAM.meta.weeks||1);i++)wk.append(el("option",{value:i,textContent:"Week "+i,selected:i===STATE.week}));
+  const dsel=$("#daySel");dsel.innerHTML="";
+  (PROGRAM.meta.days||[]).forEach(d=>dsel.append(el("option",{value:d,textContent:shortDay(d),selected:d===STATE.day})));
+  $("#dateInp").value=STATE.date;
+  renderMain();
+}
+function shortDay(d){return d.replace(/\s*-\s*/," — ");}
+
+function renderMain(){
+  const m=$("#main");m.innerHTML="";
+  if(!PROGRAM){return;}
+  const s=getSession();
+  m.append(sessionCard(s));
+  const exs=PROGRAM.exercises.filter(e=>e.day===STATE.day);
+  const authoredWeeks=[...new Set(PROGRAM.exercises.map(e=>e.week))];
+  if(STATE.week>Math.max(...authoredWeeks)){
+    m.append(el("div",{className:"banner"},`Week ${STATE.week}: prescriptions below are the Week-1 template — apply each exercise's Progression Rule for this week.`));
+  }
+  if(!exs.length){m.append(el("div",{className:"banner"},"No exercises for this day in the program."));}
+  exs.forEach(ex=>m.append(exerciseCard(ex,s)));
+  updateProgress();
+}
+
+function field(labelText,node){return el("div",{},[el("label",{className:"lbl"},labelText),node]);}
+
+function sessionCard(s){
+  const c=el("div",{className:"card sessioncard"});
+  c.append(el("div",{className:"ex-name"},"Session check-in"));
+  c.append(el("div",{className:"rx"},"Fill what's useful; next-morning knee pain can be edited tomorrow before you export."));
+  const wrap=el("div",{className:"log"});
+  const mk=(k,label,type="text",attrs={})=>{
+    const inp=el("input",{type,value:s.session[k]??"",attrs});
+    inp.oninput=()=>{s.session[k]=inp.value;saveSession(s);};
+    return field(label,inp);
+  };
+  wrap.append(mk("bodyweightKg","Bodyweight kg","number"));
+  wrap.append(mk("sleep","Sleep 1–5","number",{min:1,max:5}));
+  const rd=el("select",{},["","Green","Amber","Red"].map(o=>el("option",{value:o,textContent:o||"Readiness…",selected:s.session.readiness===o})));
+  rd.onchange=()=>{s.session.readiness=rd.value;saveSession(s);};
+  wrap.append(field("Readiness",rd));
+  wrap.append(mk("amPainNextDay","Knee pain next AM /10","number",{min:0,max:10}));
+  const hrv=el("input",{type:"text",value:s.session.hrvNote||"",attrs:{placeholder:"e.g. HRV 62, at baseline"}});
+  hrv.oninput=()=>{s.session.hrvNote=hrv.value;saveSession(s);};
+  wrap.append(field("HRV / notes",hrv));
+  c.append(wrap);
+  const ov=el("textarea",{value:s.session.overall||"",attrs:{placeholder:"Overall session notes…"}});
+  ov.oninput=()=>{s.session.overall=ov.value;saveSession(s);};
+  c.append(el("div",{style:"margin-top:8px"},[el("label",{className:"lbl"},"Overall notes"),ov]));
+  return c;
+}
+
+function exerciseCard(ex,s){
+  const e=s.entries[ex.id]||(s.entries[ex.id]={done:false,load:"",reps:"",rpe:"",painDuring:"",notes:""});
+  const c=el("div",{className:"card"+(e.done?" done":"")});
+  const chk=el("input",{type:"checkbox",className:"chk",checked:!!e.done});
+  chk.onchange=()=>{e.done=chk.checked;c.classList.toggle("done",e.done);saveSession(s);};
+  const head=el("div",{className:"ex-head"},[
+    el("div",{},[el("div",{className:"ex-name"},ex.name),
+      el("div",{className:"rx"},rxLine(ex))]),
+    chk
+  ]);
+  c.append(head);
+  // collapsibles
+  if(ex.focus)c.append(collapse("Coach notes",ex.focus));
+  if(ex.progression)c.append(collapse("Progression rule",ex.progression));
+  // log grid
+  const g=el("div",{className:"log"});
+  const mk=(k,label,type="text",attrs={})=>{const inp=el("input",{type,value:e[k]??"",attrs});
+    inp.oninput=()=>{e[k]=inp.value;saveSession(s);};return field(label,inp);};
+  g.append(mk("load","Actual load","text"));
+  g.append(mk("reps","Actual sets×reps","text"));
+  g.append(mk("rpe","RPE","text"));
+  g.append(mk("painDuring","Knee pain /10","number",{min:0,max:10}));
+  const nt=el("textarea",{className:"",value:e.notes||"",attrs:{placeholder:"Notes…"}});
+  nt.oninput=()=>{e.notes=nt.value;saveSession(s);};
+  g.append(el("div",{className:"full"},[el("label",{className:"lbl"},"Notes"),nt]));
+  if(ex.logHint)g.append(el("div",{className:"hint"},"Log: "+ex.logHint));
+  c.append(g);
+  return c;
+}
+function rxLine(ex){
+  const bits=[];
+  if(ex.sets||ex.reps)bits.push(`<b>${ex.sets||"?"} × ${ex.reps||"?"}</b>`);
+  if(ex.load)bits.push(ex.load);
+  if(ex.rpe)bits.push(ex.rpe);
+  const line=el("span");line.innerHTML=bits.join(" · ");
+  const extra=[];if(ex.tempo)extra.push("Tempo "+ex.tempo);if(ex.rest)extra.push("Rest "+ex.rest);
+  if(extra.length){line.append(el("span",{className:"muted"}," — "+extra.join(" · ")));}
+  return line;
+}
+function collapse(title,body){
+  const d=el("details");d.append(el("summary",{},title));d.append(el("div",{className:"body"},body));return d;
+}
+
+function updateProgress(){
+  const p=$("#progress");
+  if(!PROGRAM||!STATE.day){p.textContent="—";return;}
+  const s=getSession();
+  const exs=PROGRAM.exercises.filter(e=>e.day===STATE.day);
+  const done=exs.filter(e=>s.entries[e.id]&&s.entries[e.id].done).length;
+  p.innerHTML=`<b>${done}</b>/${exs.length} done · ${shortDay(STATE.day)} · W${STATE.week}`;
+}
+
+/* ---------- export ---------- */
+function buildSessionExport(){
+  const s=getSession();
+  const exs=PROGRAM.exercises.filter(e=>e.day===STATE.day);
+  return {
+    schema:"tp-session-1",
+    block:PROGRAM.meta.block,athlete:PROGRAM.meta.athlete,
+    week:STATE.week,day:STATE.day,date:STATE.date,
+    exportedAt:new Date().toISOString(),
+    session:s.session,
+    entries:exs.map(ex=>({exercise:ex.name,prescribed:{sets:ex.sets,reps:ex.reps,load:ex.load,rpe:ex.rpe},
+      ...(s.entries[ex.id]||{done:false})}))
+  };
+}
+function exportSession(){
+  if(!PROGRAM){toast("Load a program first");return;}
+  const data=buildSessionExport();
+  const name=`session-${STATE.date}-${slug(STATE.day)||"day"}.json`;
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=el("a",{href:url,download:name});document.body.append(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+  toast("Exported "+name+" — save into your Drive folder / logs");
+}
+async function copyJSON(){
+  if(!PROGRAM){toast("Load a program first");return;}
+  const txt=JSON.stringify(buildSessionExport(),null,2);
+  try{await navigator.clipboard.writeText(txt);toast("Session JSON copied");}
+  catch(e){const ta=el("textarea",{value:txt});document.body.append(ta);ta.select();document.execCommand("copy");ta.remove();toast("Session JSON copied");}
+}
+
+/* ---------- events ---------- */
+$("#weekSel").onchange=e=>{STATE.week=+e.target.value;renderMain();};
+$("#daySel").onchange=e=>{STATE.day=e.target.value;renderMain();};
+$("#dateInp").onchange=e=>{STATE.date=e.target.value||todayISO();renderMain();};
+$("#exportBtn").onclick=exportSession;
+$("#copyBtn").onclick=copyJSON;
+$("#importBtn").onclick=()=>$("#fileInp").click();
+$("#fileInp").onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  try{const txt=await f.text();loadProgram(JSON.parse(txt));toast("Program loaded");}
+  catch(err){toast("Import failed: "+err.message);}
+  e.target.value="";
+};
+
+if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));}
+boot();
+</script>
+</body>
+</html>
