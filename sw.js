@@ -1,5 +1,5 @@
 /* Training Tracker service worker — offline app shell */
-const CACHE = "tp-tracker-v2";
+const CACHE = "tp-tracker-v3";
 const SHELL = [
   "./",
   "./index.html",

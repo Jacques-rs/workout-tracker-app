@@ -13,6 +13,14 @@ Most logged values barely change week to week. Showing last session's actual loa
 **3. Backup / restore all data.**
 Everything lives in `localStorage`. There is currently no way to snapshot it. A single "Export all data" (and matching import) protects against a cleared browser, a lost phone, or storage eviction. **Risk worth verifying:** browsers can evict storage for sites that go unused; installed PWAs are generally more durable, but a periodic backup is the cheap insurance either way.
 
+**3b. Emit `category` from `program-builder`.**
+The exercise cards colour-code by category (skill / strength / conditioning / tendon work).
+`tp-program-1` has no such field, so the app currently *guesses* from the exercise name — it
+is correct on the present sample, but it is inference, and a renamed exercise can silently
+change colour. Adding an optional `category` per exercise in the generator replaces the
+guess with a declaration. Cheap on both sides, and the app already prefers the declared
+value and degrades to no-tag when it can't tell. See `docs/data-contracts.md`.
+
 ## Medium value
 
 **4. Session history / trend view.**
