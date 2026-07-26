@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Training Tracker</title>
-<meta name="theme-color" content="#0f1720" />
+<meta name="theme-color" content="#0d141c" />
 <link rel="manifest" href="./manifest.webmanifest" />
 <link rel="apple-touch-icon" href="./icon-192.png" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -12,79 +12,226 @@
 <meta name="apple-mobile-web-app-title" content="Tracker" />
 <style>
   :root{
-    --bg:#0f1720; --panel:#172230; --panel2:#1e2c3d; --line:#2a3a4d;
-    --ink:#e8eef5; --muted:#9fb0c3; --accent:#37c5a8; --accent2:#5b9bd5;
+    --bg:#0d141c; --panel:#151f2b; --panel-hi:#1c2836; --well:#0a1017;
+    --line:#26364a; --line-soft:#1e2c3c;
+    --ink:#e9eff6; --ink-dim:#b9c8d8; --muted:#8598ab;
+    --accent:#37c5a8; --accent2:#5b9bd5;
     --warn:#e0b64a; --bad:#e06a5a; --good:#37c5a8;
-    --r:14px;
+    /* 4px spacing scale */
+    --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px;
+    /* type scale */
+    --t-xs:.6875rem; --t-sm:.8125rem; --t-base:.9375rem; --t-md:1.0625rem;
+    --t-lg:1.25rem; --t-hero:1.5rem;
+    --r:14px; --r-sm:10px;
+    --ring:0 0 0 3px rgba(55,197,168,.22);
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;background:var(--bg);color:var(--ink);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    font-size:16px;line-height:1.4;overflow-wrap:break-word}
-  body{padding:0 12px calc(96px + env(safe-area-inset-bottom)) 12px;max-width:720px;margin:0 auto}
-  header{position:sticky;top:0;z-index:20;background:linear-gradient(var(--bg) 78%,rgba(15,23,32,0));
-    padding:14px 2px 8px;margin:0 -2px}
-  .block-name{font-weight:700;font-size:1.05rem;letter-spacing:.2px}
-  .sub{color:var(--muted);font-size:.8rem;margin-top:2px}
-  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    font-size:16px;line-height:1.45;overflow-wrap:break-word;-webkit-font-smoothing:antialiased}
+  body{padding:0 var(--s3) calc(92px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto}
+  .tnum{font-variant-numeric:tabular-nums}
+
+  /* ---------- header ---------- */
+  header{position:sticky;top:0;z-index:20;background:var(--bg);padding:var(--s4) 0 var(--s2)}
+  header::after{content:"";position:absolute;left:0;right:0;bottom:-16px;height:16px;
+    background:linear-gradient(var(--bg),rgba(13,20,28,0));pointer-events:none}
+  .row{display:flex;gap:var(--s2);align-items:center}
+  /* Header actions must never absorb the squeeze — the block name (.grow) wraps instead. */
+  header .row>button{flex:0 0 auto;white-space:nowrap}
   .grow{flex:1 1 auto;min-width:0}
-  select,input,textarea,button{font:inherit;color:var(--ink);background:var(--panel);
-    border:1px solid var(--line);border-radius:10px;padding:9px 10px;outline:none;
-    max-width:100%;min-width:0}
-  select{-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
-    background-position:calc(100% - 16px) 55%,calc(100% - 11px) 55%;background-size:5px 5px;background-repeat:no-repeat;padding-right:30px}
-  input:focus,textarea:focus,select:focus{border-color:var(--accent)}
-  button{cursor:pointer;background:var(--panel2)}
-  button.primary{background:var(--accent);color:#062018;border-color:var(--accent);font-weight:700}
+  .block-name{font-weight:700;font-size:var(--t-md);letter-spacing:-.2px;line-height:1.2}
+  .sub{color:var(--muted);font-size:var(--t-sm);margin-top:1px}
+  .iconbtn{flex:0 0 auto;width:38px;height:38px;padding:0;display:grid;place-items:center;
+    background:transparent;border:1px solid var(--line);border-radius:var(--r-sm)}
+  .iconbtn svg{width:19px;height:19px;fill:none;stroke:var(--muted);stroke-width:1.7;
+    stroke-linecap:round;stroke-linejoin:round}
+  .iconbtn:active svg{stroke:var(--ink)}
+
+  /* progress bar — replaces the old footer "n/m done" fraction */
+  .prog-wrap{margin-top:var(--s3)}
+  .prog-top{display:flex;justify-content:space-between;align-items:baseline;
+    font-size:var(--t-xs);color:var(--muted);text-transform:uppercase;letter-spacing:.7px;
+    margin-bottom:5px}
+  .prog-top .count{color:var(--ink);font-weight:700;letter-spacing:0;text-transform:none;
+    font-size:var(--t-sm)}
+  .pbar{height:6px;border-radius:999px;background:var(--well);overflow:hidden;
+    box-shadow:inset 0 0 0 1px var(--line-soft)}
+  .pbar i{display:block;height:100%;width:0;border-radius:999px;
+    background:linear-gradient(90deg,var(--accent2),var(--accent));
+    transition:width .35s cubic-bezier(.2,.8,.2,1)}
+
+  /* ---------- controls ---------- */
+  select,input,textarea,button{font:inherit;color:var(--ink);background:var(--well);
+    border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 11px;outline:none;
+    max-width:100%;min-width:0;transition:border-color .15s,box-shadow .15s,background .15s}
+  input,textarea{font-weight:600}
+  input::placeholder,textarea::placeholder{color:#5d7285;font-weight:400}
+  /* Number spinners are unusable with a chalked thumb and steal ~15px of field width —
+     enough that a pain score of "10" was being clipped in the narrow Pain column. */
+  input[type=number]{-moz-appearance:textfield;appearance:textfield}
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;display:none}
+  select{-webkit-appearance:none;background-color:var(--panel-hi);font-weight:600;
+    background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),
+      linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+    background-position:calc(100% - 15px) 55%,calc(100% - 10px) 55%;
+    background-size:5px 5px;background-repeat:no-repeat;padding-right:30px}
+  input:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:var(--ring)}
+  button{cursor:pointer;background:var(--panel-hi);font-weight:600}
+  button:active{transform:scale(.97)}
+  button.primary{background:var(--accent);color:#05231c;border-color:var(--accent);font-weight:700}
   button.ghost{background:transparent}
-  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:.72rem;font-weight:700}
-  .selrow{display:flex;gap:8px;margin:6px 0 2px}
+  .mini{font-size:var(--t-sm);padding:7px 11px}
+  .selrow{display:flex;gap:var(--s2);margin-top:var(--s3)}
   .selrow>*{min-width:0}
-  /* min-width:0 + ellipsis matter: day names in program.json are long enough that a
-     select's content-based minimum width would otherwise push the page off-screen. */
-  .selrow select{flex:1 1 0;text-overflow:ellipsis}
-  #weekSel{flex:0 1 auto}
+  #weekSel{flex:0 0 auto}
   #dateInp{flex:1 1 auto}
-  /* Fallback for the ellipsised day select; redundant once the select fits. */
-  .daytitle{color:var(--muted);font-size:.82rem;margin:10px 2px 0}
-  @media (min-width:560px){.daytitle{display:none}}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px;margin:10px 0}
-  .ex-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
-  .ex-head>div{min-width:0}
-  .ex-name{font-weight:700;font-size:1rem}
-  .rx{color:var(--muted);font-size:.86rem;margin-top:4px}
-  .rx b{color:var(--ink);font-weight:600}
-  .chk{width:26px;height:26px;flex:0 0 auto;accent-color:var(--accent)}
-  details{margin-top:8px;border-top:1px dashed var(--line);padding-top:8px}
-  summary{cursor:pointer;color:var(--accent2);font-size:.82rem;font-weight:600;list-style:none}
+
+  /* day tab strip */
+  .daytabs{display:flex;gap:var(--s1);margin-top:var(--s3);padding:3px;
+    background:var(--well);border:1px solid var(--line-soft);border-radius:999px;
+    overflow-x:auto;scrollbar-width:none}
+  .daytabs::-webkit-scrollbar{display:none}
+  .daytabs button{flex:1 1 0;min-width:56px;border:0;background:transparent;color:var(--muted);
+    border-radius:999px;padding:8px 6px;font-size:var(--t-sm);font-weight:700;white-space:nowrap}
+  .daytabs button[aria-pressed="true"]{background:var(--panel-hi);color:var(--ink);
+    box-shadow:0 1px 3px rgba(0,0,0,.4)}
+  .daytabs button .dnum{display:block;font-size:var(--t-xs);font-weight:400;color:#5d7285;
+    letter-spacing:.5px}
+  .daytabs button[aria-pressed="true"] .dnum{color:var(--accent)}
+  .daytitle{color:var(--muted);font-size:var(--t-sm);margin:var(--s3) 0 0}
+
+  /* ---------- cards ---------- */
+  .card{position:relative;background:var(--panel);border:1px solid var(--line-soft);
+    border-radius:var(--r);padding:var(--s4) var(--s4) var(--s4) calc(var(--s4) + 4px);
+    margin:var(--s3) 0;overflow:hidden}
+  /* 1px top highlight reads as light falling on the card — depth without a drop shadow */
+  .card::before{content:"";position:absolute;inset:0 0 auto 0;height:1px;
+    background:linear-gradient(90deg,rgba(255,255,255,.07),rgba(255,255,255,.02))}
+  .rail{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--cat,var(--line-soft))}
+  .card.done .rail{background:var(--good)}
+  .ex-head{display:flex;justify-content:space-between;gap:var(--s3);align-items:flex-start}
+  .ex-head>.grow{min-width:0}
+  .ex-name{font-weight:700;font-size:var(--t-base);letter-spacing:-.1px;line-height:1.3}
+  .card.done .ex-name::after{content:" ✓";color:var(--good);font-weight:800}
+  .rx{color:var(--ink-dim);font-size:var(--t-sm);margin-top:var(--s1)}
+  .card.done{border-color:rgba(55,197,168,.4);
+    background:linear-gradient(180deg,rgba(55,197,168,.07),rgba(55,197,168,.02)),var(--panel)}
+
+  .tag{display:inline-block;font-size:var(--t-xs);font-weight:800;letter-spacing:.7px;
+    text-transform:uppercase;color:var(--cat);
+    background:rgba(255,255,255,.07);                              /* fallback */
+    background:color-mix(in srgb,var(--cat) 14%,transparent);
+    border-radius:5px;padding:2px 7px;margin-bottom:5px}
+
+  .hero{flex:0 0 auto;text-align:right;font-weight:800;font-size:var(--t-hero);
+    letter-spacing:-.5px;line-height:1.1;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .hero.long{font-size:var(--t-md);letter-spacing:0}
+  .hero small{display:block;font-size:var(--t-xs);font-weight:600;color:var(--muted);
+    letter-spacing:.6px;text-transform:uppercase;margin-top:2px}
+  .chips{display:flex;flex-wrap:wrap;gap:var(--s1);margin-top:var(--s2)}
+  .chip{background:var(--panel-hi);border:1px solid var(--line-soft);border-radius:999px;
+    padding:3px 9px;font-size:var(--t-xs);color:var(--ink-dim);font-weight:600;white-space:nowrap}
+  .chip.k{color:var(--muted);font-weight:400}
+
+  details{margin-top:var(--s3);border-top:1px solid var(--line-soft);padding-top:var(--s3)}
+  details+details{margin-top:var(--s2)}
+  summary{cursor:pointer;color:var(--accent2);font-size:var(--t-sm);font-weight:700;
+    list-style:none;display:flex;align-items:center;gap:6px}
   summary::-webkit-details-marker{display:none}
-  details .body{color:var(--muted);font-size:.85rem;margin-top:6px;white-space:pre-wrap;overflow-wrap:anywhere}
-  /* minmax(0,1fr) not 1fr: an input's default intrinsic width is wider than a
-     phone-sized column, and plain 1fr refuses to shrink below it. */
-  .log{margin-top:10px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  summary::before{content:"";width:0;height:0;border:4px solid transparent;
+    border-left-color:var(--accent2);transition:transform .15s;flex:0 0 auto}
+  details[open] summary::before{transform:rotate(90deg) translateX(-1px)}
+  details .body{color:var(--ink-dim);font-size:var(--t-sm);margin-top:var(--s2);
+    white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5}
+
+  /* ---------- log grid ---------- */
+  /* minmax(0,1fr) not 1fr: an input's intrinsic width exceeds a phone column and plain
+     1fr refuses to shrink below it. */
+  .log{margin-top:var(--s4);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s2)}
   .log>div{min-width:0}
-  .log input,.log select{width:100%}
+  .log input,.log select,.log textarea{width:100%}
   .log .full{grid-column:1 / -1}
-  .lbl{display:block;font-size:.7rem;color:var(--muted);margin:0 0 3px 2px;text-transform:uppercase;letter-spacing:.5px}
-  .hint{font-size:.76rem;color:var(--accent2);margin-top:6px;grid-column:1/-1}
-  textarea{width:100%;min-height:54px;resize:vertical}
-  .done{border-color:var(--good);box-shadow:inset 3px 0 0 var(--good)}
-  /* Three check-in fields per row only once there is room for them. */
+  /* Four across only once the text fields have room; below 360px fall back to 2×2. */
+  @media (min-width:360px){
+    .log.tight{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 56px 74px}
+    .log.tight.nopain{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 56px}}
+  .lbl{display:block;font-size:var(--t-xs);color:var(--muted);margin:0 0 var(--s1) 2px;font-weight:600}
+  .fld{position:relative}
+  .fld .unit{position:absolute;right:8px;top:50%;transform:translateY(-50%);
+    color:#5d7285;font-size:var(--t-xs);font-weight:600;pointer-events:none}
+  /* Keep this tight: the suffix eats width from a 56–74px numeric column, and more
+     padding clips the value itself on a 360px screen. */
+  .fld.has-unit input{padding-right:31px}
+  .hint{font-size:var(--t-sm);color:var(--accent2);grid-column:1/-1;
+    background:rgba(91,155,213,.09);border-left:2px solid var(--accent2);
+    border-radius:0 var(--r-sm) var(--r-sm) 0;padding:var(--s2) var(--s3);margin-top:var(--s1)}
+  textarea{width:100%;min-height:56px;resize:vertical;font-weight:400;line-height:1.5}
   @media (min-width:460px){.sessioncard .log{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+  .donebtn{width:100%;margin-top:var(--s3);padding:12px;border-radius:var(--r-sm);
+    background:var(--panel-hi);border:1px solid var(--line);color:var(--ink-dim);
+    font-weight:700;font-size:var(--t-sm);letter-spacing:.3px}
+  .donebtn[aria-pressed="true"]{background:rgba(55,197,168,.14);
+    border-color:rgba(55,197,168,.5);color:var(--good)}
+  .summary-line{margin-top:var(--s3);font-size:var(--t-sm);color:var(--ink-dim);
+    background:var(--well);border:1px solid var(--line-soft);border-radius:var(--r-sm);
+    padding:var(--s2) var(--s3);cursor:pointer;display:flex;justify-content:space-between;gap:var(--s2)}
+  .summary-line .edit{color:var(--accent2);font-weight:700;flex:0 0 auto}
+  .summary-line .vals{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* readiness tints the check-in card */
+  .sessioncard[data-readiness="Green"]{--cat:#37c5a8}
+  .sessioncard[data-readiness="Amber"]{--cat:#e0b64a}
+  .sessioncard[data-readiness="Red"]{--cat:#e06a5a}
+  .sessioncard[data-readiness="Green"],.sessioncard[data-readiness="Amber"],
+  .sessioncard[data-readiness="Red"]{border-color:color-mix(in srgb,var(--cat) 45%,transparent)}
+
+  /* ---------- settings sheet ---------- */
+  .sheet-wrap{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-end;
+    justify-content:center}
+  .sheet-wrap[hidden]{display:none}
+  .sheet-bg{position:absolute;inset:0;background:rgba(4,8,12,.72)}
+  .sheet{position:relative;width:100%;max-width:720px;max-height:86vh;overflow-y:auto;
+    background:var(--panel);border:1px solid var(--line);
+    border-radius:var(--r) var(--r) 0 0;
+    padding:var(--s4) var(--s4) calc(var(--s4) + env(safe-area-inset-bottom))}
+  .sheet h2{font-size:var(--t-md);margin:0 0 var(--s1)}
+  .sheet-note{color:var(--muted);font-size:var(--t-sm);margin:0 0 var(--s4);line-height:1.5}
+  .sheet-head{display:flex;align-items:flex-start;gap:var(--s3)}
+  /* Without this the button shrinks to one character per line next to the long note. */
+  .sheet-head button{flex:0 0 auto;white-space:nowrap}
+  .togrow{display:flex;align-items:center;gap:var(--s3);padding:var(--s3) 0;
+    border-top:1px solid var(--line-soft)}
+  .togrow .tl{flex:1 1 auto;min-width:0}
+  .togrow .tn{font-size:var(--t-base);font-weight:600}
+  .togrow .td{font-size:var(--t-sm);color:var(--muted);line-height:1.4;margin-top:1px}
+  .sw{flex:0 0 auto;appearance:none;-webkit-appearance:none;width:50px;height:30px;
+    border-radius:999px;background:var(--well);border:1px solid var(--line);position:relative;
+    padding:0;transition:background .18s,border-color .18s}
+  .sw::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;
+    border-radius:50%;background:var(--muted);transition:transform .18s,background .18s}
+  .sw[aria-checked="true"]{background:rgba(55,197,168,.25);border-color:var(--accent)}
+  .sw[aria-checked="true"]::after{transform:translateX(20px);background:var(--accent)}
+  .sw:focus-visible{box-shadow:var(--ring)}
+
+  /* ---------- footer / misc ---------- */
   .footer-bar{position:fixed;left:0;right:0;bottom:0;z-index:30;
-    background:var(--panel);border-top:1px solid var(--line);
-    padding:10px 12px calc(10px + env(safe-area-inset-bottom));display:flex;gap:8px;align-items:center;max-width:720px;margin:0 auto}
+    background:rgba(21,31,43,.92);backdrop-filter:blur(12px);border-top:1px solid var(--line);
+    padding:var(--s2) var(--s3) calc(var(--s2) + env(safe-area-inset-bottom));
+    display:flex;gap:var(--s2);align-items:center;max-width:720px;margin:0 auto}
   .footer-bar button{flex:0 0 auto;white-space:nowrap}
-  .progress{flex:1 1 0;min-width:0;font-size:.85rem;color:var(--muted);
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .progress b{color:var(--ink)}
-  .toast{position:fixed;left:50%;bottom:88px;transform:translateX(-50%);background:#0b2e26;color:#c9f5e9;
-    border:1px solid var(--accent);padding:9px 14px;border-radius:10px;font-size:.85rem;opacity:0;transition:opacity .2s;z-index:40;pointer-events:none;max-width:92%}
-  .toast.show{opacity:1}
+  .footer-bar #exportBtn{flex:1 1 auto}
+  .toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%) translateY(6px);
+    background:#0b2e26;color:#c9f5e9;border:1px solid var(--accent);padding:10px 15px;
+    border-radius:var(--r-sm);font-size:var(--t-sm);opacity:0;
+    transition:opacity .2s,transform .2s;z-index:70;pointer-events:none;max-width:92%}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .muted{color:var(--muted)}
-  .mini{font-size:.75rem;padding:6px 9px}
-  a.link{color:var(--accent2)}
-  .banner{background:#20303f;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:.8rem;color:var(--muted);margin:8px 0}
+  .banner{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--warn);
+    border-radius:var(--r-sm);padding:var(--s3);font-size:var(--t-sm);color:var(--ink-dim);
+    margin:var(--s3) 0;line-height:1.5}
 </style>
 </head>
 <body>
@@ -94,23 +241,42 @@
       <div class="block-name" id="blockName">Training Tracker</div>
       <div class="sub" id="blockSub">Import a program to begin</div>
     </div>
+    <button class="iconbtn" id="settingsBtn" aria-label="Tracked fields">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/>
+      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.2a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a2 2 0 1 1 0-4h.2A1.7 1.7 0 0 0 4.4 8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.1V4a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9H21a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.4 1z"/></svg>
+    </button>
     <button class="ghost mini" id="importBtn">Import</button>
+  </div>
+  <div class="prog-wrap">
+    <div class="prog-top"><span id="progLabel">Session</span><span class="count tnum" id="progCount">—</span></div>
+    <div class="pbar" id="pbar"><i></i></div>
   </div>
   <div class="selrow">
     <select id="weekSel" aria-label="Week"></select>
     <input id="dateInp" type="date" aria-label="Session date" />
   </div>
-  <div class="selrow">
-    <select id="daySel" aria-label="Day"></select>
-  </div>
+  <div id="dayPicker"></div>
 </header>
 
 <main id="main"></main>
 
 <div class="footer-bar">
-  <div class="progress" id="progress">—</div>
   <button class="ghost mini" id="copyBtn">Copy JSON</button>
   <button class="primary" id="exportBtn">Export session</button>
+</div>
+
+<div class="sheet-wrap" id="sheetWrap" hidden>
+  <div class="sheet-bg" id="sheetBg"></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="Tracked fields">
+    <div class="sheet-head">
+      <div class="grow">
+        <h2>Tracked fields</h2>
+        <p class="sheet-note" id="sheetNote"></p>
+      </div>
+      <button class="ghost mini" id="sheetClose">Done</button>
+    </div>
+    <div id="togList"></div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -118,17 +284,129 @@
 
 <script>
 "use strict";
+/* ---------- helpers ---------- */
 const $ = (s,r=document)=>r.querySelector(s);
-const el = (t,props={},kids=[])=>{const n=document.createElement(t);Object.assign(n,props);
-  for(const[k,v]of Object.entries(props.attrs||{}))n.setAttribute(k,v);
-  (Array.isArray(kids)?kids:[kids]).forEach(c=>c!=null&&n.append(c.nodeType?c:document.createTextNode(c)));return n;};
+const el = (t,props={},kids=[])=>{const n=document.createElement(t);
+  const {attrs,...rest}=props; Object.assign(n,rest);
+  for(const[k,v]of Object.entries(attrs||{}))n.setAttribute(k,v);
+  (Array.isArray(kids)?kids:[kids]).forEach(c=>c!=null&&n.append(c.nodeType?c:document.createTextNode(c)));
+  return n;};
 
-const LS = { prog:"tp_program_v1", sess:(d,day)=>`tp_sess_v1::${d}::${day}` };
+const LS = { prog:"tp_program_v1", set:"tp_settings_v1", sess:(d,day)=>`tp_sess_v1::${d}::${day}` };
 let PROGRAM=null, STATE={week:1,day:null,date:todayISO()};
 
-function todayISO(){const d=new Date();const z=n=>String(n).padStart(2,"0");return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`;}
-function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),1900);}
+function todayISO(){const d=new Date();const z=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`;}
+function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),1900);}
 function slug(s){return (s||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"").slice(0,40);}
+
+/* ---------- settings ----------
+   Which optional inputs are shown. Defaults are all-on, so an existing install (and the
+   coaching loop that depends on the pain fields) behaves exactly as before; a user
+   without knee issues turns them off once. Per-device, like everything else here. */
+const FIELD_DEFS=[
+  {key:"painPerExercise",name:"Pain per exercise",
+   desc:"A 0–10 pain box on every exercise. Knee load varies hugely between movements, so this is what identifies which movement to regress."},
+  {key:"painNextMorning",name:"Next-morning pain",
+   desc:"Session-level 0–10, filled the morning after by re-opening the session via the date picker."},
+  {key:"readiness",name:"Readiness",desc:"Green / Amber / Red — governs whether load progresses, holds or regresses."},
+  {key:"sleep",name:"Sleep score",desc:"Subjective 1–5."},
+  {key:"bodyweight",name:"Bodyweight",desc:"Logged in kg at check-in."},
+  {key:"hrvNote",name:"HRV / notes",desc:"Free text for HRV and anything else about recovery."}
+];
+const SET_DEFAULTS={painLabel:"Knee"};
+FIELD_DEFS.forEach(f=>SET_DEFAULTS[f.key]=true);
+let SETTINGS={...SET_DEFAULTS};
+
+function loadSettings(){
+  try{const raw=localStorage.getItem(LS.set);
+    if(raw)SETTINGS={...SET_DEFAULTS,...JSON.parse(raw)};}catch(e){}
+}
+function saveSettings(){localStorage.setItem(LS.set,JSON.stringify(SETTINGS));}
+/* "Knee" -> "Knee pain"; blank -> plain "Pain", so it reads sensibly for anyone. */
+function painLbl(suffix){
+  const site=(SETTINGS.painLabel||"").trim();
+  return (site?site+" pain":"Pain")+(suffix||"");
+}
+
+function renderSettings(){
+  const list=$("#togList");list.innerHTML="";
+  $("#sheetNote").textContent="Turn off what you don't need. Nothing already logged is deleted — hidden fields just stop appearing, and the export records what you were tracking.";
+  FIELD_DEFS.forEach(f=>{
+    const sw=el("button",{className:"sw",attrs:{role:"switch","aria-checked":String(!!SETTINGS[f.key]),
+      "aria-label":f.name}});
+    sw.onclick=()=>{
+      SETTINGS[f.key]=!SETTINGS[f.key];
+      sw.setAttribute("aria-checked",String(SETTINGS[f.key]));
+      saveSettings();renderMain();
+    };
+    list.append(el("div",{className:"togrow"},[
+      el("div",{className:"tl"},[el("div",{className:"tn"},f.name),el("div",{className:"td"},f.desc)]),
+      sw]));
+  });
+  /* Pain wording is body-part specific; keep it editable rather than hardcoding "Knee". */
+  const inp=el("input",{type:"text",value:SETTINGS.painLabel||"",
+    attrs:{placeholder:"e.g. Knee — leave blank for just “Pain”",maxlength:24}});
+  inp.oninput=()=>{SETTINGS.painLabel=inp.value;saveSettings();renderMain();};
+  list.append(el("div",{className:"togrow"},[
+    el("div",{className:"tl"},[el("div",{className:"tn"},"Pain label"),
+      el("div",{className:"td"},"Names the pain fields."),
+      el("div",{style:"margin-top:8px"},inp)])]));
+}
+function openSheet(){renderSettings();$("#sheetWrap").hidden=false;}
+function closeSheet(){$("#sheetWrap").hidden=true;}
+
+/* ---------- exercise categories ----------
+   Colour + label for an exercise's left rail. Resolution order:
+     1. an explicit `category` on the exercise (tp-program-1 optional field)
+     2. a keyword guess from the exercise name
+     3. nothing — neutral rail, no tag (never assert a category we don't have) */
+const CATS={
+  warmup:  {label:"Warm-up",       color:"#5d7285"},
+  tendon:  {label:"Tendon/prehab", color:"#37c5a8"},
+  skill:   {label:"Skill",         color:"#8b7ff0"},
+  strength:{label:"Strength",      color:"#5b9bd5"},
+  cond:    {label:"Conditioning",  color:"#e0a13a"},
+  accessory:{label:"Accessory",    color:"#6fbf73"},
+  cooldown:{label:"Cool-down",     color:"#5d7285"}
+};
+/* Aliases so a generator can say "conditioning", "metcon", "prehab" etc. */
+const CAT_ALIASES={metcon:"cond",conditioning:"cond",aerobic:"cond",cardio:"cond",
+  prehab:"tendon",rehab:"tendon",tendon:"tendon",isometric:"tendon",
+  warmup:"warmup","warm-up":"warmup",prep:"warmup",
+  cooldown:"cooldown","cool-down":"cooldown",mobility:"cooldown",
+  skill:"skill",technique:"skill",olympic:"skill",
+  strength:"strength",lift:"strength",main:"strength",
+  accessory:"accessory",auxiliary:"accessory",core:"accessory"};
+/* Ordered — skill lifts must win before the EMOM/interval rule, because
+   "Hang power clean (EMOM every 90s)" is skill work, not conditioning. */
+const CAT_RULES=[
+  [/warm-?up|cool-?down|prep\b|mobility/i,                               "warmup"],
+  [/isometric|spanish squat|nordic|copenhagen|tibialis|prehab|neck iso/i, "tendon"],
+  [/clean|snatch|jerk|muscle-?up|skill|high pull/i,                       "skill"],
+  [/metcon|emom|amrap|for time|interval|erg\b|bike|\bski\b|sled|couplet/i,"cond"],
+  [/squat|deadlift|rdl|press|bench|\brow\b|pull-?up|\bchin|\bdip|hinge/i, "strength"]
+];
+/* Unknown declared categories still get a stable colour rather than falling back to
+   grey, so a generator can invent its own vocabulary and the UI keeps working. */
+const SPARE_COLORS=["#8b7ff0","#5b9bd5","#e0a13a","#6fbf73","#d98cc0","#4fb3c9"];
+function spareColor(s){let h=0;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;
+  return SPARE_COLORS[h%SPARE_COLORS.length];}
+function titleCase(s){return s.charAt(0).toUpperCase()+s.slice(1);}
+
+function catOf(ex){
+  const declared=(ex.category||"").toString().trim();
+  if(declared){
+    const k=declared.toLowerCase().replace(/[\s_]+/g,"-");
+    const hit=CATS[k]||CATS[CAT_ALIASES[k]]||CATS[CAT_ALIASES[k.replace(/-/g,"")]];
+    if(hit)return {...hit,source:"declared"};
+    return {label:declared,color:spareColor(k),source:"declared"};
+  }
+  for(const[re,key]of CAT_RULES)
+    if(re.test(ex.name||""))return {...CATS[key],source:"guessed"};
+  return null;                                  /* no tag, neutral rail */
+}
 
 /* ---------- program loading ---------- */
 function loadProgram(obj){
@@ -138,6 +416,7 @@ function loadProgram(obj){
   renderAll();
 }
 async function boot(){
+  loadSettings();
   const saved=localStorage.getItem(LS.prog);
   if(saved){try{PROGRAM=JSON.parse(saved);}catch(e){}}
   if(!PROGRAM){try{const r=await fetch("./program.json",{cache:"no-store"});if(r.ok)PROGRAM=await r.json();}catch(e){}}
@@ -160,132 +439,212 @@ function saveSession(s){s.week=STATE.week;s.day=STATE.day;s.date=STATE.date;
 
 /* ---------- rendering ---------- */
 function renderAll(){
-  if(!PROGRAM){$("#blockName").textContent="Training Tracker";$("#blockSub").textContent="No program loaded — tap Import";
-    $("#main").innerHTML="";$("#main").append(el("div",{className:"banner"},"No program.json found. Tap Import and choose the program.json from your Drive folder."));
-    $("#weekSel").innerHTML="";$("#daySel").innerHTML="";updateProgress();return;}
+  if(!PROGRAM){
+    $("#blockName").textContent="Training Tracker";
+    $("#blockSub").textContent="No program loaded — tap Import";
+    $("#main").innerHTML="";
+    $("#main").append(el("div",{className:"banner"},"No program.json found. Tap Import and choose the program.json from your Drive folder."));
+    $("#weekSel").innerHTML="";$("#dayPicker").innerHTML="";updateProgress();return;}
   $("#blockName").textContent=PROGRAM.meta.block||"Training block";
   $("#blockSub").textContent=`${PROGRAM.meta.athlete||""} · ${PROGRAM.meta.weeks||"?"}-week block`;
-  // week + day selectors
   const wk=$("#weekSel");wk.innerHTML="";
-  for(let i=1;i<=(PROGRAM.meta.weeks||1);i++)wk.append(el("option",{value:i,textContent:"Week "+i,selected:i===STATE.week}));
-  const dsel=$("#daySel");dsel.innerHTML="";
-  (PROGRAM.meta.days||[]).forEach(d=>dsel.append(el("option",{value:d,textContent:shortDay(d),selected:d===STATE.day})));
+  for(let i=1;i<=(PROGRAM.meta.weeks||1);i++)
+    wk.append(el("option",{value:i,textContent:"Week "+i,selected:i===STATE.week}));
   $("#dateInp").value=STATE.date;
+  renderDayPicker();
   renderMain();
 }
-function shortDay(d){return d.replace(/\s*-\s*/," — ");}
+function shortDay(d){return (d||"").replace(/\s*-\s*/," — ");}
+/* "Day 1 (Mon) - Clean Skill + Front Squat" -> {num:"D1", short:"Mon"} */
+function dayParts(d){
+  const m=/\(([A-Za-z]{3,9})\)/.exec(d||""), n=/Day\s*(\d+)/i.exec(d||"");
+  return {num:n?"D"+n[1]:"", short:m?m[1]:((d||"").split(/[\s(-]/)[0]||"Day")};
+}
+function renderDayPicker(){
+  const host=$("#dayPicker");host.innerHTML="";
+  const strip=el("div",{className:"daytabs"});
+  (PROGRAM.meta.days||[]).forEach(d=>{
+    const p=dayParts(d);
+    const b=el("button",{attrs:{"aria-pressed":String(d===STATE.day)}},
+      [el("span",{className:"dnum"},p.num),p.short]);
+    b.onclick=()=>{STATE.day=d;renderDayPicker();renderMain();};
+    strip.append(b);
+  });
+  host.append(strip);
+  /* Tabs only carry the weekday, so keep the full label (it names the session theme). */
+  host.append(el("div",{className:"daytitle"},shortDay(STATE.day)));
+}
 
 function renderMain(){
   const m=$("#main");m.innerHTML="";
-  if(!PROGRAM){return;}
+  if(!PROGRAM)return;
   const s=getSession();
-  // The day select is ellipsised on narrow screens, so show the full title here.
-  if(STATE.day)m.append(el("div",{className:"daytitle"},shortDay(STATE.day)));
   m.append(sessionCard(s));
   const exs=PROGRAM.exercises.filter(e=>e.day===STATE.day);
   const authoredWeeks=[...new Set(PROGRAM.exercises.map(e=>e.week))];
-  if(STATE.week>Math.max(...authoredWeeks)){
+  if(STATE.week>Math.max(...authoredWeeks))
     m.append(el("div",{className:"banner"},`Week ${STATE.week}: prescriptions below are the Week-1 template — apply each exercise's Progression Rule for this week.`));
-  }
-  if(!exs.length){m.append(el("div",{className:"banner"},"No exercises for this day in the program."));}
+  if(!exs.length)m.append(el("div",{className:"banner"},"No exercises for this day in the program."));
   exs.forEach(ex=>m.append(exerciseCard(ex,s)));
   updateProgress();
 }
 
-function field(labelText,node){return el("div",{},[el("label",{className:"lbl"},labelText),node]);}
+function field(labelText,node,unit){
+  const fld=el("div",{className:"fld"+(unit?" has-unit":"")},[node]);
+  if(unit)fld.append(el("span",{className:"unit"},unit));
+  return el("div",{},[el("label",{className:"lbl"},labelText),fld]);
+}
 
 function sessionCard(s){
   const c=el("div",{className:"card sessioncard"});
+  c.append(el("span",{className:"rail"}));
+  c.dataset.readiness=SETTINGS.readiness?(s.session.readiness||""):"";
   c.append(el("div",{className:"ex-name"},"Session check-in"));
-  c.append(el("div",{className:"rx"},"Fill what's useful; next-morning knee pain can be edited tomorrow before you export."));
+  c.append(el("div",{className:"rx"},"Fill what's useful — you can re-open this session tomorrow by changing the date."));
   const wrap=el("div",{className:"log"});
-  const mk=(k,label,type="text",attrs={})=>{
+  const mk=(k,label,type="text",attrs={},unit)=>{
     const inp=el("input",{type,value:s.session[k]??"",attrs});
     inp.oninput=()=>{s.session[k]=inp.value;saveSession(s);};
-    return field(label,inp);
+    return field(label,inp,unit);
   };
-  wrap.append(mk("bodyweightKg","Bodyweight kg","number"));
-  wrap.append(mk("sleep","Sleep 1–5","number",{min:1,max:5}));
-  const rd=el("select",{},["","Green","Amber","Red"].map(o=>el("option",{value:o,textContent:o||"Readiness…",selected:s.session.readiness===o})));
-  rd.onchange=()=>{s.session.readiness=rd.value;saveSession(s);};
-  wrap.append(field("Readiness",rd));
-  wrap.append(mk("amPainNextDay","Knee pain next AM /10","number",{min:0,max:10}));
-  const hrv=el("input",{type:"text",value:s.session.hrvNote||"",attrs:{placeholder:"e.g. HRV 62, at baseline"}});
-  hrv.oninput=()=>{s.session.hrvNote=hrv.value;saveSession(s);};
-  const hrvField=field("HRV / notes",hrv);hrvField.className="full";
-  wrap.append(hrvField);
-  c.append(wrap);
+  if(SETTINGS.bodyweight)wrap.append(mk("bodyweightKg","Bodyweight","number",{},"kg"));
+  if(SETTINGS.sleep)wrap.append(mk("sleep","Sleep","number",{min:1,max:5},"/5"));
+  if(SETTINGS.readiness){
+    const rd=el("select",{},["","Green","Amber","Red"].map(o=>
+      el("option",{value:o,textContent:o||"Readiness…",selected:s.session.readiness===o})));
+    rd.onchange=()=>{s.session.readiness=rd.value;saveSession(s);
+      c.dataset.readiness=rd.value;};
+    wrap.append(field("Readiness",rd));
+  }
+  if(SETTINGS.painNextMorning)
+    wrap.append(mk("amPainNextDay",painLbl(" next AM"),"number",{min:0,max:10},"/10"));
+  if(SETTINGS.hrvNote){
+    const hrv=el("input",{type:"text",value:s.session.hrvNote||"",
+      attrs:{placeholder:"e.g. HRV 62, at baseline"}});
+    hrv.oninput=()=>{s.session.hrvNote=hrv.value;saveSession(s);};
+    const f=field("HRV / notes",hrv);f.className="full";wrap.append(f);
+  }
+  if(wrap.children.length)c.append(wrap);
   const ov=el("textarea",{value:s.session.overall||"",attrs:{placeholder:"Overall session notes…"}});
   ov.oninput=()=>{s.session.overall=ov.value;saveSession(s);};
-  c.append(el("div",{style:"margin-top:8px"},[el("label",{className:"lbl"},"Overall notes"),ov]));
+  c.append(el("div",{style:"margin-top:12px"},[el("label",{className:"lbl"},"Overall notes"),ov]));
   return c;
+}
+
+function heroEl(ex){
+  const txt=`${ex.sets||"?"} × ${ex.reps||"?"}`;
+  const h=el("div",{className:"hero"+(txt.length>9?" long":"")},[txt]);
+  if(ex.rpe)h.append(el("small",{},ex.rpe));
+  return h;
+}
+function chipsEl(ex){
+  const w=el("div",{className:"chips"});
+  /* "-" is the generator's way of saying "not applicable" — don't render "Rest -". */
+  if(ex.load)w.append(el("span",{className:"chip"},ex.load));
+  if(ex.tempo&&ex.tempo!=="-")w.append(el("span",{className:"chip k"},"Tempo "+ex.tempo));
+  if(ex.rest&&ex.rest!=="-")w.append(el("span",{className:"chip k"},"Rest "+ex.rest));
+  return w;
+}
+function summaryText(e){
+  const b=[];
+  if(e.load)b.push(e.load);
+  if(e.reps)b.push(e.reps);
+  if(e.rpe)b.push("RPE "+e.rpe);
+  if(SETTINGS.painPerExercise&&e.painDuring!=="")b.push(painLbl().toLowerCase()+" "+e.painDuring+"/10");
+  return b.length?b.join(" · "):"nothing logged";
 }
 
 function exerciseCard(ex,s){
   const e=s.entries[ex.id]||(s.entries[ex.id]={done:false,load:"",reps:"",rpe:"",painDuring:"",notes:""});
+  const cat=catOf(ex);
   const c=el("div",{className:"card"+(e.done?" done":"")});
-  const chk=el("input",{type:"checkbox",className:"chk",checked:!!e.done});
-  chk.onchange=()=>{e.done=chk.checked;c.classList.toggle("done",e.done);saveSession(s);};
-  const head=el("div",{className:"ex-head"},[
-    el("div",{},[el("div",{className:"ex-name"},ex.name),
-      el("div",{className:"rx"},rxLine(ex))]),
-    chk
-  ]);
+  if(cat)c.style.setProperty("--cat",cat.color);
+  c.append(el("span",{className:"rail"}));
+
+  const left=el("div",{className:"grow"});
+  if(cat)left.append(el("div",{},el("span",{className:"tag"},cat.label)));
+  left.append(el("div",{className:"ex-name"},ex.name));
+  left.append(chipsEl(ex));
+  const head=el("div",{className:"ex-head"},[left,heroEl(ex)]);
   c.append(head);
-  // collapsibles
+
   if(ex.focus)c.append(collapse("Coach notes",ex.focus));
   if(ex.progression)c.append(collapse("Progression rule",ex.progression));
-  // log grid
-  const g=el("div",{className:"log"});
-  const mk=(k,label,type="text",attrs={})=>{const inp=el("input",{type,value:e[k]??"",attrs});
-    inp.oninput=()=>{e[k]=inp.value;saveSession(s);};return field(label,inp);};
-  g.append(mk("load","Actual load","text"));
-  g.append(mk("reps","Actual sets×reps","text"));
-  g.append(mk("rpe","RPE","text"));
-  g.append(mk("painDuring","Knee pain /10","number",{min:0,max:10}));
-  const nt=el("textarea",{className:"",value:e.notes||"",attrs:{placeholder:"Notes…"}});
+
+  const g=el("div",{className:"log tight"+(SETTINGS.painPerExercise?"":" nopain")});
+  const mk=(k,label,type="text",attrs={},unit)=>{
+    const inp=el("input",{type,value:e[k]??"",attrs});
+    inp.oninput=()=>{e[k]=inp.value;saveSession(s);};return field(label,inp,unit);};
+  /* Placeholders stay short — a long "e.g. …" clips in a 56px field and reads as a bug. */
+  g.append(mk("load","Load","text",{placeholder:"90"},"kg"));
+  g.append(mk("reps","Sets × reps","text",{placeholder:"4×6"}));
+  g.append(mk("rpe","RPE","text",{placeholder:"7"}));
+  if(SETTINGS.painPerExercise)
+    g.append(mk("painDuring",painLbl(),"number",{min:0,max:10,placeholder:"0"},"/10"));
+  const nt=el("textarea",{value:e.notes||"",attrs:{placeholder:"Notes…"}});
   nt.oninput=()=>{e.notes=nt.value;saveSession(s);};
   g.append(el("div",{className:"full"},[el("label",{className:"lbl"},"Notes"),nt]));
   if(ex.logHint)g.append(el("div",{className:"hint"},"Log: "+ex.logHint));
-  c.append(g);
+
+  /* Marking done folds the card to one summary line, so a finished session scans as a
+     short list instead of a screen of filled-in inputs. Tap the line to re-open it. */
+  const summary=el("div",{className:"summary-line"},
+    [el("span",{className:"vals"},summaryText(e)),el("span",{className:"edit"},"Edit")]);
+  const btn=el("button",{className:"donebtn",attrs:{"aria-pressed":String(!!e.done)}},"Mark done");
+  const extras=[...c.querySelectorAll("details"),...c.querySelectorAll(".chips")];
+  let editing=false;
+  const paint=()=>{
+    const collapsed=e.done&&!editing;
+    g.style.display=collapsed?"none":"";
+    extras.forEach(n=>{n.style.display=collapsed?"none":"";});
+    summary.style.display=collapsed?"flex":"none";
+    summary.firstChild.textContent=summaryText(e);
+    btn.textContent=e.done?"✓ Logged":"Mark done";
+    btn.setAttribute("aria-pressed",String(!!e.done));
+    c.classList.toggle("done",!!e.done);
+  };
+  summary.onclick=()=>{editing=true;paint();};
+  btn.onclick=()=>{e.done=!e.done;editing=false;saveSession(s);paint();};
+  c.append(g,summary,btn);
+  paint();
   return c;
 }
-function rxLine(ex){
-  const bits=[];
-  if(ex.sets||ex.reps)bits.push(`<b>${ex.sets||"?"} × ${ex.reps||"?"}</b>`);
-  if(ex.load)bits.push(ex.load);
-  if(ex.rpe)bits.push(ex.rpe);
-  const line=el("span");line.innerHTML=bits.join(" · ");
-  const extra=[];if(ex.tempo)extra.push("Tempo "+ex.tempo);if(ex.rest)extra.push("Rest "+ex.rest);
-  if(extra.length){line.append(el("span",{className:"muted"}," — "+extra.join(" · ")));}
-  return line;
-}
+
 function collapse(title,body){
   const d=el("details");d.append(el("summary",{},title));d.append(el("div",{className:"body"},body));return d;
 }
 
 function updateProgress(){
-  const p=$("#progress");
-  if(!PROGRAM||!STATE.day){p.textContent="—";return;}
+  const fill=$("#pbar > i"),cnt=$("#progCount"),lbl=$("#progLabel");
+  if(!PROGRAM||!STATE.day){cnt.textContent="—";fill.style.width="0";lbl.textContent="Session";return;}
   const s=getSession();
   const exs=PROGRAM.exercises.filter(e=>e.day===STATE.day);
   const done=exs.filter(e=>s.entries[e.id]&&s.entries[e.id].done).length;
-  // Day name is shown in the header, so keep this short enough to survive a 360px footer.
-  p.innerHTML=`<b>${done}</b>/${exs.length} done · W${STATE.week}`;
+  fill.style.width=(exs.length?Math.round(done/exs.length*100):0)+"%";
+  lbl.textContent=`Week ${STATE.week} · ${dayParts(STATE.day).short}`;
+  cnt.textContent=`${done}/${exs.length} done`;
 }
 
 /* ---------- export ---------- */
 function buildSessionExport(){
   const s=getSession();
   const exs=PROGRAM.exercises.filter(e=>e.day===STATE.day);
+  /* `tracking` is additive metadata: it tells the coach whether an empty pain value means
+     "no pain logged" or "this athlete doesn't track pain". Every other key keeps its shape
+     so the review step never sees a missing field. See docs/data-contracts.md. */
+  const tracking={painLabel:(SETTINGS.painLabel||"").trim()};
+  FIELD_DEFS.forEach(f=>tracking[f.key]=!!SETTINGS[f.key]);
   return {
     schema:"tp-session-1",
     block:PROGRAM.meta.block,athlete:PROGRAM.meta.athlete,
     week:STATE.week,day:STATE.day,date:STATE.date,
     exportedAt:new Date().toISOString(),
+    tracking,
     session:s.session,
-    entries:exs.map(ex=>({exercise:ex.name,prescribed:{sets:ex.sets,reps:ex.reps,load:ex.load,rpe:ex.rpe},
-      ...(s.entries[ex.id]||{done:false})}))
+    entries:exs.map(ex=>({exercise:ex.name,
+      ...(ex.category?{category:ex.category}:{}),
+      prescribed:{sets:ex.sets,reps:ex.reps,load:ex.load,rpe:ex.rpe},
+      ...(s.entries[ex.id]||{done:false,load:"",reps:"",rpe:"",painDuring:"",notes:""})}))
   };
 }
 function exportSession(){
@@ -302,16 +661,19 @@ async function copyJSON(){
   if(!PROGRAM){toast("Load a program first");return;}
   const txt=JSON.stringify(buildSessionExport(),null,2);
   try{await navigator.clipboard.writeText(txt);toast("Session JSON copied");}
-  catch(e){const ta=el("textarea",{value:txt});document.body.append(ta);ta.select();document.execCommand("copy");ta.remove();toast("Session JSON copied");}
+  catch(e){const ta=el("textarea",{value:txt});document.body.append(ta);ta.select();
+    document.execCommand("copy");ta.remove();toast("Session JSON copied");}
 }
 
 /* ---------- events ---------- */
 $("#weekSel").onchange=e=>{STATE.week=+e.target.value;renderMain();};
-$("#daySel").onchange=e=>{STATE.day=e.target.value;renderMain();};
 $("#dateInp").onchange=e=>{STATE.date=e.target.value||todayISO();renderMain();};
 $("#exportBtn").onclick=exportSession;
 $("#copyBtn").onclick=copyJSON;
 $("#importBtn").onclick=()=>$("#fileInp").click();
+$("#settingsBtn").onclick=openSheet;
+$("#sheetClose").onclick=closeSheet;
+$("#sheetBg").onclick=closeSheet;
 $("#fileInp").onchange=async e=>{
   const f=e.target.files[0];if(!f)return;
   try{const txt=await f.text();loadProgram(JSON.parse(txt));toast("Program loaded");}

@@ -8,6 +8,8 @@ A single-purpose **installable PWA** that displays one athlete's training progra
 
 It is a personal tool for one user (Jacques). There is no multi-user support, no accounts, no backend, and no plan to add any. Do not build for scale, tenancy, or public distribution.
 
+One nuance: a second person (Jacques' partner) uses the app on **her own phone**, so which optional fields appear is a per-device preference in the Tracked-fields sheet (`tp_settings_v1`). That is *not* tenancy — there are still no profiles, no accounts, and nothing keyed by person. Keep it that way.
+
 ## The wider workflow this app sits in
 
 This repo is **step 3** of a four-step loop. The other steps live in a separate Claude project ("training-prog-project") that this repo never talks to directly — the only integration is the JSON files.

@@ -15,11 +15,13 @@
 The script is organised in labelled sections, in this order. Keep additions in the matching section.
 
 1. **Helpers** — `$(sel)` querySelector shorthand, `el(tag, props, kids)` element factory, `toast()`, `slug()`, `todayISO()`.
-2. **Program loading** — `loadProgram(obj)` validates and persists; `boot()` restores from `localStorage`, else fetches `./program.json`.
-3. **Session persistence** — `sessionKey()`, `getSession()`, `saveSession()`.
-4. **Rendering** — `renderAll()` (header + selectors), `renderMain()`, `sessionCard()`, `exerciseCard()`, `rxLine()`, `collapse()`, `updateProgress()`.
-5. **Export** — `buildSessionExport()`, `exportSession()`, `copyJSON()`.
-6. **Events** — selector/button wiring, service-worker registration, `boot()` call.
+2. **Settings** — `FIELD_DEFS` (the switchable fields), `loadSettings()`, `saveSettings()`, `painLbl()`, `renderSettings()`, `openSheet()`/`closeSheet()`.
+3. **Categories** — `CATS`, `CAT_ALIASES`, `CAT_RULES`, `catOf(ex)`. Resolves an exercise's rail colour + tag; see `docs/data-contracts.md` for the fallback ladder.
+4. **Program loading** — `loadProgram(obj)` validates and persists; `boot()` loads settings, then restores the programme from `localStorage`, else fetches `./program.json`.
+5. **Session persistence** — `sessionKey()`, `getSession()`, `saveSession()`.
+6. **Rendering** — `renderAll()` (header + selectors), `renderDayPicker()`, `renderMain()`, `sessionCard()`, `exerciseCard()`, `heroEl()`, `chipsEl()`, `summaryText()`, `collapse()`, `updateProgress()`.
+7. **Export** — `buildSessionExport()`, `exportSession()`, `copyJSON()`.
+8. **Events** — selector/button wiring, service-worker registration, `boot()` call.
 
 ## State model
 
@@ -33,6 +35,7 @@ STATE = { week: 1, day: "Day 1 (Mon) - ...", date: "2026-07-27" }
 |---|---|
 | `tp_program_v1` | The imported programme (`tp-program-1`). One at a time. |
 | `tp_sess_v1::<date>::<day>` | One session's logged data. |
+| `tp_settings_v1` | Which optional fields are shown, plus `painLabel`. Defaults are all-on, so a fresh install behaves like the original app. |
 
 A stored session looks like:
 
@@ -57,7 +60,7 @@ Every input has an `oninput`/`onchange` handler that mutates the session object 
 
 ## Service worker strategy
 
-`CACHE = "tp-tracker-v1"` in `sw.js`.
+`CACHE = "tp-tracker-v3"` in `sw.js`.
 
 - **`program.json` → network-first, cache fallback.** So a re-deployed sample/programme is picked up when online, but still opens offline.
 - **Everything else → cache-first**, falling back to network, falling back to `./index.html` (so a deep link offline still boots the app).
@@ -73,8 +76,17 @@ Why a download rather than writing to the athlete's Drive folder directly: the F
 
 ## Styling
 
-Inline `<style>` in the head. Dark palette via CSS custom properties on `:root` (`--bg`, `--panel`, `--ink`, `--accent`, `--good/--warn/--bad`). Mobile-first, single column, `max-width: 720px`, `env(safe-area-inset-*)` respected for notch/home-bar. A fixed footer bar holds progress + export actions.
+Inline `<style>` in the head. Dark palette via CSS custom properties on `:root` (`--bg`, `--panel`, `--ink`, `--accent`, `--good/--warn/--bad`), a 4px spacing scale (`--s1`..`--s5`) and a type scale (`--t-xs`..`--t-hero`). Mobile-first, single column, `max-width: 720px`, `env(safe-area-inset-*)` respected for notch/home-bar. A sticky header holds the progress bar, week/date and day tabs; a fixed footer bar holds the export actions.
+
+Layout rules that are load-bearing on a phone, and easy to undo by accident:
+
+- **`minmax(0, 1fr)`, never plain `1fr`,** in the log grids. An input's intrinsic width is wider than a phone column and `1fr` refuses to shrink below it.
+- **Header buttons are `flex: 0 0 auto` + `nowrap`.** Otherwise they absorb the squeeze and render one character per line instead of letting the block name wrap.
+- **Number spinners are hidden.** They're unusable with chalked hands and cost ~15px of field width — enough to clip a pain score of `10`.
+- The four-across log grid is gated on `min-width: 360px` and falls back to 2×2 below that.
 
 ## Deliberate non-goals
 
 No framework, no bundler, no npm, no TypeScript, no CDN assets, no analytics, no accounts, no server, no cloud sync, no multi-athlete support. Every one of these was considered and rejected for a single-user offline gym tool.
+
+**The Tracked-fields sheet is not multi-user support.** It's a per-device preference: which optional inputs render. A second person uses the app by installing it on their own phone, which gives them their own `localStorage` and therefore their own settings and logs. There are no profiles, no switching, and nothing keyed by person.

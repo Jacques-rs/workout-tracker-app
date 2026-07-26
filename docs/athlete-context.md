@@ -16,6 +16,12 @@ The coaching model used is a pain-monitoring approach: training continues **as l
 
 **Design implications — do not remove these:**
 
+> **Switchable, not removable.** These fields can now be turned off in the app's
+> Tracked-fields sheet, because the app is also used by someone with no knee history.
+> They default to **on**, and for *this* athlete they must stay on — the export's
+> `tracking` block records the choice so the coach can tell "no pain logged" from "pain
+> not tracked". Turning them off for Jacques breaks the coaching loop described below.
+
 - **Per-exercise `painDuring` (0–10)** on every logged exercise. Knee load varies hugely between movements; a single session-level pain score is useless for deciding *which* exercise to regress.
 - **`amPainNextDay` (0–10)** at session level, and the ability to **re-open a past session by changing the date** so it can be filled in the morning after. Next-morning response is the primary decision signal — an app that only captures in-session pain would break the coaching loop.
 - The **`logHint`** line ("Log: …") per exercise. It's generated per movement precisely so the athlete knows that, say, the sled needs a knee-response note while a warm-up needs nothing.
