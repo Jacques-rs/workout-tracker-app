@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Palette prototype — Training Tracker</title>
+<style>
+/* =====================================================================
+   PALETTE PROTOTYPE — 6 options, identical layout to index.html.
+   Every colour in the app UI below is a CSS variable; each tab swaps one
+   variable block on <body data-theme>. Nothing here is wired to the real
+   app: no localStorage of session data, no service worker, no import.
+
+   Palette A: #000000 #14213d #fca311 #e5e5e5 #ffffff
+   Palette B: #c9e4ca #87bba2 #55828b #3b6064 #364958
+
+   Surfaces (bg / panel / well / lines) are mixes and tints of the palette's
+   own colours — 5 hexes can't fill 6 surface levels on their own. The raw
+   palette hexes are used for ink, accent and rails; those are the ones the
+   swatch strip marks with a dot.
+   Readiness (Green/Amber/Red) and the "logged" green are semantic and sit
+   partly outside the palette — a traffic light can't be one hue. Noted per
+   theme in the strip.
+   ===================================================================== */
+
+/* ---------- theme: A1 Ink & Amber (dark, black-first) ---------- */
+body[data-theme="a1"]{
+  --bg:#000000; --panel:#0e1626; --panel-hi:#14213d; --well:#06090f;
+  --line:#24345a; --line-soft:#16223a;
+  --ink:#ffffff; --ink-dim:#e5e5e5; --muted:#97a0b5; --placeholder:#6b7488;
+  --accent:#fca311; --on-accent:#14213d; --accent-soft:rgba(252,163,17,.13);
+  --accent2:#e5e5e5; --accent2-soft:rgba(229,229,229,.08);
+  --good:#3fa87f; --good-soft:rgba(63,168,127,.12); --good-line:rgba(63,168,127,.45);
+  --warn:#fca311; --bad:#e0503c;
+  --ring:0 0 0 3px rgba(252,163,17,.25); --scrim:rgba(0,0,0,.78);
+  --footer-bg:rgba(14,22,38,.93); --bg-fade:rgba(0,0,0,0);
+  --toast-bg:#14213d; --toast-ink:#ffffff; --toast-line:#fca311;
+  --top-hi-a:rgba(255,255,255,.08); --top-hi-b:rgba(255,255,255,.02);
+  --cat-warm:#8590a8; --cat-tendon:#fca311; --cat-skill:#e5e5e5;
+  --cat-strength:#5f7bb5; --cat-cond:#c07c14;
+}
+/* ---------- theme: A2 Paper & Amber (light) ---------- */
+body[data-theme="a2"]{
+  --bg:#ffffff; --panel:#ffffff; --panel-hi:#e5e5e5; --well:#f4f5f7;
+  --line:#c6cbd6; --line-soft:#dfe2e8;
+  --ink:#14213d; --ink-dim:#33415f; --muted:#6c7893; --placeholder:#9aa3b5;
+  --accent:#fca311; --on-accent:#14213d; --accent-soft:rgba(252,163,17,.18);
+  --accent2:#14213d; --accent2-soft:rgba(20,33,61,.06);
+  --good:#1f7a5c; --good-soft:rgba(31,122,92,.10); --good-line:rgba(31,122,92,.40);
+  --warn:#b8760c; --bad:#c1402c;
+  --ring:0 0 0 3px rgba(252,163,17,.32); --scrim:rgba(20,33,61,.42);
+  --footer-bg:rgba(255,255,255,.94); --bg-fade:rgba(255,255,255,0);
+  --toast-bg:#14213d; --toast-ink:#ffffff; --toast-line:#fca311;
+  --top-hi-a:rgba(20,33,61,.05); --top-hi-b:rgba(20,33,61,.01);
+  --cat-warm:#8b93a6; --cat-tendon:#c07c14; --cat-skill:#14213d;
+  --cat-strength:#41598f; --cat-cond:#a05f0c;
+}
+/* ---------- theme: A3 Navy & Amber (navy-dominant, amber-forward) ---------- */
+body[data-theme="a3"]{
+  --bg:#14213d; --panel:#1b2b4d; --panel-hi:#24365e; --well:#0b1428;
+  --line:#33477a; --line-soft:#233255;
+  --ink:#ffffff; --ink-dim:#e5e5e5; --muted:#9fadc9; --placeholder:#7182a5;
+  --accent:#fca311; --on-accent:#000000; --accent-soft:rgba(252,163,17,.16);
+  --accent2:#fca311; --accent2-soft:rgba(252,163,17,.10);
+  --good:#47b48c; --good-soft:rgba(71,180,140,.14); --good-line:rgba(71,180,140,.5);
+  --warn:#fca311; --bad:#e2604d;
+  --ring:0 0 0 3px rgba(252,163,17,.28); --scrim:rgba(0,0,0,.7);
+  --footer-bg:rgba(27,43,77,.93); --bg-fade:rgba(20,33,61,0);
+  --toast-bg:#000000; --toast-ink:#e5e5e5; --toast-line:#fca311;
+  --top-hi-a:rgba(255,255,255,.10); --top-hi-b:rgba(255,255,255,.03);
+  --cat-warm:#8496b8; --cat-tendon:#fca311; --cat-skill:#e5e5e5;
+  --cat-strength:#6d8ecb; --cat-cond:#d0830c;
+}
+/* ---------- theme: B1 Slate & Mint (dark) ---------- */
+body[data-theme="b1"]{
+  --bg:#364958; --panel:#3b6064; --panel-hi:#487479; --well:#2b3a46;
+  --line:#55828b; --line-soft:#44676d;
+  --ink:#f4fbf4; --ink-dim:#c9e4ca; --muted:#9dbdb0; --placeholder:#7d9c96;
+  --accent:#87bba2; --on-accent:#243b33; --accent-soft:rgba(135,187,162,.16);
+  --accent2:#c9e4ca; --accent2-soft:rgba(201,228,202,.10);
+  --good:#87bba2; --good-soft:rgba(135,187,162,.14); --good-line:rgba(135,187,162,.5);
+  --warn:#d9a03c; --bad:#c8574a;
+  --ring:0 0 0 3px rgba(135,187,162,.28); --scrim:rgba(27,37,45,.76);
+  --footer-bg:rgba(59,96,100,.93); --bg-fade:rgba(54,73,88,0);
+  --toast-bg:#2b3a46; --toast-ink:#c9e4ca; --toast-line:#87bba2;
+  --top-hi-a:rgba(255,255,255,.08); --top-hi-b:rgba(255,255,255,.02);
+  --cat-warm:#8fa4a8; --cat-tendon:#87bba2; --cat-skill:#c9e4ca;
+  --cat-strength:#6fa3ae; --cat-cond:#d9a03c;
+}
+/* ---------- theme: B2 Mint Paper (light) ---------- */
+body[data-theme="b2"]{
+  --bg:#c9e4ca; --panel:#e2f1e2; --panel-hi:#cfe7d0; --well:#f4faf4;
+  --line:#87bba2; --line-soft:#aed3b5;
+  --ink:#364958; --ink-dim:#3b6064; --muted:#55828b; --placeholder:#87a8a3;
+  --accent:#55828b; --on-accent:#f4faf4; --accent-soft:rgba(85,130,139,.14);
+  --accent2:#3b6064; --accent2-soft:rgba(59,96,100,.08);
+  --good:#3b7a5e; --good-soft:rgba(59,122,94,.12); --good-line:rgba(59,122,94,.42);
+  --warn:#a8741a; --bad:#a8473a;
+  --ring:0 0 0 3px rgba(85,130,139,.30); --scrim:rgba(54,73,88,.44);
+  --footer-bg:rgba(226,241,226,.94); --bg-fade:rgba(201,228,202,0);
+  --toast-bg:#364958; --toast-ink:#c9e4ca; --toast-line:#55828b;
+  --top-hi-a:rgba(255,255,255,.7); --top-hi-b:rgba(255,255,255,.2);
+  --cat-warm:#7d97a0; --cat-tendon:#3b7a5e; --cat-skill:#364958;
+  --cat-strength:#55828b; --cat-cond:#a8741a;
+}
+/* ---------- theme: B3 Teal & Mint (mid-dark, mint accent) ---------- */
+body[data-theme="b3"]{
+  --bg:#3b6064; --panel:#4a747a; --panel-hi:#55828b; --well:#2f4f53;
+  --line:#6f9aa0; --line-soft:#557f85;
+  --ink:#ffffff; --ink-dim:#c9e4ca; --muted:#aecdc3; --placeholder:#8fb0ab;
+  --accent:#c9e4ca; --on-accent:#2f4f53; --accent-soft:rgba(201,228,202,.18);
+  --accent2:#87bba2; --accent2-soft:rgba(135,187,162,.12);
+  --good:#c9e4ca; --good-soft:rgba(201,228,202,.15); --good-line:rgba(201,228,202,.55);
+  --warn:#e6bb5c; --bad:#e07d6c;
+  --ring:0 0 0 3px rgba(201,228,202,.30); --scrim:rgba(31,52,55,.76);
+  --footer-bg:rgba(74,116,122,.94); --bg-fade:rgba(59,96,100,0);
+  --toast-bg:#364958; --toast-ink:#c9e4ca; --toast-line:#c9e4ca;
+  --top-hi-a:rgba(255,255,255,.11); --top-hi-b:rgba(255,255,255,.03);
+  --cat-warm:#9db8bc; --cat-tendon:#87bba2; --cat-skill:#c9e4ca;
+  --cat-strength:#b6dbe0; --cat-cond:#e6bb5c;
+}
+
+:root{
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px;
+  --t-xs:.6875rem; --t-sm:.8125rem; --t-base:.9375rem; --t-md:1.0625rem;
+  --t-lg:1.25rem; --t-hero:1.5rem;
+  --r:14px; --r-sm:10px;
+  --chrome-h:104px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:16px;line-height:1.45;overflow-wrap:break-word;-webkit-font-smoothing:antialiased;
+  transition:background .18s}
+.tnum{font-variant-numeric:tabular-nums}
+
+/* ================= prototype chrome (fixed neutral, not themed) ================= */
+.chrome{position:fixed;top:0;left:0;right:0;z-index:100;background:#101215;
+  border-bottom:1px solid #2a2f36;color:#e8ebef}
+.chrome-tabs{display:flex;gap:2px;padding:6px 6px 0;overflow-x:auto;scrollbar-width:none}
+.chrome-tabs::-webkit-scrollbar{display:none}
+.chrome-tabs button{flex:1 1 0;min-width:104px;font:inherit;font-size:.75rem;font-weight:700;
+  color:#98a1ad;background:transparent;border:0;border-bottom:2px solid transparent;
+  padding:7px 8px 8px;cursor:pointer;white-space:nowrap;text-align:center;line-height:1.25}
+.chrome-tabs button b{display:block;font-size:.625rem;font-weight:600;letter-spacing:.6px;
+  text-transform:uppercase;color:#6d7683}
+.chrome-tabs button[aria-pressed="true"]{color:#ffffff;border-bottom-color:#ffffff;
+  background:#1a1e24}
+.chrome-tabs button[aria-pressed="true"] b{color:#aab3bf}
+.chrome-meta{display:flex;align-items:center;gap:10px;padding:6px 10px 7px;flex-wrap:wrap}
+.sw-strip{display:flex;gap:3px;flex:0 0 auto}
+.sw-strip i{width:26px;height:16px;border-radius:3px;display:block;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
+.chrome-note{font-size:.6875rem;color:#8b949f;line-height:1.35;flex:1 1 240px;min-width:0}
+.chrome-note code{color:#d5dbe2;font-size:.6875rem}
+.chrome-actions{display:flex;gap:5px;flex:0 0 auto}
+.chrome-actions button{font:inherit;font-size:.6875rem;font-weight:600;color:#c6cdd6;
+  background:#1c2128;border:1px solid #2f353d;border-radius:7px;padding:4px 9px;cursor:pointer}
+.chrome-actions button:active{transform:scale(.97)}
+
+/* ================= app replica ================= */
+.app{padding:0 var(--s3) calc(92px + env(safe-area-inset-bottom));max-width:720px;
+  margin:0 auto;min-height:100vh}
+
+header{position:sticky;top:var(--chrome-h);z-index:20;background:var(--bg);
+  padding:var(--s4) 0 var(--s2)}
+header::after{content:"";position:absolute;left:0;right:0;bottom:-16px;height:16px;
+  background:linear-gradient(var(--bg),var(--bg-fade));pointer-events:none}
+.row{display:flex;gap:var(--s2);align-items:center}
+header .row>button{flex:0 0 auto;white-space:nowrap}
+.grow{flex:1 1 auto;min-width:0}
+.block-name{font-weight:700;font-size:var(--t-md);letter-spacing:-.2px;line-height:1.2}
+.sub{color:var(--muted);font-size:var(--t-sm);margin-top:1px}
+.iconbtn{flex:0 0 auto;width:38px;height:38px;padding:0;display:grid;place-items:center;
+  background:transparent;border:1px solid var(--line);border-radius:var(--r-sm)}
+.iconbtn svg{width:19px;height:19px;fill:none;stroke:var(--muted);stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round}
+.iconbtn:active svg{stroke:var(--ink)}
+
+.prog-wrap{margin-top:var(--s3)}
+.prog-top{display:flex;justify-content:space-between;align-items:baseline;
+  font-size:var(--t-xs);color:var(--muted);text-transform:uppercase;letter-spacing:.7px;
+  margin-bottom:5px}
+.prog-top .count{color:var(--ink);font-weight:700;letter-spacing:0;text-transform:none;
+  font-size:var(--t-sm)}
+.pbar{height:6px;border-radius:999px;background:var(--well);overflow:hidden;
+  box-shadow:inset 0 0 0 1px var(--line-soft)}
+.pbar i{display:block;height:100%;width:38%;border-radius:999px;
+  background:linear-gradient(90deg,var(--accent2),var(--accent));
+  transition:width .35s cubic-bezier(.2,.8,.2,1)}
+
+select,input,textarea,button{font:inherit;color:var(--ink);background:var(--well);
+  border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 11px;outline:none;
+  max-width:100%;min-width:0;transition:border-color .15s,box-shadow .15s,background .15s}
+input,textarea{font-weight:600}
+input::placeholder,textarea::placeholder{color:var(--placeholder);font-weight:400}
+input[type=number]{-moz-appearance:textfield;appearance:textfield}
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;display:none}
+select{-webkit-appearance:none;background-color:var(--panel-hi);font-weight:600;
+  background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),
+    linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+  background-position:calc(100% - 15px) 55%,calc(100% - 10px) 55%;
+  background-size:5px 5px;background-repeat:no-repeat;padding-right:30px}
+input:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:var(--ring)}
+button{cursor:pointer;background:var(--panel-hi);font-weight:600}
+button:active{transform:scale(.97)}
+button.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent);
+  font-weight:700}
+button.ghost{background:transparent}
+.mini{font-size:var(--t-sm);padding:7px 11px}
+.selrow{display:flex;gap:var(--s2);margin-top:var(--s3)}
+.selrow>*{min-width:0}
+#weekSel{flex:0 0 auto}
+#dateInp{flex:1 1 auto}
+
+.daytabs{display:flex;gap:var(--s1);margin-top:var(--s3);padding:3px;
+  background:var(--well);border:1px solid var(--line-soft);border-radius:999px;
+  overflow-x:auto;scrollbar-width:none}
+.daytabs::-webkit-scrollbar{display:none}
+.daytabs button{flex:1 1 0;min-width:56px;border:0;background:transparent;color:var(--muted);
+  border-radius:999px;padding:8px 6px;font-size:var(--t-sm);font-weight:700;white-space:nowrap}
+.daytabs button[aria-pressed="true"]{background:var(--panel-hi);color:var(--ink);
+  box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.daytabs button .dnum{display:block;font-size:var(--t-xs);font-weight:400;
+  color:var(--placeholder);letter-spacing:.5px}
+.daytabs button[aria-pressed="true"] .dnum{color:var(--accent)}
+.daytitle{color:var(--muted);font-size:var(--t-sm);margin:var(--s3) 0 0}
+
+.card{position:relative;background:var(--panel);border:1px solid var(--line-soft);
+  border-radius:var(--r);padding:var(--s4) var(--s4) var(--s4) calc(var(--s4) + 4px);
+  margin:var(--s3) 0;overflow:hidden}
+.card::before{content:"";position:absolute;inset:0 0 auto 0;height:1px;
+  background:linear-gradient(90deg,var(--top-hi-a),var(--top-hi-b))}
+.rail{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--cat,var(--line-soft))}
+.card.done .rail{background:var(--good)}
+.ex-head{display:flex;justify-content:space-between;gap:var(--s3);align-items:flex-start}
+.ex-head>.grow{min-width:0}
+.ex-name{font-weight:700;font-size:var(--t-base);letter-spacing:-.1px;line-height:1.3}
+.card.done .ex-name::after{content:" ✓";color:var(--good);font-weight:800}
+.rx{color:var(--ink-dim);font-size:var(--t-sm);margin-top:var(--s1)}
+.card.done{border-color:var(--good-line);
+  background:linear-gradient(180deg,var(--good-soft),transparent),var(--panel)}
+
+.tag{display:inline-block;font-size:var(--t-xs);font-weight:800;letter-spacing:.7px;
+  text-transform:uppercase;color:var(--cat);
+  background:rgba(128,128,128,.14);
+  background:color-mix(in srgb,var(--cat) 15%,transparent);
+  border-radius:5px;padding:2px 7px;margin-bottom:5px}
+
+.hero{flex:0 0 auto;text-align:right;font-weight:800;font-size:var(--t-hero);
+  letter-spacing:-.5px;line-height:1.1;white-space:nowrap;font-variant-numeric:tabular-nums}
+.hero.long{font-size:var(--t-md);letter-spacing:0}
+.hero small{display:block;font-size:var(--t-xs);font-weight:600;color:var(--muted);
+  letter-spacing:.6px;text-transform:uppercase;margin-top:2px}
+.chips{display:flex;flex-wrap:wrap;gap:var(--s1);margin-top:var(--s2)}
+.chip{background:var(--panel-hi);border:1px solid var(--line-soft);border-radius:999px;
+  padding:3px 9px;font-size:var(--t-xs);color:var(--ink-dim);font-weight:600;white-space:nowrap}
+.chip.k{color:var(--muted);font-weight:400}
+
+details{margin-top:var(--s3);border-top:1px solid var(--line-soft);padding-top:var(--s3)}
+details+details{margin-top:var(--s2)}
+summary{cursor:pointer;color:var(--accent2);font-size:var(--t-sm);font-weight:700;
+  list-style:none;display:flex;align-items:center;gap:6px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"";width:0;height:0;border:4px solid transparent;
+  border-left-color:var(--accent2);transition:transform .15s;flex:0 0 auto}
+details[open] summary::before{transform:rotate(90deg) translateX(-1px)}
+details .body{color:var(--ink-dim);font-size:var(--t-sm);margin-top:var(--s2);
+  white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5}
+
+.log{margin-top:var(--s4);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s2)}
+.log>div{min-width:0}
+.log input,.log select,.log textarea{width:100%}
+.log .full{grid-column:1 / -1}
+@media (min-width:360px){
+  .log.tight{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 56px 74px}
+  .log.tight.nopain{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 56px}}
+.lbl{display:block;font-size:var(--t-xs);color:var(--muted);margin:0 0 var(--s1) 2px;
+  font-weight:600}
+.fld{position:relative}
+.fld .unit{position:absolute;right:8px;top:50%;transform:translateY(-50%);
+  color:var(--placeholder);font-size:var(--t-xs);font-weight:600;pointer-events:none}
+.fld.has-unit input{padding-right:31px}
+.hint{font-size:var(--t-sm);color:var(--accent2);grid-column:1/-1;
+  background:var(--accent2-soft);border-left:2px solid var(--accent2);
+  border-radius:0 var(--r-sm) var(--r-sm) 0;padding:var(--s2) var(--s3);margin-top:var(--s1)}
+textarea{width:100%;min-height:56px;resize:vertical;font-weight:400;line-height:1.5}
+@media (min-width:460px){.sessioncard .log{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+.donebtn{width:100%;margin-top:var(--s3);padding:12px;border-radius:var(--r-sm);
+  background:var(--panel-hi);border:1px solid var(--line);color:var(--ink-dim);
+  font-weight:700;font-size:var(--t-sm);letter-spacing:.3px}
+.donebtn[aria-pressed="true"]{background:var(--good-soft);border-color:var(--good-line);
+  color:var(--good)}
+.summary-line{margin-top:var(--s3);font-size:var(--t-sm);color:var(--ink-dim);
+  background:var(--well);border:1px solid var(--line-soft);border-radius:var(--r-sm);
+  padding:var(--s2) var(--s3);cursor:pointer;display:flex;justify-content:space-between;
+  gap:var(--s2)}
+.summary-line .edit{color:var(--accent2);font-weight:700;flex:0 0 auto}
+.summary-line .vals{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.sessioncard[data-readiness="Green"]{--cat:var(--good)}
+.sessioncard[data-readiness="Amber"]{--cat:var(--warn)}
+.sessioncard[data-readiness="Red"]{--cat:var(--bad)}
+.sessioncard[data-readiness="Green"],.sessioncard[data-readiness="Amber"],
+.sessioncard[data-readiness="Red"]{border-color:color-mix(in srgb,var(--cat) 45%,transparent)}
+
+.sheet-wrap{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-end;
+  justify-content:center}
+.sheet-wrap[hidden]{display:none}
+.sheet-bg{position:absolute;inset:0;background:var(--scrim)}
+.sheet{position:relative;width:100%;max-width:720px;max-height:86vh;overflow-y:auto;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r) var(--r) 0 0;
+  padding:var(--s4) var(--s4) calc(var(--s4) + env(safe-area-inset-bottom))}
+.sheet h2{font-size:var(--t-md);margin:0 0 var(--s1)}
+.sheet-note{color:var(--muted);font-size:var(--t-sm);margin:0 0 var(--s4);line-height:1.5}
+.sheet-head{display:flex;align-items:flex-start;gap:var(--s3)}
+.sheet-head button{flex:0 0 auto;white-space:nowrap}
+.togrow{display:flex;align-items:center;gap:var(--s3);padding:var(--s3) 0;
+  border-top:1px solid var(--line-soft)}
+.togrow .tl{flex:1 1 auto;min-width:0}
+.togrow .tn{font-size:var(--t-base);font-weight:600}
+.togrow .td{font-size:var(--t-sm);color:var(--muted);line-height:1.4;margin-top:1px}
+.sw{flex:0 0 auto;appearance:none;-webkit-appearance:none;width:50px;height:30px;
+  border-radius:999px;background:var(--well);border:1px solid var(--line);position:relative;
+  padding:0;transition:background .18s,border-color .18s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;
+  border-radius:50%;background:var(--muted);transition:transform .18s,background .18s}
+.sw[aria-checked="true"]{background:var(--accent-soft);border-color:var(--accent)}
+.sw[aria-checked="true"]::after{transform:translateX(20px);background:var(--accent)}
+
+.footer-bar{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--footer-bg);
+  backdrop-filter:blur(12px);border-top:1px solid var(--line);
+  padding:var(--s2) var(--s3) calc(var(--s2) + env(safe-area-inset-bottom));
+  display:flex;gap:var(--s2);align-items:center;max-width:720px;margin:0 auto}
+.footer-bar button{flex:0 0 auto;white-space:nowrap}
+.footer-bar .exp{flex:1 1 auto}
+.toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%) translateY(6px);
+  background:var(--toast-bg);color:var(--toast-ink);border:1px solid var(--toast-line);
+  padding:10px 15px;border-radius:var(--r-sm);font-size:var(--t-sm);opacity:0;
+  transition:opacity .2s,transform .2s;z-index:70;pointer-events:none;max-width:92%}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.muted{color:var(--muted)}
+.banner{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--warn);
+  border-radius:var(--r-sm);padding:var(--s3);font-size:var(--t-sm);color:var(--ink-dim);
+  margin:var(--s3) 0;line-height:1.5}
+</style>
+</head>
+<body data-theme="a1">
+
+<div class="chrome" id="chrome">
+  <div class="chrome-tabs" id="chromeTabs"></div>
+  <div class="chrome-meta">
+    <div class="sw-strip" id="swStrip"></div>
+    <div class="chrome-note" id="chromeNote"></div>
+    <div class="chrome-actions">
+      <button id="sheetBtn">Sheet</button>
+      <button id="toastBtn">Toast</button>
+    </div>
+  </div>
+</div>
+
+<div class="app">
+<header>
+  <div class="row">
+    <div class="grow">
+      <div class="block-name">Knee Capacity + Oly Skill — Block 3</div>
+      <div class="sub">Jacques · 6-week block</div>
+    </div>
+    <button class="iconbtn" aria-label="Tracked fields">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/>
+      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.2a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a2 2 0 1 1 0-4h.2A1.7 1.7 0 0 0 4.4 8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.1V4a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9H21a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.4 1z"/></svg>
+    </button>
+    <button class="ghost mini">Import</button>
+  </div>
+  <div class="prog-wrap">
+    <div class="prog-top"><span>Week 3 · Mon</span><span class="count tnum">3/8 done</span></div>
+    <div class="pbar"><i></i></div>
+  </div>
+  <div class="selrow">
+    <select aria-label="Week">
+      <option>Week 1</option><option selected>Week 3</option><option>Week 4</option>
+    </select>
+    <input type="date" value="2026-07-28" aria-label="Session date" />
+  </div>
+  <div>
+    <div class="daytabs">
+      <button aria-pressed="true"><span class="dnum">D1</span>Mon</button>
+      <button aria-pressed="false"><span class="dnum">D2</span>Tue</button>
+      <button aria-pressed="false"><span class="dnum">D3</span>Thu</button>
+      <button aria-pressed="false"><span class="dnum">D4</span>Fri</button>
+    </div>
+    <div class="daytitle">Day 1 (Mon) — Clean Skill + Front Squat + Knee Capacity</div>
+  </div>
+</header>
+
+<main>
+  <!-- session check-in -->
+  <div class="card sessioncard" data-readiness="Green" id="sessCard">
+    <span class="rail"></span>
+    <div class="ex-name">Session check-in</div>
+    <div class="rx">Fill what's useful — you can re-open this session tomorrow by changing the date.</div>
+    <div class="log">
+      <div><label class="lbl">Bodyweight</label>
+        <div class="fld has-unit"><input type="number" value="84.2" /><span class="unit">kg</span></div></div>
+      <div><label class="lbl">Sleep</label>
+        <div class="fld has-unit"><input type="number" value="4" /><span class="unit">/5</span></div></div>
+      <div><label class="lbl">Readiness</label>
+        <div class="fld"><select id="readySel">
+          <option value="">Readiness…</option>
+          <option value="Green" selected>Green</option>
+          <option value="Amber">Amber</option>
+          <option value="Red">Red</option></select></div></div>
+      <div><label class="lbl">Knee pain next AM</label>
+        <div class="fld has-unit"><input type="number" value="2" /><span class="unit">/10</span></div></div>
+      <div class="full"><label class="lbl">HRV / notes</label>
+        <div class="fld"><input type="text" placeholder="e.g. HRV 62, at baseline" /></div></div>
+    </div>
+    <div style="margin-top:12px"><label class="lbl">Overall notes</label>
+      <textarea placeholder="Overall session notes…"></textarea></div>
+  </div>
+
+  <!-- warm-up (untouched card) -->
+  <div class="card" style="--cat:var(--cat-warm)">
+    <span class="rail"></span>
+    <div class="ex-head">
+      <div class="grow">
+        <div><span class="tag">Warm-up</span></div>
+        <div class="ex-name">Warm-up: bike + FIFA 11+ prep</div>
+        <div class="chips"><span class="chip">Easy</span><span class="chip k">Tempo Smooth</span></div>
+      </div>
+      <div class="hero">1 × 8-10 min<small>RPE 3-4</small></div>
+    </div>
+    <div class="log tight">
+      <div><label class="lbl">Load</label>
+        <div class="fld has-unit"><input type="text" placeholder="90" /><span class="unit">kg</span></div></div>
+      <div><label class="lbl">Sets × reps</label>
+        <div class="fld"><input type="text" placeholder="4×6" /></div></div>
+      <div><label class="lbl">RPE</label>
+        <div class="fld"><input type="text" placeholder="7" /></div></div>
+      <div><label class="lbl">Knee pain</label>
+        <div class="fld has-unit"><input type="number" placeholder="0" /><span class="unit">/10</span></div></div>
+      <div class="full"><label class="lbl">Notes</label><textarea placeholder="Notes…"></textarea></div>
+    </div>
+    <button class="donebtn" aria-pressed="false">Mark done</button>
+  </div>
+
+  <!-- tendon card, partly filled, with coach notes open -->
+  <div class="card" style="--cat:var(--cat-tendon)">
+    <span class="rail"></span>
+    <div class="ex-head">
+      <div class="grow">
+        <div><span class="tag">Tendon/prehab</span></div>
+        <div class="ex-name">Spanish squat isometric</div>
+        <div class="chips"><span class="chip">Band/strap or rack-supported</span>
+          <span class="chip k">Tempo Isometric</span><span class="chip k">Rest 45-60 sec</span></div>
+      </div>
+      <div class="hero long">3 × 45 sec<small>Pain ≤3/10</small></div>
+    </div>
+    <details open><summary>Coach notes</summary>
+      <div class="body">Knee over toe, torso vertical. Hold to a hard 45 sec — stop the set if pain crosses 3/10 rather than pushing through.</div></details>
+    <details><summary>Progression rule</summary>
+      <div class="body">Add 5 sec per week while next-AM pain stays ≤3/10.</div></details>
+    <div class="log tight">
+      <div><label class="lbl">Load</label>
+        <div class="fld has-unit"><input type="text" value="BW" /><span class="unit">kg</span></div></div>
+      <div><label class="lbl">Sets × reps</label>
+        <div class="fld"><input type="text" value="3×45s" /></div></div>
+      <div><label class="lbl">RPE</label>
+        <div class="fld"><input type="text" value="7" /></div></div>
+      <div><label class="lbl">Knee pain</label>
+        <div class="fld has-unit"><input type="number" value="2" /><span class="unit">/10</span></div></div>
+      <div class="full"><label class="lbl">Notes</label>
+        <textarea>Held all three, last 10 sec shaky.</textarea></div>
+      <div class="hint">Log: Pain 0-10 during + next-AM stiffness</div>
+    </div>
+    <button class="donebtn" aria-pressed="false">Mark done</button>
+  </div>
+
+  <!-- strength card, DONE + collapsed to summary line -->
+  <div class="card done" style="--cat:var(--cat-strength)">
+    <span class="rail"></span>
+    <div class="ex-head">
+      <div class="grow">
+        <div><span class="tag">Strength</span></div>
+        <div class="ex-name">Heel-elevated front squat — top set</div>
+      </div>
+      <div class="hero">1 × 4<small>RPE 7</small></div>
+    </div>
+    <div class="summary-line"><span class="vals">127.5 kg · 1×4 · RPE 7 · knee pain 2/10</span>
+      <span class="edit">Edit</span></div>
+    <button class="donebtn" aria-pressed="true">✓ Logged</button>
+  </div>
+
+  <!-- conditioning card + week banner -->
+  <div class="banner">Week 3: prescriptions below are the Week-1 template — apply each exercise's Progression Rule for this week.</div>
+
+  <div class="card" style="--cat:var(--cat-cond)">
+    <span class="rail"></span>
+    <div class="ex-head">
+      <div class="grow">
+        <div><span class="tag">Conditioning</span></div>
+        <div class="ex-name">Backward sled drag</div>
+        <div class="chips"><span class="chip">Sled + ~40-80 kg</span><span class="chip k">Rest 60 sec</span></div>
+      </div>
+      <div class="hero">6 × 20 m<small>RPE 6</small></div>
+    </div>
+    <div class="log tight">
+      <div><label class="lbl">Load</label>
+        <div class="fld has-unit"><input type="text" placeholder="90" /><span class="unit">kg</span></div></div>
+      <div><label class="lbl">Sets × reps</label>
+        <div class="fld"><input type="text" placeholder="4×6" /></div></div>
+      <div><label class="lbl">RPE</label>
+        <div class="fld"><input type="text" placeholder="7" /></div></div>
+      <div><label class="lbl">Knee pain</label>
+        <div class="fld has-unit"><input type="number" placeholder="0" /><span class="unit">/10</span></div></div>
+      <div class="full"><label class="lbl">Notes</label><textarea placeholder="Notes…"></textarea></div>
+      <div class="hint">Log: Total load; knee response during + next AM</div>
+    </div>
+    <button class="donebtn" aria-pressed="false">Mark done</button>
+  </div>
+</main>
+
+<div class="footer-bar">
+  <button class="ghost mini">Copy JSON</button>
+  <button class="primary exp">Export session</button>
+</div>
+
+<div class="sheet-wrap" id="sheetWrap" hidden>
+  <div class="sheet-bg" id="sheetBg"></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="Tracked fields">
+    <div class="sheet-head">
+      <div class="grow">
+        <h2>Tracked fields</h2>
+        <p class="sheet-note">Turn off what you don't need. Nothing already logged is deleted — hidden fields just stop appearing, and the export records what you were tracking.</p>
+      </div>
+      <button class="ghost mini" id="sheetClose">Done</button>
+    </div>
+    <div>
+      <div class="togrow">
+        <div class="tl"><div class="tn">Pain per exercise</div>
+          <div class="td">A 0–10 pain box on every exercise.</div></div>
+        <button class="sw" role="switch" aria-checked="true" aria-label="Pain per exercise"></button>
+      </div>
+      <div class="togrow">
+        <div class="tl"><div class="tn">Next-morning pain</div>
+          <div class="td">Session-level 0–10, filled the morning after.</div></div>
+        <button class="sw" role="switch" aria-checked="true" aria-label="Next-morning pain"></button>
+      </div>
+      <div class="togrow">
+        <div class="tl"><div class="tn">Bodyweight</div>
+          <div class="td">Logged in kg at check-in.</div></div>
+        <button class="sw" role="switch" aria-checked="false" aria-label="Bodyweight"></button>
+      </div>
+      <div class="togrow">
+        <div class="tl"><div class="tn">Pain label</div>
+          <div class="td">Names the pain fields.</div>
+          <div style="margin-top:8px"><input type="text" value="Knee" /></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">Exported session-2026-07-28-day-1-mon.json</div>
+</div>
+
+<script>
+"use strict";
+const $ = (s,r=document)=>r.querySelector(s);
+
+const PAL_A=["#000000","#14213d","#fca311","#e5e5e5","#ffffff"];
+const PAL_B=["#c9e4ca","#87bba2","#55828b","#3b6064","#364958"];
+
+const THEMES=[
+  {id:"a1",pal:"A",name:"Ink & Amber",kind:"dark",swatch:PAL_A,
+   note:"Black page, navy cards, amber only where it means \"act\": primary button, progress, active day, tendon rail. Text is <code>#ffffff</code>/<code>#e5e5e5</code>. Highest contrast of the six; links/disclosures are grey, not a second hue."},
+  {id:"a2",pal:"A",name:"Paper & Amber",kind:"light",swatch:PAL_A,
+   note:"White page, <code>#e5e5e5</code> chrome, navy <code>#14213d</code> as the ink and secondary accent, amber for the CTA. Readable in a sunlit gym; costs you the dark-room comfort."},
+  {id:"a3",pal:"A",name:"Navy & Amber",kind:"dark",swatch:PAL_A,
+   note:"Navy <code>#14213d</code> as the page itself, black wells, amber used liberally (links, disclosures, rails, active tab). Warmest and most branded; amber loses some \"this is the button\" signal."},
+  {id:"b1",pal:"B",name:"Slate & Mint",kind:"dark",swatch:PAL_B,
+   note:"Slate <code>#364958</code> page, teal <code>#3b6064</code> cards, mint <code>#87bba2</code> as accent and as the logged-green — one hue does both, so \"done\" and \"go\" read the same."},
+  {id:"b2",pal:"B",name:"Mint Paper",kind:"light",swatch:PAL_B,
+   note:"Mint <code>#c9e4ca</code> page with lighter cards, <code>#364958</code> ink, <code>#55828b</code> accent. Softest of the six; least contrast on the small numeric fields."},
+  {id:"b3",pal:"B",name:"Teal & Mint",kind:"dark",swatch:PAL_B,
+   note:"Mid-dark teal <code>#3b6064</code> page, <code>#55828b</code> chrome, mint <code>#c9e4ca</code> as the accent — light-on-dark buttons instead of colour-on-dark. Amber/red for readiness are added, not from the palette."}
+];
+
+const tabs=$("#chromeTabs");
+THEMES.forEach((t,i)=>{
+  const b=document.createElement("button");
+  b.type="button";
+  b.setAttribute("aria-pressed",String(i===0));
+  b.innerHTML="<b>Palette "+t.pal+" · "+t.kind+"</b>"+(i+1)+". "+t.name;
+  b.onclick=()=>setTheme(i);
+  tabs.append(b);
+});
+
+let cur=0;
+function setTheme(i){
+  cur=(i+THEMES.length)%THEMES.length;
+  const t=THEMES[cur];
+  document.body.dataset.theme=t.id;
+  [...tabs.children].forEach((b,n)=>b.setAttribute("aria-pressed",String(n===cur)));
+  const strip=$("#swStrip");strip.innerHTML="";
+  t.swatch.forEach(c=>{const s=document.createElement("i");s.style.background=c;s.title=c;strip.append(s);});
+  $("#chromeNote").innerHTML=t.note;
+  try{localStorage.setItem("tp_proto_theme",t.id);}catch(e){}
+}
+
+/* keyboard: 1-6 jump, arrows step */
+addEventListener("keydown",e=>{
+  if(/^[1-6]$/.test(e.key))setTheme(+e.key-1);
+  else if(e.key==="ArrowRight")setTheme(cur+1);
+  else if(e.key==="ArrowLeft")setTheme(cur-1);
+  else if(e.key==="Escape")$("#sheetWrap").hidden=true;
+});
+
+/* live bits so themed states can actually be judged */
+$("#readySel").onchange=e=>{$("#sessCard").dataset.readiness=e.target.value;};
+document.querySelectorAll(".donebtn").forEach(b=>{
+  b.onclick=()=>{
+    const on=b.getAttribute("aria-pressed")!=="true";
+    b.setAttribute("aria-pressed",String(on));
+    b.textContent=on?"✓ Logged":"Mark done";
+    b.closest(".card").classList.toggle("done",on);
+  };
+});
+document.querySelectorAll(".sw").forEach(s=>{
+  s.onclick=()=>s.setAttribute("aria-checked",String(s.getAttribute("aria-checked")!=="true"));
+});
+$("#sheetBtn").onclick=()=>{$("#sheetWrap").hidden=false;};
+$("#sheetClose").onclick=()=>{$("#sheetWrap").hidden=true;};
+$("#sheetBg").onclick=()=>{$("#sheetWrap").hidden=true;};
+$("#toastBtn").onclick=()=>{const t=$("#toast");t.classList.add("show");
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2200);};
+
+/* the app header sticks below the fixed switcher, whatever height it wraps to */
+function measure(){
+  document.documentElement.style.setProperty("--chrome-h",$("#chrome").offsetHeight+"px");
+  document.querySelector(".app").style.paddingTop=$("#chrome").offsetHeight+"px";
+}
+addEventListener("resize",measure);
+
+let start=0;
+try{const s=localStorage.getItem("tp_proto_theme");
+  const n=THEMES.findIndex(t=>t.id===s);if(n>=0)start=n;}catch(e){}
+setTheme(start);
+measure();
+</script>
+</body>
+</html>
