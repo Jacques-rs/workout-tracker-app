@@ -38,7 +38,8 @@ This repo is **step 3** of a four-step loop. The other steps live in a separate 
 ## Conventions
 
 - Plain ES5/ES6-compatible vanilla JS. Small helpers (`$`, `el`) already exist at the top of the script — use them rather than adding a library.
-- Dark UI, mobile-first, single 720px-max column. Touch targets ≥26px; inputs must be reachable one-handed with a chalked-up thumb.
+- Mobile-first, single 720px-max column. Touch targets ≥26px; inputs must be reachable one-handed with a chalked-up thumb.
+- **Themed via CSS variables — never hardcode a colour.** Two palettes (Amber / Mint) × light/dark are declared as four `html[data-theme]` blocks at the top of the `<style>`; the Appearance section of the settings sheet picks palette + mode (Auto follows the device). Every colour in a rule below those blocks must be a `var(--…)`, or it will survive a theme switch and look broken in one of the four. The only exceptions are two neutral greys (a `color-mix` fallback and a swatch hairline). Category rail colours live in `--cat-*`, so `CATS` in the JS holds `var()` references, not hex.
 - `type="number"` for numeric fields so phones show the number pad.
 - Keep the JS organised in the existing sections: program loading → session persistence → rendering → export → events.
 - Bump the `CACHE` constant in `sw.js` whenever shell files change, or returning users get a stale app.
