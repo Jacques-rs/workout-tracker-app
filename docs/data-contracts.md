@@ -61,7 +61,8 @@ Two JSON shapes cross the boundary between this app and the coaching project. **
 Purely presentational — it groups a day visually (skill vs strength vs conditioning) so the
 card list is scannable. **The app never filters, reorders or gates anything on it.**
 
-Recognised values, each with a fixed colour: `warmup`, `tendon`, `skill`, `strength`,
+Recognised values, each with a fixed *slot* whose colour comes from the active theme
+(`--cat-*`): `warmup`, `tendon`, `skill`, `strength`,
 `cond`, `accessory`, `cooldown`. Common aliases also resolve (`metcon`/`conditioning`/
 `aerobic` → `cond`, `prehab`/`rehab`/`isometric` → `tendon`, `technique`/`olympic` →
 `skill`, `main`/`lift` → `strength`, `core`/`auxiliary` → `accessory`, `mobility` →

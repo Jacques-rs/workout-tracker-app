@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Training Tracker</title>
-<meta name="theme-color" content="#0d141c" />
+<meta name="theme-color" content="#000000" id="metaTheme" />
 <link rel="manifest" href="./manifest.webmanifest" />
 <link rel="apple-touch-icon" href="./icon-192.png" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -12,18 +12,107 @@
 <meta name="apple-mobile-web-app-title" content="Tracker" />
 <style>
   :root{
-    --bg:#0d141c; --panel:#151f2b; --panel-hi:#1c2836; --well:#0a1017;
-    --line:#26364a; --line-soft:#1e2c3c;
-    --ink:#e9eff6; --ink-dim:#b9c8d8; --muted:#8598ab;
-    --accent:#37c5a8; --accent2:#5b9bd5;
-    --warn:#e0b64a; --bad:#e06a5a; --good:#37c5a8;
     /* 4px spacing scale */
     --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px;
     /* type scale */
     --t-xs:.6875rem; --t-sm:.8125rem; --t-base:.9375rem; --t-md:1.0625rem;
     --t-lg:1.25rem; --t-hero:1.5rem;
     --r:14px; --r-sm:10px;
-    --ring:0 0 0 3px rgba(55,197,168,.22);
+  }
+  /* ---------- themes ----------
+     Two palettes × light/dark, chosen in the settings sheet and resolved onto
+     <html data-theme> by applyTheme() (and by the head script, before first paint).
+     Every colour below is a variable: no rule elsewhere in this file may hardcode a
+     hex or rgba, or it will survive a theme switch and look broken in one of the four.
+
+     Palette A "Amber": #000000 #14213d #fca311 #e5e5e5 #ffffff
+     Palette B "Mint":  #c9e4ca #87bba2 #55828b #3b6064 #364958
+
+     Surface levels (bg / panel / panel-hi / well / two line weights) are mixes and
+     tints of each palette's own colours — five hexes can't fill six steps. The raw
+     palette values carry ink, accent and category rails.
+     Readiness Green/Amber/Red can't come from one chroma, so --good/--warn/--bad are
+     semantic: in-palette where the palette has that hue, added where it doesn't. */
+
+  /* A · dark — "Ink & Amber". Also the no-JS fallback. */
+  html:not([data-theme]),html[data-theme="a-dark"]{
+    --bg:#000000; --panel:#0e1626; --panel-hi:#14213d; --well:#06090f;
+    --line:#24345a; --line-soft:#16223a;
+    --ink:#ffffff; --ink-dim:#e5e5e5; --muted:#97a0b5; --placeholder:#6b7488;
+    --accent:#fca311; --on-accent:#14213d; --accent-soft:rgba(252,163,17,.13);
+    --accent-ink:#fca311;
+    --accent2:#e5e5e5; --accent2-soft:rgba(229,229,229,.08);
+    --good:#3fa87f; --good-soft:rgba(63,168,127,.12); --good-soft-2:rgba(63,168,127,.03);
+    --good-line:rgba(63,168,127,.45);
+    --warn:#fca311; --bad:#e0503c;
+    --ring:0 0 0 3px rgba(252,163,17,.25); --scrim:rgba(0,0,0,.78);
+    --footer-bg:rgba(14,22,38,.93); --bg-fade:rgba(0,0,0,0);
+    --toast-bg:#14213d; --toast-ink:#ffffff; --toast-line:#fca311;
+    --top-hi-a:rgba(255,255,255,.08); --top-hi-b:rgba(255,255,255,.02);
+    --tab-shadow:rgba(0,0,0,.5);
+    --cat-warm:#8590a8; --cat-tendon:#fca311; --cat-skill:#e5e5e5;
+    --cat-strength:#6d8ecb; --cat-cond:#c07c14; --cat-accessory:#b0a48c;
+    --meta-theme:#000000;
+  }
+  /* A · light — "Paper & Amber" */
+  html[data-theme="a-light"]{
+    --bg:#ffffff; --panel:#ffffff; --panel-hi:#e5e5e5; --well:#f4f5f7;
+    --line:#c6cbd6; --line-soft:#dfe2e8;
+    --ink:#14213d; --ink-dim:#33415f; --muted:#6c7893; --placeholder:#9aa3b5;
+    --accent:#fca311; --on-accent:#14213d; --accent-soft:rgba(252,163,17,.18);
+    --accent-ink:#b8760c;   /* amber as *text* fails on white — darken it, keep the fill amber */
+    --accent2:#14213d; --accent2-soft:rgba(20,33,61,.06);
+    --good:#1f7a5c; --good-soft:rgba(31,122,92,.10); --good-soft-2:rgba(31,122,92,.02);
+    --good-line:rgba(31,122,92,.40);
+    --warn:#b8760c; --bad:#c1402c;
+    --ring:0 0 0 3px rgba(252,163,17,.32); --scrim:rgba(20,33,61,.42);
+    --footer-bg:rgba(255,255,255,.94); --bg-fade:rgba(255,255,255,0);
+    --toast-bg:#14213d; --toast-ink:#ffffff; --toast-line:#fca311;
+    --top-hi-a:rgba(20,33,61,.05); --top-hi-b:rgba(20,33,61,.01);
+    --tab-shadow:rgba(20,33,61,.16);
+    --cat-warm:#8b93a6; --cat-tendon:#c07c14; --cat-skill:#14213d;
+    --cat-strength:#41598f; --cat-cond:#a05f0c; --cat-accessory:#6d6250;
+    --meta-theme:#ffffff;
+  }
+  /* B · dark — "Slate & Mint" */
+  html[data-theme="b-dark"]{
+    --bg:#364958; --panel:#3b6064; --panel-hi:#487479; --well:#2b3a46;
+    --line:#55828b; --line-soft:#44676d;
+    --ink:#f4fbf4; --ink-dim:#c9e4ca; --muted:#9dbdb0; --placeholder:#7d9c96;
+    --accent:#87bba2; --on-accent:#243b33; --accent-soft:rgba(135,187,162,.16);
+    --accent-ink:#87bba2;
+    --accent2:#c9e4ca; --accent2-soft:rgba(201,228,202,.10);
+    --good:#87bba2; --good-soft:rgba(135,187,162,.14); --good-soft-2:rgba(135,187,162,.04);
+    --good-line:rgba(135,187,162,.5);
+    --warn:#d9a03c; --bad:#c8574a;
+    --ring:0 0 0 3px rgba(135,187,162,.28); --scrim:rgba(27,37,45,.76);
+    --footer-bg:rgba(59,96,100,.93); --bg-fade:rgba(54,73,88,0);
+    --toast-bg:#2b3a46; --toast-ink:#c9e4ca; --toast-line:#87bba2;
+    --top-hi-a:rgba(255,255,255,.08); --top-hi-b:rgba(255,255,255,.02);
+    --tab-shadow:rgba(0,0,0,.35);
+    --cat-warm:#8fa4a8; --cat-tendon:#87bba2; --cat-skill:#c9e4ca;
+    --cat-strength:#74a7b8; --cat-cond:#d9a03c; --cat-accessory:#a9c4a3;
+    --meta-theme:#364958;
+  }
+  /* B · light — "Mint Paper" */
+  html[data-theme="b-light"]{
+    --bg:#c9e4ca; --panel:#e2f1e2; --panel-hi:#cfe7d0; --well:#f4faf4;
+    --line:#87bba2; --line-soft:#aed3b5;
+    --ink:#364958; --ink-dim:#3b6064; --muted:#55828b; --placeholder:#87a8a3;
+    --accent:#55828b; --on-accent:#f4faf4; --accent-soft:rgba(85,130,139,.14);
+    --accent-ink:#3f6d76;
+    --accent2:#3b6064; --accent2-soft:rgba(59,96,100,.08);
+    --good:#3b7a5e; --good-soft:rgba(59,122,94,.12); --good-soft-2:rgba(59,122,94,.03);
+    --good-line:rgba(59,122,94,.42);
+    --warn:#a8741a; --bad:#a8473a;
+    --ring:0 0 0 3px rgba(85,130,139,.30); --scrim:rgba(54,73,88,.44);
+    --footer-bg:rgba(226,241,226,.94); --bg-fade:rgba(201,228,202,0);
+    --toast-bg:#364958; --toast-ink:#c9e4ca; --toast-line:#55828b;
+    --top-hi-a:rgba(255,255,255,.7); --top-hi-b:rgba(255,255,255,.2);
+    --tab-shadow:rgba(54,73,88,.18);
+    --cat-warm:#7d97a0; --cat-tendon:#3b7a5e; --cat-skill:#364958;
+    --cat-strength:#55828b; --cat-cond:#a8741a; --cat-accessory:#6b8f6f;
+    --meta-theme:#c9e4ca;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;background:var(--bg);color:var(--ink);
@@ -35,7 +124,7 @@
   /* ---------- header ---------- */
   header{position:sticky;top:0;z-index:20;background:var(--bg);padding:var(--s4) 0 var(--s2)}
   header::after{content:"";position:absolute;left:0;right:0;bottom:-16px;height:16px;
-    background:linear-gradient(var(--bg),rgba(13,20,28,0));pointer-events:none}
+    background:linear-gradient(var(--bg),var(--bg-fade));pointer-events:none}
   .row{display:flex;gap:var(--s2);align-items:center}
   /* Header actions must never absorb the squeeze — the block name (.grow) wraps instead. */
   header .row>button{flex:0 0 auto;white-space:nowrap}
@@ -66,7 +155,7 @@
     border:1px solid var(--line);border-radius:var(--r-sm);padding:10px 11px;outline:none;
     max-width:100%;min-width:0;transition:border-color .15s,box-shadow .15s,background .15s}
   input,textarea{font-weight:600}
-  input::placeholder,textarea::placeholder{color:#5d7285;font-weight:400}
+  input::placeholder,textarea::placeholder{color:var(--placeholder);font-weight:400}
   /* Number spinners are unusable with a chalked thumb and steal ~15px of field width —
      enough that a pain score of "10" was being clipped in the narrow Pain column. */
   input[type=number]{-moz-appearance:textfield;appearance:textfield}
@@ -80,7 +169,8 @@
   input:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:var(--ring)}
   button{cursor:pointer;background:var(--panel-hi);font-weight:600}
   button:active{transform:scale(.97)}
-  button.primary{background:var(--accent);color:#05231c;border-color:var(--accent);font-weight:700}
+  button.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent);
+    font-weight:700}
   button.ghost{background:transparent}
   .mini{font-size:var(--t-sm);padding:7px 11px}
   .selrow{display:flex;gap:var(--s2);margin-top:var(--s3)}
@@ -96,19 +186,20 @@
   .daytabs button{flex:1 1 0;min-width:56px;border:0;background:transparent;color:var(--muted);
     border-radius:999px;padding:8px 6px;font-size:var(--t-sm);font-weight:700;white-space:nowrap}
   .daytabs button[aria-pressed="true"]{background:var(--panel-hi);color:var(--ink);
-    box-shadow:0 1px 3px rgba(0,0,0,.4)}
-  .daytabs button .dnum{display:block;font-size:var(--t-xs);font-weight:400;color:#5d7285;
-    letter-spacing:.5px}
-  .daytabs button[aria-pressed="true"] .dnum{color:var(--accent)}
+    box-shadow:0 1px 3px var(--tab-shadow)}
+  .daytabs button .dnum{display:block;font-size:var(--t-xs);font-weight:400;
+    color:var(--placeholder);letter-spacing:.5px}
+  .daytabs button[aria-pressed="true"] .dnum{color:var(--accent-ink)}
   .daytitle{color:var(--muted);font-size:var(--t-sm);margin:var(--s3) 0 0}
 
   /* ---------- cards ---------- */
   .card{position:relative;background:var(--panel);border:1px solid var(--line-soft);
     border-radius:var(--r);padding:var(--s4) var(--s4) var(--s4) calc(var(--s4) + 4px);
     margin:var(--s3) 0;overflow:hidden}
-  /* 1px top highlight reads as light falling on the card — depth without a drop shadow */
+  /* 1px top highlight reads as light falling on the card — depth without a drop shadow.
+     In the light themes it's a white highlight instead; both come from the theme block. */
   .card::before{content:"";position:absolute;inset:0 0 auto 0;height:1px;
-    background:linear-gradient(90deg,rgba(255,255,255,.07),rgba(255,255,255,.02))}
+    background:linear-gradient(90deg,var(--top-hi-a),var(--top-hi-b))}
   .rail{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--cat,var(--line-soft))}
   .card.done .rail{background:var(--good)}
   .ex-head{display:flex;justify-content:space-between;gap:var(--s3);align-items:flex-start}
@@ -120,12 +211,12 @@
   .rx.set{font-weight:600}
   .rx .rpe{color:var(--muted);font-size:var(--t-xs);font-weight:600;letter-spacing:.6px;
     text-transform:uppercase;margin-left:6px;white-space:nowrap}
-  .card.done{border-color:rgba(55,197,168,.4);
-    background:linear-gradient(180deg,rgba(55,197,168,.07),rgba(55,197,168,.02)),var(--panel)}
+  .card.done{border-color:var(--good-line);
+    background:linear-gradient(180deg,var(--good-soft),var(--good-soft-2)),var(--panel)}
 
   .tag{display:inline-block;font-size:var(--t-xs);font-weight:800;letter-spacing:.7px;
     text-transform:uppercase;color:var(--cat);
-    background:rgba(255,255,255,.07);                              /* fallback */
+    background:rgba(128,128,128,.14);                              /* fallback */
     background:color-mix(in srgb,var(--cat) 14%,transparent);
     border-radius:5px;padding:2px 7px;margin-bottom:5px}
 
@@ -166,12 +257,12 @@
   .lbl{display:block;font-size:var(--t-xs);color:var(--muted);margin:0 0 var(--s1) 2px;font-weight:600}
   .fld{position:relative}
   .fld .unit{position:absolute;right:8px;top:50%;transform:translateY(-50%);
-    color:#5d7285;font-size:var(--t-xs);font-weight:600;pointer-events:none}
+    color:var(--placeholder);font-size:var(--t-xs);font-weight:600;pointer-events:none}
   /* Keep this tight: the suffix eats width from a 56–74px numeric column, and more
      padding clips the value itself on a 360px screen. */
   .fld.has-unit input{padding-right:31px}
   .hint{font-size:var(--t-sm);color:var(--accent2);grid-column:1/-1;
-    background:rgba(91,155,213,.09);border-left:2px solid var(--accent2);
+    background:var(--accent2-soft);border-left:2px solid var(--accent2);
     border-radius:0 var(--r-sm) var(--r-sm) 0;padding:var(--s2) var(--s3);margin-top:var(--s1)}
   textarea{width:100%;min-height:56px;resize:vertical;font-weight:400;line-height:1.5}
   @media (min-width:460px){.sessioncard .log{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -179,8 +270,8 @@
   .donebtn{width:100%;margin-top:var(--s3);padding:12px;border-radius:var(--r-sm);
     background:var(--panel-hi);border:1px solid var(--line);color:var(--ink-dim);
     font-weight:700;font-size:var(--t-sm);letter-spacing:.3px}
-  .donebtn[aria-pressed="true"]{background:rgba(55,197,168,.14);
-    border-color:rgba(55,197,168,.5);color:var(--good)}
+  .donebtn[aria-pressed="true"]{background:var(--good-soft);
+    border-color:var(--good-line);color:var(--good)}
   .summary-line{margin-top:var(--s3);font-size:var(--t-sm);color:var(--ink-dim);
     background:var(--well);border:1px solid var(--line-soft);border-radius:var(--r-sm);
     padding:var(--s2) var(--s3);cursor:pointer;display:flex;justify-content:space-between;gap:var(--s2)}
@@ -188,9 +279,9 @@
   .summary-line .vals{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
   /* readiness tints the check-in card */
-  .sessioncard[data-readiness="Green"]{--cat:#37c5a8}
-  .sessioncard[data-readiness="Amber"]{--cat:#e0b64a}
-  .sessioncard[data-readiness="Red"]{--cat:#e06a5a}
+  .sessioncard[data-readiness="Green"]{--cat:var(--good)}
+  .sessioncard[data-readiness="Amber"]{--cat:var(--warn)}
+  .sessioncard[data-readiness="Red"]{--cat:var(--bad)}
   .sessioncard[data-readiness="Green"],.sessioncard[data-readiness="Amber"],
   .sessioncard[data-readiness="Red"]{border-color:color-mix(in srgb,var(--cat) 45%,transparent)}
 
@@ -198,7 +289,7 @@
   .sheet-wrap{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-end;
     justify-content:center}
   .sheet-wrap[hidden]{display:none}
-  .sheet-bg{position:absolute;inset:0;background:rgba(4,8,12,.72)}
+  .sheet-bg{position:absolute;inset:0;background:var(--scrim)}
   .sheet{position:relative;width:100%;max-width:720px;max-height:86vh;overflow-y:auto;
     background:var(--panel);border:1px solid var(--line);
     border-radius:var(--r) var(--r) 0 0;
@@ -218,19 +309,44 @@
     padding:0;transition:background .18s,border-color .18s}
   .sw::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;
     border-radius:50%;background:var(--muted);transition:transform .18s,background .18s}
-  .sw[aria-checked="true"]{background:rgba(55,197,168,.25);border-color:var(--accent)}
+  .sw[aria-checked="true"]{background:var(--accent-soft);border-color:var(--accent)}
   .sw[aria-checked="true"]::after{transform:translateX(20px);background:var(--accent)}
   .sw:focus-visible{box-shadow:var(--ring)}
 
+  /* ---------- appearance controls (top of the sheet) ---------- */
+  .sec{font-size:var(--t-xs);color:var(--muted);text-transform:uppercase;letter-spacing:.8px;
+    font-weight:700;margin:var(--s5) 0 var(--s2)}
+  .sec:first-child{margin-top:var(--s3)}
+  .pals{display:flex;gap:var(--s2)}
+  /* Buttons, not radios: a 26px+ target with the palette visible on it beats a radio
+     label you have to read. */
+  .pal{flex:1 1 0;display:block;text-align:left;background:var(--well);
+    border:1px solid var(--line);border-radius:var(--r-sm);padding:10px}
+  .pal[aria-pressed="true"]{border-color:var(--accent);box-shadow:var(--ring)}
+  .pal .dots{display:flex;gap:3px;margin-bottom:7px}
+  .pal .dots i{width:100%;height:14px;border-radius:3px;display:block;
+    box-shadow:inset 0 0 0 1px rgba(128,128,128,.4)}
+  .pal .pn{font-size:var(--t-sm);font-weight:700;color:var(--ink)}
+  .pal .pd{font-size:var(--t-xs);color:var(--muted);font-weight:400;line-height:1.35;
+    margin-top:1px}
+  .seg{display:flex;gap:var(--s1);padding:3px;background:var(--well);
+    border:1px solid var(--line-soft);border-radius:999px;margin-top:var(--s2)}
+  .seg button{flex:1 1 0;border:0;background:transparent;color:var(--muted);
+    border-radius:999px;padding:9px 6px;font-size:var(--t-sm);font-weight:700}
+  .seg button[aria-pressed="true"]{background:var(--panel-hi);color:var(--ink);
+    box-shadow:0 1px 3px var(--tab-shadow)}
+  .seg-note{font-size:var(--t-xs);color:var(--muted);margin:var(--s2) 0 0;line-height:1.4}
+
   /* ---------- footer / misc ---------- */
   .footer-bar{position:fixed;left:0;right:0;bottom:0;z-index:30;
-    background:rgba(21,31,43,.92);backdrop-filter:blur(12px);border-top:1px solid var(--line);
+    background:var(--footer-bg);backdrop-filter:blur(12px);border-top:1px solid var(--line);
     padding:var(--s2) var(--s3) calc(var(--s2) + env(safe-area-inset-bottom));
     display:flex;gap:var(--s2);align-items:center;max-width:720px;margin:0 auto}
   .footer-bar button{flex:0 0 auto;white-space:nowrap}
   .footer-bar #exportBtn{flex:1 1 auto}
   .toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%) translateY(6px);
-    background:#0b2e26;color:#c9f5e9;border:1px solid var(--accent);padding:10px 15px;
+    background:var(--toast-bg);color:var(--toast-ink);border:1px solid var(--toast-line);
+    padding:10px 15px;
     border-radius:var(--r-sm);font-size:var(--t-sm);opacity:0;
     transition:opacity .2s,transform .2s;z-index:70;pointer-events:none;max-width:92%}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -239,6 +355,17 @@
     border-radius:var(--r-sm);padding:var(--s3);font-size:var(--t-sm);color:var(--ink-dim);
     margin:var(--s3) 0;line-height:1.5}
 </style>
+<script>
+/* Resolve the saved theme BEFORE first paint. The main script runs at the end of <body>,
+   which is late enough that a light-theme user would see a black flash on every cold
+   start. Kept deliberately tiny and duplicated — it must mirror themeId() below. */
+(function(){try{
+  var s=JSON.parse(localStorage.getItem("tp_settings_v1")||"{}");
+  var p=s.palette==="b"?"b":"a", m=s.mode||"auto";
+  var dark=m==="auto"?!matchMedia("(prefers-color-scheme: light)").matches:m!=="light";
+  document.documentElement.dataset.theme=p+(dark?"-dark":"-light");
+}catch(e){document.documentElement.dataset.theme="a-dark";}})();
+</script>
 </head>
 <body>
 <header>
@@ -247,7 +374,7 @@
       <div class="block-name" id="blockName">Training Tracker</div>
       <div class="sub" id="blockSub">Import a program to begin</div>
     </div>
-    <button class="iconbtn" id="settingsBtn" aria-label="Tracked fields">
+    <button class="iconbtn" id="settingsBtn" aria-label="Settings">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/>
       <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.2a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a2 2 0 1 1 0-4h.2A1.7 1.7 0 0 0 4.4 8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.1V4a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9H21a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.4 1z"/></svg>
     </button>
@@ -273,14 +400,17 @@
 
 <div class="sheet-wrap" id="sheetWrap" hidden>
   <div class="sheet-bg" id="sheetBg"></div>
-  <div class="sheet" role="dialog" aria-modal="true" aria-label="Tracked fields">
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="Settings">
     <div class="sheet-head">
       <div class="grow">
-        <h2>Tracked fields</h2>
+        <h2>Settings</h2>
         <p class="sheet-note" id="sheetNote"></p>
       </div>
       <button class="ghost mini" id="sheetClose">Done</button>
     </div>
+    <div id="appearance"></div>
+    <div class="sec">Tracked fields</div>
+    <p class="sheet-note" id="fieldsNote"></p>
     <div id="togList"></div>
   </div>
 </div>
@@ -321,7 +451,9 @@ const FIELD_DEFS=[
   {key:"bodyweight",name:"Bodyweight",desc:"Logged in kg at check-in."},
   {key:"hrvNote",name:"HRV / notes",desc:"Free text for HRV and anything else about recovery."}
 ];
-const SET_DEFAULTS={painLabel:"Knee"};
+/* palette+mode live in the same per-device settings object as the tracked fields.
+   They are cosmetic, so they are deliberately NOT part of the session export. */
+const SET_DEFAULTS={painLabel:"Knee",palette:"a",mode:"auto"};
 FIELD_DEFS.forEach(f=>SET_DEFAULTS[f.key]=true);
 let SETTINGS={...SET_DEFAULTS};
 
@@ -330,15 +462,74 @@ function loadSettings(){
     if(raw)SETTINGS={...SET_DEFAULTS,...JSON.parse(raw)};}catch(e){}
 }
 function saveSettings(){localStorage.setItem(LS.set,JSON.stringify(SETTINGS));}
+
+/* ---------- theme ----------
+   Two palettes × light/dark. "Auto" follows the phone's own light/dark setting, so the
+   basement session is dark and a daytime check-in isn't blinding, with no tap needed. */
+const PALETTES=[
+  {key:"a",name:"Amber",desc:"Black, navy, amber",
+   swatch:["#000000","#14213d","#fca311","#e5e5e5","#ffffff"]},
+  {key:"b",name:"Mint",desc:"Slate, teal, mint",
+   swatch:["#364958","#3b6064","#55828b","#87bba2","#c9e4ca"]}
+];
+const MODES=[["auto","Auto"],["light","Light"],["dark","Dark"]];
+const prefersLight=matchMedia("(prefers-color-scheme: light)");
+
+function themeId(){
+  const p=SETTINGS.palette==="b"?"b":"a";
+  const dark=SETTINGS.mode==="auto"?!prefersLight.matches:SETTINGS.mode!=="light";
+  return p+(dark?"-dark":"-light");
+}
+function applyTheme(){
+  document.documentElement.dataset.theme=themeId();
+  /* Keeps the phone's own chrome (status bar / task switcher) in step with the app. */
+  const c=getComputedStyle(document.documentElement).getPropertyValue("--meta-theme").trim();
+  if(c)$("#metaTheme").setAttribute("content",c);
+}
+/* Only matters in Auto; harmless otherwise. addEventListener over onchange because
+   older iOS Safari only has the deprecated addListener — guarded. */
+if(prefersLight.addEventListener)prefersLight.addEventListener("change",()=>{
+  if(SETTINGS.mode==="auto")applyTheme();});
+else if(prefersLight.addListener)prefersLight.addListener(()=>{
+  if(SETTINGS.mode==="auto")applyTheme();});
 /* "Knee" -> "Knee pain"; blank -> plain "Pain", so it reads sensibly for anyone. */
 function painLbl(suffix){
   const site=(SETTINGS.painLabel||"").trim();
   return (site?site+" pain":"Pain")+(suffix||"");
 }
 
+function renderAppearance(){
+  const host=$("#appearance");host.innerHTML="";
+  host.append(el("div",{className:"sec"},"Appearance"));
+
+  const pals=el("div",{className:"pals"});
+  PALETTES.forEach(p=>{
+    const dots=el("div",{className:"dots"},
+      p.swatch.map(c=>el("i",{attrs:{style:"background:"+c}})));
+    const b=el("button",{className:"pal",attrs:{"aria-pressed":String(SETTINGS.palette===p.key)}},
+      [dots,el("div",{className:"pn"},p.name),el("div",{className:"pd"},p.desc)]);
+    b.onclick=()=>{SETTINGS.palette=p.key;saveSettings();applyTheme();renderAppearance();};
+    pals.append(b);
+  });
+  host.append(pals);
+
+  const seg=el("div",{className:"seg"});
+  MODES.forEach(([k,label])=>{
+    const b=el("button",{attrs:{"aria-pressed":String(SETTINGS.mode===k)}},label);
+    b.onclick=()=>{SETTINGS.mode=k;saveSettings();applyTheme();renderAppearance();};
+    seg.append(b);
+  });
+  host.append(seg);
+  host.append(el("p",{className:"seg-note"},SETTINGS.mode==="auto"
+    ?`Auto follows this phone's light/dark setting — currently ${prefersLight.matches?"light":"dark"}.`
+    :"Fixed, whatever the phone is set to."));
+}
+
 function renderSettings(){
+  renderAppearance();
   const list=$("#togList");list.innerHTML="";
-  $("#sheetNote").textContent="Turn off what you don't need. Nothing already logged is deleted — hidden fields just stop appearing, and the export records what you were tracking.";
+  $("#sheetNote").textContent="Everything here is per-device — this phone only.";
+  $("#fieldsNote").textContent="Turn off what you don't need. Nothing already logged is deleted — hidden fields just stop appearing, and the export records what you were tracking.";
   FIELD_DEFS.forEach(f=>{
     const sw=el("button",{className:"sw",attrs:{role:"switch","aria-checked":String(!!SETTINGS[f.key]),
       "aria-label":f.name}});
@@ -367,15 +558,17 @@ function closeSheet(){$("#sheetWrap").hidden=true;}
    Colour + label for an exercise's left rail. Resolution order:
      1. an explicit `category` on the exercise (tp-program-1 optional field)
      2. a keyword guess from the exercise name
-     3. nothing — neutral rail, no tag (never assert a category we don't have) */
+     3. nothing — neutral rail, no tag (never assert a category we don't have)
+   Colours are CSS variables, not hex: each theme picks rail colours from its own
+   palette, so a category keeps its *slot* across themes rather than its exact hue. */
 const CATS={
-  warmup:  {label:"Warm-up",       color:"#5d7285"},
-  tendon:  {label:"Tendon/prehab", color:"#37c5a8"},
-  skill:   {label:"Skill",         color:"#8b7ff0"},
-  strength:{label:"Strength",      color:"#5b9bd5"},
-  cond:    {label:"Conditioning",  color:"#e0a13a"},
-  accessory:{label:"Accessory",    color:"#6fbf73"},
-  cooldown:{label:"Cool-down",     color:"#5d7285"}
+  warmup:  {label:"Warm-up",       color:"var(--cat-warm)"},
+  tendon:  {label:"Tendon/prehab", color:"var(--cat-tendon)"},
+  skill:   {label:"Skill",         color:"var(--cat-skill)"},
+  strength:{label:"Strength",      color:"var(--cat-strength)"},
+  cond:    {label:"Conditioning",  color:"var(--cat-cond)"},
+  accessory:{label:"Accessory",    color:"var(--cat-accessory)"},
+  cooldown:{label:"Cool-down",     color:"var(--cat-warm)"}
 };
 /* Aliases so a generator can say "conditioning", "metcon", "prehab" etc. */
 const CAT_ALIASES={metcon:"cond",conditioning:"cond",aerobic:"cond",cardio:"cond",
@@ -395,8 +588,11 @@ const CAT_RULES=[
   [/squat|deadlift|rdl|press|bench|\brow\b|pull-?up|\bchin|\bdip|hinge/i, "strength"]
 ];
 /* Unknown declared categories still get a stable colour rather than falling back to
-   grey, so a generator can invent its own vocabulary and the UI keeps working. */
-const SPARE_COLORS=["#8b7ff0","#5b9bd5","#e0a13a","#6fbf73","#d98cc0","#4fb3c9"];
+   grey, so a generator can invent its own vocabulary and the UI keeps working. Drawn
+   from the active theme's rail colours so an invented category can't import a hue the
+   palette doesn't contain. */
+const SPARE_COLORS=["var(--cat-skill)","var(--cat-strength)","var(--cat-cond)",
+  "var(--cat-accessory)","var(--cat-tendon)","var(--cat-warm)"];
 function spareColor(s){let h=0;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;
   return SPARE_COLORS[h%SPARE_COLORS.length];}
 function titleCase(s){return s.charAt(0).toUpperCase()+s.slice(1);}
@@ -423,6 +619,7 @@ function loadProgram(obj){
 }
 async function boot(){
   loadSettings();
+  applyTheme();          /* head script already painted it; this keeps meta + state in sync */
   const saved=localStorage.getItem(LS.prog);
   if(saved){try{PROGRAM=JSON.parse(saved);}catch(e){}}
   if(!PROGRAM){try{const r=await fetch("./program.json",{cache:"no-store"});if(r.ok)PROGRAM=await r.json();}catch(e){}}

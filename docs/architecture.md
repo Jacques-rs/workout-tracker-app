@@ -16,6 +16,7 @@ The script is organised in labelled sections, in this order. Keep additions in t
 
 1. **Helpers** — `$(sel)` querySelector shorthand, `el(tag, props, kids)` element factory, `toast()`, `slug()`, `todayISO()`.
 2. **Settings** — `FIELD_DEFS` (the switchable fields), `loadSettings()`, `saveSettings()`, `painLbl()`, `renderSettings()`, `openSheet()`/`closeSheet()`.
+2b. **Theme** — `PALETTES`, `MODES`, `themeId()`, `applyTheme()`, `renderAppearance()`. Two palettes (Amber / Mint) × light/dark = the four `html[data-theme]` blocks at the top of the `<style>`. `themeId()` resolves palette + mode (`auto`/`light`/`dark`) to one of them; `applyTheme()` sets `<html data-theme>` and syncs the `theme-color` meta. A `matchMedia` listener re-applies on device light/dark change, but only while mode is `auto`. A ~6-line script in `<head>` duplicates `themeId()` so the correct palette is painted before the body renders — if you change the resolution rule, change both.
 3. **Categories** — `CATS`, `CAT_ALIASES`, `CAT_RULES`, `catOf(ex)`. Resolves an exercise's rail colour + tag; see `docs/data-contracts.md` for the fallback ladder.
 4. **Program loading** — `loadProgram(obj)` validates and persists; `boot()` loads settings, then restores the programme from `localStorage`, else fetches `./program.json`.
 5. **Session persistence** — `sessionKey()`, `getSession()`, `saveSession()`.
@@ -35,7 +36,7 @@ STATE = { week: 1, day: "Day 1 (Mon) - ...", date: "2026-07-27" }
 |---|---|
 | `tp_program_v1` | The imported programme (`tp-program-1`). One at a time. |
 | `tp_sess_v1::<date>::<day>` | One session's logged data. |
-| `tp_settings_v1` | Which optional fields are shown, plus `painLabel`. Defaults are all-on, so a fresh install behaves like the original app. |
+| `tp_settings_v1` | Which optional fields are shown, plus `painLabel`, plus appearance (`palette`: `a`\|`b`, `mode`: `auto`\|`light`\|`dark`). Defaults are all-on / `a` / `auto`, so a fresh install behaves like the original app apart from following the phone's light-dark setting. Appearance is cosmetic and deliberately **not** part of the session export. |
 
 A stored session looks like:
 
