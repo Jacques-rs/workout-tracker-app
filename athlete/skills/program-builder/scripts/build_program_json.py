@@ -18,6 +18,13 @@ missing weeks, unless you pass --allow-partial-weeks.
 The Progression Rule column survives, but it is now *rationale* ("why this week
 differs"), not an instruction the athlete has to decode mid-session.
 
+REVISIONS
+---------
+--version writes meta.version. It is 1 for the initial build and is incremented
+by the review-workout-log skill each time a week is revised mid-block, so a
+program.json, its archived snapshot in revisions/ and its CHANGELOG.md entry can
+be lined up. The app ignores the field.
+
 Usage:
   python3 build_program_json.py --input rows.json --output program.json \
     --block "Block name" --athlete "Display Name" --weeks 6
@@ -39,7 +46,7 @@ def slugify(name):
     return re.sub(r"[^a-z0-9]+", "-", (name or "").strip().lower()).strip("-")
 
 
-def build(rows, block, athlete, weeks, allow_partial):
+def build(rows, block, athlete, weeks, allow_partial, version=1):
     athlete_id = slugify(athlete)
     if not athlete_id:
         die(f"--athlete {athlete!r} does not slugify to anything usable; it names "
@@ -88,6 +95,7 @@ def build(rows, block, athlete, weeks, allow_partial):
             "athlete": athlete,
             "athleteId": athlete_id,
             "weeks": weeks,
+            "version": version,
             "generated": datetime.date.today().isoformat(),
             "days": order,
             "schema": "tp-program-2",
@@ -105,24 +113,29 @@ def main():
                     help="display name; slugified into meta.athleteId")
     ap.add_argument("--weeks", required=True,
                     help="length of the block; every week must have rows")
+    ap.add_argument("--version", default="1",
+                    help="revision number; 1 on the initial build, bumped by "
+                         "review-workout-log on each revision")
     ap.add_argument("--allow-partial-weeks", action="store_true",
                     help="emit even if some weeks have no rows (not recommended)")
     a = ap.parse_args()
 
     if not re.fullmatch(r"\s*\d+\s*", a.weeks) or int(a.weeks) < 1:
         die(f"--weeks must be a positive integer, got {a.weeks!r}")
+    if not re.fullmatch(r"\s*\d+\s*", a.version) or int(a.version) < 1:
+        die(f"--version must be a positive integer, got {a.version!r}")
 
     prog = build(load_rows(a.input), a.block, a.athlete, int(a.weeks),
-                 a.allow_partial_weeks)
+                 a.allow_partial_weeks, int(a.version))
     with open(a.output, "w", encoding="utf-8") as f:
         json.dump(prog, f, ensure_ascii=False, indent=2)
 
     per_week = {}
     for e in prog["exercises"]:
         per_week[e["week"]] = per_week.get(e["week"], 0) + 1
-    print(f"OK: {len(prog['exercises'])} exercises across {len(per_week)} authored "
-          f"week(s) of {prog['meta']['weeks']} and {len(prog['meta']['days'])} days "
-          f"-> {a.output}")
+    print(f"OK: v{prog['meta']['version']} - {len(prog['exercises'])} exercises across "
+          f"{len(per_week)} authored week(s) of {prog['meta']['weeks']} and "
+          f"{len(prog['meta']['days'])} days -> {a.output}")
     print("Rows per week: " + "; ".join(f"W{k}={v}" for k, v in sorted(per_week.items())))
 
 

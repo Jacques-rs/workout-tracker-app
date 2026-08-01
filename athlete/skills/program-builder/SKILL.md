@@ -125,12 +125,16 @@ python3 <skills>/program-builder/scripts/build_program_json.py \
   --output athlete/<slug>/programs/program.json \
   --block "<Block name>" --athlete "<display name>" --weeks <n>
 ```
-Schema (`tp-program-2`): `{ "meta": {block, athlete, athleteId, weeks, generated, days[], schema}, "exercises": [{id, week, day, name, sets, reps, load, rpe, tempo, rest, logHint, focus, progression}] }`, where `logHint` = the Completed Notes text (tells the app which fields to prompt for) and `athleteId` is the `athlete/<slug>/` folder name, derived from `--athlete`. Exercise ids are `w<week>d<day>e<index>` and are unique across the whole file, where `<day>` is the number in the `Day N` label (so `Day 3` is `d3`, matching its colour band in the workbook). Keep `program.json` and the `.xlsx` in sync — both come from the one `rows.json`.
+`--version` defaults to `1` and should be left alone here — the initial build of a block is always v1. It is bumped only by `review-workout-log` when a week is revised mid-block.
+
+Schema (`tp-program-2`): `{ "meta": {block, athlete, athleteId, weeks, version, generated, days[], schema}, "exercises": [{id, week, day, name, sets, reps, load, rpe, tempo, rest, logHint, focus, progression}] }`, where `logHint` = the Completed Notes text (tells the app which fields to prompt for) and `athleteId` is the `athlete/<slug>/` folder name, derived from `--athlete`. Exercise ids are `w<week>d<day>e<index>` and are unique across the whole file, where `<day>` is the number in the `Day N` label (so `Day 3` is `d3`, matching its colour band in the workbook). Keep `program.json` and the `.xlsx` in sync — both come from the one `rows.json`.
 
 The script **exits non-zero if any week of the block has no rows.** That is the guard against
 regressing to a Week-1-only programme; fix the rows rather than overriding it.
 
-**Round-trip / review convention:** the athlete imports `program.json` into the tracker, logs a session offline, and exports `session-<date>-<day>.json` into `athlete/<slug>/logs/`. When the user asks you to review a session, read the newest log for **that athlete**, compare logged loads/RPE/pain against the prescription, apply the pain-monitoring and readiness rules, and recommend the smallest effective adjustment. Session files are `tp-session-2`, which adds a per-set `sets[]` array alongside the flat summary fields; older `tp-session-1` files have no `sets[]` and must still be readable. See `docs/data-contracts.md`.
+**Round-trip / review convention:** the athlete imports `program.json` into the tracker, logs a session offline, and exports `session-<date>-<day>.json` into `athlete/<slug>/logs/`. Reviewing that log is **not this skill's job** — hand off to `review-workout-log`, which compares the log against the prescription for that week and day, proposes the smallest effective adjustment behind an approval gate, and on approval edits `rows.json` and re-runs these same two scripts with a bumped `--version`. Revising through the builder is what keeps the workbook and `program.json` in step.
+
+Write the block folder so that is possible: put `rows.json`, `program.json`, the workbook and the phase map **together in one folder**, and prefer `programs/<block-slug>/` over a flat `programs/` for a new block — a flat folder can only hold one `program.json`. See `athlete/README.md`.
 
 ## Verification checklist (run before presenting)
 - **Every week of the block has its own rows.** `build_program_json.py` exited 0 without
