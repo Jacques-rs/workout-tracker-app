@@ -15,6 +15,18 @@ breaking, because a v1 programme can be sitting in `localStorage` on a phone mid
 the coaching side has to read every session version because logs from all three are already
 on disk. Test both programme fixtures after any change to import, filtering, or export.
 
+## The two test files
+
+| File | Direction it checks |
+|---|---|
+| `apptest.js` (node) | The app reads a **good** programme correctly: week filtering, per-set round-trip, export shape, across both programme versions. |
+| `validatortest.py` (python3) | The builder refuses to emit a **bad** one: every fixture passes `validate_program.py`, and 23 single-mutation breakages are rejected. |
+
+`validatortest.py` mutates `program.v2.sample.json` one field at a time — a duplicate id, a
+`day` not in `meta.days`, a `load` emitted as a number, a week with no rows. The negative cases
+are the point: a validator that passes everything is worse than no validator, because it buys
+false confidence. Add a case there whenever you add a rule to `validate_program.py`.
+
 The v2 fixtures were derived from the v1 ones by hand, not by a script, so they are not
 byte-comparable — `program.v2.sample.json` is a shorter block (4 weeks) with stepped loads so
 that switching weeks in the app is *visibly* different, which a mechanical copy wouldn't give
