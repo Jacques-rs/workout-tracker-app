@@ -20,16 +20,26 @@ Turns a request for a new training block into a single, reviewable **Program Pla
 
 ## Process
 
+0. **Establish which athlete this is for.** Each athlete has a folder: `athlete/<slug>/`
+   containing `personal-profile.md`, `plans/`, `programs/`, `logs/`. Use the athlete named in
+   the request. If several folders exist and the request is ambiguous, ask before reading
+   anything — never plan for one athlete off another's profile. If the athlete has no folder
+   yet, create `athlete/<slug>/{plans,programs,logs}` and say so; the ignore rules already
+   cover it (see `athlete/README.md`).
+
 1. **Gather context first (no questions yet).**
-   - Find and read the athlete-profile doc (search the working folder for files like `*profile*.md`, `athlete*.md`).
-   - Read any coaching source material (e.g. a `sources/` folder) and the project instructions.
-   - If a previous programme exists, read its notes/feedback column — prior-block feedback is a first-class input.
+   - Read `athlete/<slug>/personal-profile.md`. If it does not exist, say so plainly — the
+     checklist below then has to be worked through by asking rather than by reading.
+   - Read the shared coaching source material in `athlete/sources/` and the project instructions.
+   - If a previous programme exists in `athlete/<slug>/programs/`, read its notes/feedback
+     column, and read recent `athlete/<slug>/logs/*.json` — prior-block feedback and actual
+     logged loads/RPE/pain are first-class inputs.
 
 2. **Establish the essential facts.** Work through the checklist below. For every item the profile or sources already answer, mark it **established** and restate it — do not ask. Only genuine gaps become questions.
 
 3. **Ask only the material gaps.** Use the AskUserQuestion tool. Batch questions (max ~4 at a time), keep them multiple-choice with a recommended default where possible, and ask only what would materially change a programme-level decision. For anything minor still unknown, state a bounded assumption instead of asking.
 
-4. **Write the Program Planning Doc** to the working folder using the template in `reference/planning-doc-template.md`. Cite the profile where a fact came from it; label assumptions clearly.
+4. **Write the Program Planning Doc** to `athlete/<slug>/plans/` using the template in `reference/planning-doc-template.md`. Cite the profile where a fact came from it; label assumptions clearly.
 
 5. **Stop at the approval gate.** Present the doc, summarise the key decisions and any open questions in 2–4 sentences, and ask the user to review and approve. Tell them: once approved, run the `program-builder` skill (or say "generate the programme") to build it. Do not proceed further.
 
@@ -53,4 +63,9 @@ Group J — **Prior-block feedback:** pull directly from the last programme's no
 - Turn any overreaching / illness history into explicit **autoregulation hard stops** in the plan (e.g. consecutive below-baseline readiness → mandatory downshift).
 
 ## Output
-A single Markdown file: `<Athlete or Block name> - Program Planning Doc.md`, ending with an explicit Approval section. Nothing else. No sets-and-reps, no spreadsheet.
+A single Markdown file at `athlete/<slug>/plans/<Athlete or Block name> - Program Planning Doc.md`, ending with an explicit Approval section. Nothing else. No sets-and-reps, no spreadsheet.
+
+The plan must state the **block length in weeks** explicitly, because `program-builder`
+authors every one of those weeks as real rows and validates the count. It must also carry
+this athlete's injury/loading constraints and readiness hard stops forward in full — the
+builder reads the plan, not the profile, for those decisions.
