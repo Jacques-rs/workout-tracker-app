@@ -4,4 +4,5 @@
 docs/athlete-context.md
 
 # claude projects for athletes
-athlete/*
+athlete/logs/*
+athlete/personal-profile.md
