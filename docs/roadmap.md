@@ -21,6 +21,30 @@ undone, and worth knowing:
 Test both `samples/program.sample.json` and `samples/program.v2.sample.json` after any change
 to import, filtering or export, and run `node samples/apptest.js`.
 
+## Done — Plan B (review skill + versioning + schema v3)
+
+**Coaching side.** `athlete/skills/review-workout-log/` closes the loop: it reads a log, compares
+it against the prescription for that week and day, proposes the smallest effective adjustment
+behind an approval gate, and on approval archives the old revision, bumps `meta.version` and
+records the reason in the block's `CHANGELOG.md`. `--version` was added to
+`build_program_json.py`.
+
+**App side (`tp-session-3`).** Next-morning pain became a pre-session reading: `amPainNextDay`
+→ `amPainOnWaking`, `tracking.painNextMorning` → `tracking.painOnWaking`, captured at check-in
+and rendered first in the card. A hard replace — the old field is gone rather than deprecated.
+Exports also carry `programVersion`, and the header shows `v<N>` beside the block name.
+
+Two things left deliberately undone, and worth knowing:
+
+- **A rest day loses the reading.** The pre-session field is only captured on days the athlete
+  trains, so the morning after a session followed by a rest day is never recorded. Accepted
+  rather than engineered around: a standalone rest-day check-in means a second export shape for
+  the coaching side to handle, for a reading that is usually less decision-relevant than the
+  trend it feeds. The review skill compensates by attributing readings by **date gap** — one day
+  is a response, more is a baseline. See `docs/data-contracts.md`.
+- **No migration of old values.** Anything typed into `amPainNextDay` and not yet exported was
+  dropped at the rename. Copying it over would have mis-attributed it by a day.
+
 ## High value
 
 **1. Interval / EMOM timer.**

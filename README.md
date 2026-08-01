@@ -51,7 +51,7 @@ Everything autosaves on device as you go.
 | Doc | Contents |
 |---|---|
 | `CLAUDE.md` | Primary context: purpose, constraints, conventions, repo layout. Read first. |
-| `docs/data-contracts.md` | The `tp-program-2` input and `tp-session-2` output schemas, and how v1 of each is still supported. |
+| `docs/data-contracts.md` | The `tp-program-2` input and `tp-session-3` output schemas, and how every earlier version is still supported. |
 | `docs/architecture.md` | File layout, state model, service worker, export flow, known quirks. |
 | `docs/roadmap.md` | Known gaps and candidate features, with rationale. |
 | `samples/README.md` | Development fixtures, v1 and v2 of both schemas. |

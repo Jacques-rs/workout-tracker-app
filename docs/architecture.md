@@ -43,7 +43,7 @@ A stored session looks like:
 
 ```js
 { block, athlete, week, day, date,
-  session: { bodyweightKg, sleep, readiness, hrvNote, amPainNextDay, overall },
+  session: { bodyweightKg, sleep, readiness, hrvNote, amPainOnWaking, overall },
   entries: { "<exercise.id>": { done, load, reps, rpe, painDuring, notes,
                                 sets: [ { set, load, reps, rpe, painDuring, note } ] } } }
 ```
@@ -61,7 +61,7 @@ Every input has an `oninput`/`onchange` handler that mutates the session object 
 ## Known quirks (intentional, but surprising)
 
 - **Session key is `date` + `day`, not week.** Changing the week selector does not switch sessions; it overwrites `week` on the current one. Harmless in practice (a given date has one session), but don't rely on week for keying.
-- **Changing the date switches sessions.** By design — it's how the athlete re-opens yesterday's session the next morning to fill in `amPainNextDay` before exporting.
+- **Changing the date switches sessions.** By design — it's how a session gets corrected or completed after the fact. It used to be load-bearing: `amPainNextDay` could *only* be filled by re-opening yesterday's session the next morning, which is exactly why it kept arriving empty and why `tp-session-3` replaced it with the pre-session `amPainOnWaking`. The date picker stays, but nothing in the normal flow depends on it now.
 - **Exercises are filtered by `day` and `week` — but only for `tp-program-2`.** A v1 programme is a Week-1 template, so filtering it by week would empty the list; it keeps the day-only filter and the "apply your progression rule" banner. `isV2()` is the only place that decides, and `dayExercises()` is the only filter — rendering, the progress bar and the export all call it. See `docs/data-contracts.md`.
 - **Per-set logging is opt-in per exercise.** The flat load / sets×reps / RPE row is the fast path and stays the summary; tapping "Log each set" materialises the prescribed number of rows. Each row carries an `auto` flag while the app owns it, so typing into set 1 flows down into every row the athlete has not touched — that is what keeps "all sets the same" at one tap per field rather than one per set. Typing into a row clears its flag and it stops following, so propagation can never overwrite entered data. `auto` is local only; `exportSets()` picks its keys explicitly, so it never reaches a log file. The flat fields are exported as logged and never recomputed from `sets`.
 - **Old session keys are never cleaned up.** They accumulate in `localStorage`. Not a practical problem at this data volume; see roadmap.
@@ -78,7 +78,7 @@ Every input has an `oninput`/`onchange` handler that mutates the session object 
 
 ## Export flow
 
-`exportSession()` builds the `tp-session-2` object, serialises it, and triggers a download via a `Blob` + object URL + synthetic `<a download>` click. Both it and `copyJSON()` are wrapped in `try/catch` that toasts the error: a throw here would look like the button doing nothing, at the one moment the session has to leave the phone.
+`exportSession()` builds the `tp-session-3` object, serialises it, and triggers a download via a `Blob` + object URL + synthetic `<a download>` click. Both it and `copyJSON()` are wrapped in `try/catch` that toasts the error: a throw here would look like the button doing nothing, at the one moment the session has to leave the phone.
 
 Why a download rather than writing to the athlete's Drive folder directly: the File System Access API isn't available on iOS Safari, and the app deliberately has no backend or cloud credentials. On iPhone the download goes through the share sheet → *Save to Files* → the Drive folder. `copyJSON()` is the fallback path — clipboard, then paste into chat.
 

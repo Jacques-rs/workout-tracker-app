@@ -23,21 +23,22 @@ This repo is **step 3** of a four-step loop. Steps 1, 2 and 4 are done by a Clau
 
 1. **Plan** — a `program-planner` skill reads `athlete/<slug>/personal-profile.md`, interviews the athlete, and writes a Program Planning Doc into `athlete/<slug>/plans/`, which the athlete approves.
 2. **Build** — a `program-builder` skill turns the approved plan into three artefacts in `athlete/<slug>/programs/`: a Markdown phase map, a colour-banded `.xlsx` with one tab per week, and **`program.json`** (schema `tp-program-2`). **Every week of the block is authored explicitly** — see below.
-3. **Track (this repo)** — the athlete imports `program.json`, trains, and logs the session offline. The app exports **`session-<date>-<day>.json`** (schema `tp-session-2`).
-4. **Review** — the athlete saves that file into `athlete/<slug>/logs/` and asks Claude to review it; the coach compares logged loads/RPE/pain against the prescription and adjusts.
+3. **Track (this repo)** — the athlete imports `program.json`, trains, and logs the session offline. The app exports **`session-<date>-<day>.json`** (schema `tp-session-3`).
+4. **Review** — the athlete saves that file into `athlete/<slug>/logs/` and the `review-workout-log` skill compares logged loads/RPE/pain against the prescription for that week and day, proposes the smallest effective adjustment behind an approval gate, and on approval revises the week: `rows.json` is edited, both builder scripts re-run, the superseded `program.json` is archived to `revisions/`, `meta.version` bumps and `CHANGELOG.md` records **why**. The athlete then re-imports — a manual step the app does not prompt for.
 
 **Implication for design decisions:** the app's job is to make *capturing decision-relevant data* fast and reliable under gym conditions. Every field exists because a coach needs it downstream. Read the relevant `athlete/<slug>/personal-profile.md` (local-only, gitignored) before removing or restyling any input — the pain, readiness and RPE fields exist for a specific tendon-monitoring protocol.
 
-### Schema v2
+### Schemas — programme v2, session v3
 
-Both contracts are at version 2, on both sides.
+The two sides version independently. Current: **`tp-program-2` in, `tp-session-3` out.**
 
-- `tp-program-2` materialises every week as real rows, instead of Week 1 plus a prose progression rule. This fixed the live bug where the app showed Week 1 prescriptions no matter which week was selected.
-- `tp-session-2` adds a per-set `sets[]` array alongside the flat summary fields, which stay authoritative for the summary and are never recomputed from `sets`.
+- `tp-program-2` materialises every week as real rows, instead of Week 1 plus a prose progression rule. This fixed the live bug where the app showed Week 1 prescriptions no matter which week was selected. It also carries an optional `meta.version` — the revision number, bumped when a week is revised mid-block.
+- `tp-session-2` added a per-set `sets[]` array alongside the flat summary fields, which stay authoritative for the summary and are never recomputed from `sets`.
+- `tp-session-3` moved next-morning pain to a **pre-session** reading: `amPainOnWaking` (with `tracking.painOnWaking`) replaces `amPainNextDay`, and is captured at check-in. **It describes the response to the *previous* session, not this one** — that attribution flip is the thing to get right in any reader. It also adds `programVersion`, the revision the athlete actually trained off.
 
-**Both readers must accept both versions indefinitely.** A v1 programme can be sitting in `localStorage` on a phone mid-block, and v1 log files are already on disk. In the app the whole difference is decided by `isV2()`, and every consumer asks `dayExercises()` — v2 filters by day **and** week, v1 by day only and keeps the "apply your progression rule" banner. Do not scatter `meta.schema` checks beyond those two functions.
+**Every reader must accept every version indefinitely.** A v1 programme can be sitting in `localStorage` on a phone mid-block, and v1/v2 log files are already on disk. In the app the whole programme-version difference is decided by `isV2()`, and every consumer asks `dayExercises()` — v2 filters by day **and** week, v1 by day only and keeps the "apply your progression rule" banner. Do not scatter `meta.schema` checks beyond those two functions. The session schema has no such branch: the app only ever *writes* the newest version, and reading old logs is the coaching side's job.
 
-`samples/` carries fixtures for both versions, and `samples/apptest.js` exercises both. Full detail in `docs/data-contracts.md`.
+`samples/` carries fixtures for every version, and `samples/apptest.js` exercises both programme versions. Full detail in `docs/data-contracts.md`.
 
 ## Architecture in one paragraph
 
@@ -48,18 +49,23 @@ Both contracts are at version 2, on both sides.
 ```
 index.html  sw.js  manifest.webmanifest  icon-*.png   the PWA — deploy root, committed
 program.json                                          bundled SAMPLE programme, committed
-samples/                                              fixtures for development (v1 and v2)
+samples/                                              fixtures for development (every schema version)
 docs/                                                 committed docs (see README table)
 athlete/                                              coaching project data
   README.md              layout + privacy rules              (committed)
-  skills/                program-planner, program-builder    (committed)
+  skills/                planner, builder, review-log        (committed)
   sources/               coaching research notes             (committed)
   <slug>/                ONE FOLDER PER ATHLETE              (gitignored)
     personal-profile.md    health, injuries, strength baselines
     plans/                 Program Planning Docs
-    programs/              phase map, .xlsx, rows.json, program.json
+    programs/<block>/      phase map, .xlsx, rows.json, program.json,
+                           CHANGELOG.md, revisions/program-v<N>.json
     logs/*.json            exported session logs
 ```
+
+A **block folder** is whichever directory holds that block's `program.json`; revisions and the
+changelog sit beside it. New blocks get their own subfolder under `programs/`; older flat ones
+are left where they are rather than migrated.
 
 The PWA must stay at the **repo root** — GitHub Pages serves `/` from `main`, and moving it breaks the deployed URL and every installed home-screen icon.
 
@@ -80,7 +86,7 @@ Both are git worktrees of the same clone, so `athlete/` exists only in the workt
 - **Relative paths only** (`./sw.js`, `./program.json`). The app is hosted from a subpath (`https://jacques-rs.github.io/workout-tracker-app/`) — absolute paths break it.
 - **`localStorage` is the source of truth for in-progress logs.** Never clear it as a side effect. Autosave on every input; a dropped connection or closed tab must never lose a logged set.
 - **Never commit real training data. The GitHub repo is public.** Every `athlete/<slug>/` folder holds medical detail and a training record. The ignore rules are **deny-by-default**: `athlete/*` (no trailing slash, so it matches stray files too), with `.gitignore`, `README.md`, `skills/` and `sources/` named back in. That way a new athlete's folder, and anything unanticipated inside it, is covered the moment it exists. **Do not invert this into a list of things to exclude** — then anything you didn't think of is published by default. The bundled `program.json` stays a sample. Before any commit that touches `athlete/`, run `git status` and `git check-ignore -v <path>`; health data in public git history is permanent, and deleting the file later does not remove it.
-- **Schema compatibility.** `tp-program-2` is produced by an external skill. If you change what the app expects, update `docs/data-contracts.md` and say so clearly in the response, because the generator must change in lockstep. Both readers accept v1 and v2; dropping v1 support strands a phone mid-block.
+- **Schema compatibility.** `tp-program-2` is produced by an external skill. If you change what the app expects, update `docs/data-contracts.md` and say so clearly in the response, because the generator must change in lockstep. The app accepts programme v1 and v2; dropping v1 support strands a phone mid-block. On the session side the app writes `tp-session-3` only — but `review-workout-log` must keep reading v1 and v2 logs, which are already on disk.
 
 ## Conventions
 
