@@ -113,7 +113,7 @@ it is *not collected*. Distinguishing those two is the whole reason `tracking` e
 programme side, `meta.weeks` and `exercises[].week`. Everything else is a string, including
 every prescription — never assume one parses numerically.
 
-**Keys never disappear.** Switching a field off in the Tracked-fields sheet flips a `tracking`
+**Keys never disappear.** Switching a field off in the drawer's Tracked fields section flips a `tracking`
 flag; the key stays and its value is `""`. That is what lets a reader tell *not logged* from
 *not tracked*, and it means the review step never probes for missing keys.
 
@@ -383,7 +383,7 @@ every row below it that the athlete has not edited. So the common case (all sets
 costs one entry per field, and correcting set 3 downwards costs one more. Rows that are
 left completely empty are dropped at export and the rest renumbered, so a `set: 3` in a log
 file always means a third set was actually performed. The whole feature can be switched off
-per device in the Tracked-fields sheet, which shows up as `tracking.perSetLogging: false`.
+per device in the drawer's Tracked fields section, which shows up as `tracking.perSetLogging: false`.
 
 **Reading rule for the coach:** use `sets` when it is non-empty — it is strictly more
 information. Fall back to the flat fields when `sets` is `[]` or absent (any v1 file). Do not
@@ -396,7 +396,7 @@ prescribed per-set array only if that stops being expressive enough.
 ### Field notes
 
 - `tracking` — **additive; added when optional fields became switchable in the app's
-  Tracked-fields sheet.** It disambiguates an empty value: `painDuring: ""` with
+  Tracked fields section.** It disambiguates an empty value: `painDuring: ""` with
   `tracking.painPerExercise: true` means *no pain logged*, whereas `false` means *this
   athlete does not track pain at all*. Without it the coach cannot tell silence from
   absence. Older session files predate the key — treat a missing `tracking` as all-true.

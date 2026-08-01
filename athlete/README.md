@@ -92,7 +92,8 @@ stops) live in that athlete's `personal-profile.md` and are carried into the Pro
 Doc by `program-planner`. The skills themselves stay general — they read the profile they are
 pointed at rather than hardcoding any one person's constraints.
 
-On the app side the equivalent knob is the **Tracked-fields sheet** (`tp_settings_v1`), which
+On the app side the equivalent knob is the **Tracked fields** section of the app's drawer
+(`tp_settings_v1`), which
 chooses which optional inputs render and what the pain field is called. That is a per-device
 preference, not a profile: a second athlete uses the app by installing it on her own phone,
 which gives her her own storage, settings and logs. See `docs/architecture.md`.

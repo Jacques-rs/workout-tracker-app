@@ -14,6 +14,8 @@
  *   - the flat summary fields are exported as logged, never recomputed
  *   - athleteId survives, including the v1 fallback
  *   - the programme revision is displayed and stamped on the export
+ *   - the check-in renders into the drawer, not the training view
+ *   - the focus view shows exactly one exercise, and paging it never loses data
  *
  * Run it after any change to filtering, logging or export. Rendering, layout and
  * offline behaviour still need a real phone.
@@ -138,6 +140,13 @@ function loadFixture(name){
 }
 /* Render one day's cards without asserting anything about layout. */
 function cards(){ const m = stubFor("#main"); m.children = []; app.renderMain(); return m.children.filter(n => n.nodeType === 1); }
+/* Only the exercise cards — banners are element children of #main too. */
+function exCards(){ return cards().filter(c => c.classList.contains("card")); }
+/* The check-in lives in the drawer now, so it is rendered and read separately from the
+   training view. renderCheckin() clears the host itself. */
+function checkinCard(){ app.renderCheckin(); return stubFor("#checkinHost").children.find(c => c.nodeType === 1); }
+function labelsIn(node){ return node ? node.findAll(n => n.classList.contains("lbl")).map(n => n.text) : []; }
+function pips(){ return stubFor("#pips").children.filter(n => n.nodeType === 1); }
 
 /* ---------- tests ---------- */
 console.log("\ntp-program-2 — week-aware filtering");
@@ -283,10 +292,13 @@ console.log("\npain on waking — a pre-session field, not a next-morning one");
   app.STATE.week = 1;
 
   /* It has to be reachable at check-in, before a single set is logged — that is the
-     whole point of the move away from amPainNextDay. */
-  const checkin = cards().find(c => c.classList.contains("sessioncard"));
-  assert(!!checkin, "the check-in card renders");
-  const labels = checkin.findAll(n => n.classList.contains("lbl")).map(n => n.text);
+     whole point of the move away from amPainNextDay. It is now one tap away in the
+     drawer rather than the first card of the training view. */
+  const checkin = checkinCard();
+  assert(!!checkin && checkin.classList.contains("sessioncard"), "the check-in card renders in the drawer");
+  assert(!cards().some(c => c.classList.contains("sessioncard")),
+         "and no longer sits at the top of the training view");
+  const labels = labelsIn(checkin);
   assert(labels.some(t => /on waking/i.test(t)),
          `labelled for the morning reading (got ${JSON.stringify(labels)})`);
   is(labels[0], "Knee pain on waking", "and it is the first field, not buried under bodyweight");
@@ -306,10 +318,89 @@ console.log("\npain on waking — a pre-session field, not a next-morning one");
   const off = app.buildSessionExport();
   is(off.tracking.painOnWaking, false, "switching it off is recorded");
   assert("amPainOnWaking" in off.session, "but the key still ships, so silence is readable");
-  const noPain = cards().find(c => c.classList.contains("sessioncard"))
-    .findAll(n => n.classList.contains("lbl")).map(n => n.text);
-  assert(!noPain.some(t => /on waking/i.test(t)), "and the input is not rendered");
+  assert(!labelsIn(checkinCard()).some(t => /on waking/i.test(t)), "and the input is not rendered");
   app.SETTINGS.painOnWaking = true;
+
+  /* With the check-in behind a tap, the drawer's closed-state summary is the only place
+     "did I fill this in?" is answered — so it has to be right in both directions. */
+  is(app.checkinSummary(app.getSession()), "knee pain 4/10", "the closed summary reports the reading");
+  is(app.checkinFilled(app.getSession()), true, "and the session counts as filled");
+  is(app.checkinSummary({ session: {} }), "Not filled", "an untouched session says so plainly");
+  is(app.checkinFilled({ session: {} }), false, "…which is what puts the dot on the menu button");
+}
+
+console.log("\nview modes — all exercises vs one at a time");
+{
+  loadFixture("program.v2.sample.json");
+  app.STATE.week = 1;
+  const exs = app.dayExercises();
+  assert(exs.length >= 3, `the day has ${exs.length} exercises to page through`);
+
+  is(app.SETTINGS.view, "list", "all-exercises is the default — an existing install is unchanged");
+  is(exCards().length, exs.length, "list view renders every exercise");
+  is(pips().length, 0, "and no pips");
+
+  app.setView("focus");
+  is(exCards().length, 1, "focus view renders exactly one card");
+  is(exCards()[0].find(n => n.classList.contains("ex-name")).text, exs[0].name, "…the first one");
+  is(pips().length, exs.length, "one pip per exercise");
+  is(stubFor("#navCount").text, `1 / ${exs.length}`, "the counter says where you are");
+  is(stubFor("#prevBtn").disabled, true, "Prev is dead on the first exercise");
+  is(stubFor("#nextBtn").disabled, false, "Next is live");
+
+  app.stepFocus(1);
+  is(app.STATE.focus, 1, "Next advances");
+  is(exCards()[0].find(n => n.classList.contains("ex-name")).text, exs[1].name, "and the card follows");
+  app.stepFocus(-1);
+  is(app.STATE.focus, 0, "Prev goes back");
+  app.stepFocus(-1);
+  is(app.STATE.focus, 0, "…and stops at the start rather than going negative");
+  app.goFocus(999);
+  is(app.STATE.focus, exs.length - 1, "jumping past the end clamps to the last exercise");
+  is(stubFor("#nextBtn").disabled, true, "where Next is dead instead");
+
+  /* Marking done is the one thing that moves you without being asked, so it is the one
+     most worth pinning down. */
+  const doneBtn = () => exCards()[0].find(n => n.classList.contains("donebtn"));
+  const isDone = i => !!(app.getSession().entries[exs[i].id] || {}).done;
+  app.goFocus(0);
+  if(isDone(0)) doneBtn().onclick();                     // start from a known state
+  doneBtn().onclick();
+  is(app.STATE.focus, 1, "marking done moves on to the next exercise");
+  is(isDone(0), true, "and the one behind you stays logged");
+
+  /* Un-marking is a correction, not progress. */
+  app.goFocus(0);
+  doneBtn().onclick();
+  is(app.STATE.focus, 0, "un-marking never moves you — only completing does");
+  is(isDone(0), false, "…and it really did un-mark");
+
+  const lastIdx = exs.length - 1;
+  app.goFocus(lastIdx);
+  if(isDone(lastIdx)) doneBtn().onclick();
+  doneBtn().onclick();
+  is(app.STATE.focus, lastIdx, "and the last exercise has nowhere to advance to");
+  is(isDone(lastIdx), true, "…but is still marked done");
+
+  /* Pips have to carry the same truth as the progress bar, or they are decoration. */
+  const doneFlags = () => pips().map(p => p.getAttribute("data-done")).join("");
+  assert(/1/.test(doneFlags()), `pips mark what is done (${doneFlags()})`);
+  is(pips()[app.STATE.focus].getAttribute("aria-current"), "true", "and which one you are on");
+  app.goFocus(0);
+  is(pips()[0].getAttribute("aria-current"), "true", "tapping a pip moves the focus");
+
+  /* Changing the session must not leave you on exercise 7 of a day that has 4. */
+  const other = app.PROGRAM.meta.days.find(d => d !== app.STATE.day);
+  app.goFocus(exs.length - 1);
+  app.selectDay(other);
+  is(app.STATE.focus, 0, "switching day lands on the first exercise not yet done");
+  assert(app.STATE.focus < app.dayExercises().length, "and never past the end of the new day");
+
+  /* The view is a per-device preference, and cosmetic — it must not reach a log file. */
+  is(JSON.parse(store.get("tp_settings_v1")).view, "focus", "the choice is remembered");
+  assert(!("view" in app.buildSessionExport().tracking), "but never exported in tracking");
+  app.setView("list");
+  is(exCards().length, app.dayExercises().length, "and switching back shows everything again");
 }
 
 console.log("\nper-set UI — the buttons an athlete actually taps");

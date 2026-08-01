@@ -45,6 +45,40 @@ Two things left deliberately undone, and worth knowing:
 - **No migration of old values.** Anything typed into `amPainNextDay` and not yet exported was
   dropped at the rename. Copying it over would have mis-attributed it by a day.
 
+## Done — UI overhaul (drawer + focus view)
+
+The header had grown to five rows — block name, progress, week and date selectors, a day tab
+strip, the day title — and the check-in card sat above the first exercise on every screen. All
+of it was permanently visible, and none of it changes once a session has started. It now sits
+on three surfaces: a two-row header (context line, date, progress), `<main>` for exercise cards
+only, and a drawer for week / day / date / check-in / import-export / settings.
+
+`<main>` also gained a second view: **focus**, one exercise at a time, with `‹ Prev / n / N /
+Next ›` in the footer and a numbered pip per exercise in the header. Both views render the same
+`exerciseCard()`. The choice is remembered per device (`tp_settings_v1.view`), and defaults to
+the original all-exercises view, so an existing install opens unchanged.
+
+Decisions worth knowing, and where to push back if they turn out wrong in the gym:
+
+- **Marking done in the focus view advances to the next exercise.** Forward only, never on
+  un-marking. It is the only automatic navigation in the app; a mis-tap costs one tap of Prev.
+- **The day picker went from tabs to a list in the drawer.** Switching day is now two taps
+  instead of one, bought for a full-width row per day that can show the session theme rather
+  than a truncated weekday. If day-switching turns out to be frequent, the header context line
+  is the place to put it back.
+- **A dot on the ≡ while the check-in is empty**, cleared by any value. The check-in being
+  behind a tap is the whole point, but a tendon block cannot afford a silently-skipped
+  morning reading — see `tp-session-3` above.
+- **Export lives in the footer only in the all-exercises view**, and always in the drawer.
+- **No swipe gestures.** Horizontal swipe would collide with the pip strip and with text
+  fields; Prev/Next and the pips are unambiguous. Arrow keys work on a desktop browser.
+
+Three layout bugs were fixed on the way past, all pre-existing: the per-set block was a child
+of the log grid with no `grid-column`, so it rendered in one ~90px column; a long RPE string
+("RPE 7 (use RPE-1 to set load)") inherited the hero's `nowrap` and wrapped the exercise name
+one word per line; and the check-in's three-column grid was gated on viewport width, which is
+meaningless now it lives in a 400px drawer.
+
 ## High value
 
 **1. Interval / EMOM timer.**

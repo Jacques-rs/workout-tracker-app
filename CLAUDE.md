@@ -13,7 +13,7 @@ It is a personal tool. There are no accounts, no backend, and no plan to add any
 Two people use this: Jacques and his partner. They are handled at **two different layers**, and conflating them is the mistake to avoid.
 
 - **Coaching side (`athlete/`) is genuinely multi-athlete.** One folder per person — `athlete/<slug>/` holding `personal-profile.md`, `plans/`, `programs/`, `logs/`. The `program-planner` and `program-builder` skills take the athlete as an input and read only that person's profile. Injury protocols, pain-monitoring rules and readiness hard stops are per-athlete data, never hardcoded in a skill. See `athlete/README.md`.
-- **The app is per-device, not multi-profile.** A second athlete installs the PWA on her own phone, which gives her her own `localStorage`, settings, programme and logs. One programme is stored at a time (`tp_program_v1`). Which optional fields appear, and what the pain field is called, is a per-device preference in the Tracked-fields sheet (`tp_settings_v1`) — that is how athlete-specific needs reach the UI.
+- **The app is per-device, not multi-profile.** A second athlete installs the PWA on her own phone, which gives her her own `localStorage`, settings, programme and logs. One programme is stored at a time (`tp_program_v1`). Which optional fields appear, and what the pain field is called, is a per-device preference in the drawer's Tracked fields section (`tp_settings_v1`) — that is how athlete-specific needs reach the UI.
 
 So: **no profile switching, no account, nothing keyed by person inside the app.** If you find yourself adding a person dimension to a `localStorage` key, stop — that is tenancy, and it was rejected. The one exception is `athleteId`, which the app *carries through* from `program.json` into the session export purely so a log file says which `athlete/<slug>/logs/` folder it belongs in. It is a label, not a selector.
 
@@ -42,7 +42,17 @@ The two sides version independently. Current: **`tp-program-2` in, `tp-session-3
 
 ## Architecture in one paragraph
 
-`index.html` is the entire app — markup, CSS, and JS inline, no build step, no framework, no npm. `sw.js` caches the app shell for offline use. `manifest.webmanifest` plus three PNG icons make it installable. `program.json` at the repo root is a bundled **sample** so the app runs on first open; the athlete's real programme is loaded at runtime via the Import button and persisted in `localStorage`. Full detail in `docs/architecture.md`.
+`index.html` is the entire app — markup, CSS, and JS inline, no build step, no framework, no npm. `sw.js` caches the app shell for offline use. `manifest.webmanifest` plus three PNG icons make it installable. `program.json` at the repo root is a bundled **sample** so the app runs on first open; the athlete's real programme is loaded at runtime via Import and persisted in `localStorage`. Full detail in `docs/architecture.md`.
+
+### Where a thing goes on screen
+
+There are three surfaces, and putting something on the wrong one is the mistake that made the old layout cluttered:
+
+- **Header** — a two-row strip: ≡, a tappable context line (`Week 3 · Tue` over the day's theme), the view toggle, then the date and progress. **No inputs.**
+- **`<main>`** — exercise cards, and nothing else.
+- **Drawer** — week, day, date, the session check-in, import/export, settings. Everything entered once per session and then only read.
+
+`<main>` also has two views, chosen by the header toggle and remembered per device: **all exercises** (the original screen) and **focus**, one card at a time with prev/next in the footer and a numbered pip per exercise in the header. Both render the *same* `exerciseCard()` — the focus view changes how many are on screen, and must never become a second rendering path that can drift from the first. Marking done in the focus view advances to the next exercise; nothing else in the app navigates on its own.
 
 ## Repo layout
 
@@ -92,9 +102,10 @@ Both are git worktrees of the same clone, so `athlete/` exists only in the workt
 
 - Plain ES5/ES6-compatible vanilla JS. Small helpers (`$`, `el`) already exist at the top of the script — use them rather than adding a library.
 - Mobile-first, single 720px-max column. Touch targets ≥26px; inputs must be reachable one-handed with a chalked-up thumb.
-- **Themed via CSS variables — never hardcode a colour.** Two palettes (Amber / Mint) × light/dark are declared as four `html[data-theme]` blocks at the top of the `<style>`; the Appearance section of the settings sheet picks palette + mode (Auto follows the device). Every colour in a rule below those blocks must be a `var(--…)`, or it will survive a theme switch and look broken in one of the four. The only exceptions are two neutral greys (a `color-mix` fallback and a swatch hairline). Category rail colours live in `--cat-*`, so `CATS` in the JS holds `var()` references, not hex.
+- **Themed via CSS variables — never hardcode a colour.** Two palettes (Amber / Mint) × light/dark are declared as four `html[data-theme]` blocks at the top of the `<style>`; the Appearance section of the drawer picks palette + mode (Auto follows the device). Every colour in a rule below those blocks must be a `var(--…)`, or it will survive a theme switch and look broken in one of the four. The only exceptions are two neutral greys (a `color-mix` fallback and a swatch hairline). Category rail colours live in `--cat-*`, so `CATS` in the JS holds `var()` references, not hex.
 - `type="number"` for numeric fields so phones show the number pad.
-- Keep the JS organised in the existing sections: program loading → session persistence → rendering → export → events.
+- Keep the JS organised in the existing sections: settings → theme → drawer → categories → program loading → session persistence → rendering → view mode → export → events.
+- **Repaint, don't rebuild, on autosave.** `saveSession()` runs on every keystroke and calls `updateProgress()`. Anything reached from there must set attributes and text on nodes that already exist (`paintNav()` is the model). Rebuilding a strip or a card that often fights the scroll position and can steal focus mid-word.
 - Bump the `CACHE` constant in `sw.js` whenever shell files change, or returning users get a stale app.
 
 ## Verifying changes
@@ -143,6 +154,12 @@ Then manually, **against both fixture versions** (`samples/program.sample.json` 
 survive), toggle airplane mode (app must still open), and export a session. Check the layout
 on a narrow screen — the per-set row is five columns wide and 320px is the real floor. A v1
 programme must keep working; that's the whole point of keeping both fixtures.
+
+Since the UI is now three surfaces, also: open the drawer and change week, day and date
+(the check-in must reload with the session, and the day list's pressed state must follow);
+switch to the focus view and page through with Prev/Next, the pips and Mark done; then
+switch back. Do it in at least one light theme — a rule that hardcodes a colour looks fine
+in the palette you wrote it in.
 
 Before committing anything under `athlete/`, also run `git status` and
 `git check-ignore -v athlete/<slug>/personal-profile.md athlete/<slug>/logs/`.

@@ -38,11 +38,15 @@ Launch from the home-screen icon — it runs full-screen and works with no signa
 
 ## Using it
 
-1. Select week, day and date at the top.
-2. Fill the session check-in (bodyweight, sleep, readiness, HRV note).
-3. Per exercise: read the prescription, expand coach notes or the progression rule if needed, tick it done, and log actual load / sets×reps / RPE / knee pain / notes. The blue "Log:" line says what's worth capturing.
-4. Tap **Export session** and save the file into `athlete/<your-slug>/logs/`. (Or **Copy JSON** and paste it into chat.)
-5. Next morning, re-open the session by setting the date back, add next-morning knee pain, and re-export.
+1. Tap **≡** (or the `Week 1 · Mon` line next to it) to open the drawer. Set week, day and date.
+2. Still in the drawer, fill the **session check-in** — pain on waking, readiness, sleep, bodyweight, HRV note. Do it before you start: pain on waking describes how the tissue responded to your *last* session, not this one. The dot on **≡** stays until something is filled in.
+3. Close the drawer and train. Per exercise: read the prescription, expand coach notes or the progression rule if needed, log actual load / sets×reps / RPE / knee pain / notes, and tick it done. The blue "Log:" line says what's worth capturing.
+4. Tap **Export session** and save the file into `athlete/<your-slug>/logs/`. (Or **Copy JSON** and paste it into chat. Both are also in the drawer.)
+
+Two ways to see the exercises, switched with the toggle at the top right and remembered on the device:
+
+- **All** — every exercise for the day in one scrolling list.
+- **Focus** — one exercise at a time. **Prev** / **Next** are in the footer, the numbered pips in the header jump straight to any exercise, and marking one done moves you to the next.
 
 Everything autosaves on device as you go.
 
