@@ -6,20 +6,38 @@ Context for working on this repo. Read this first.
 
 A single-purpose **installable PWA** that displays one athlete's training programme and logs each session **offline in the gym**, then exports the session as a JSON file for review by an AI coach in a separate Claude project.
 
-It is a personal tool for one user (Jacques). There is no multi-user support, no accounts, no backend, and no plan to add any. Do not build for scale, tenancy, or public distribution.
+It is a personal tool. There are no accounts, no backend, and no plan to add any. Do not build for scale or public distribution.
 
-One nuance: a second person (Jacques' partner) uses the app on **her own phone**, so which optional fields appear is a per-device preference in the Tracked-fields sheet (`tp_settings_v1`). That is *not* tenancy — there are still no profiles, no accounts, and nothing keyed by person. Keep it that way.
+### More than one athlete — where the line is
+
+Two people use this: Jacques and his partner. They are handled at **two different layers**, and conflating them is the mistake to avoid.
+
+- **Coaching side (`athlete/`) is genuinely multi-athlete.** One folder per person — `athlete/<slug>/` holding `personal-profile.md`, `plans/`, `programs/`, `logs/`. The `program-planner` and `program-builder` skills take the athlete as an input and read only that person's profile. Injury protocols, pain-monitoring rules and readiness hard stops are per-athlete data, never hardcoded in a skill. See `athlete/README.md`.
+- **The app is per-device, not multi-profile.** A second athlete installs the PWA on her own phone, which gives her her own `localStorage`, settings, programme and logs. One programme is stored at a time (`tp_program_v1`). Which optional fields appear, and what the pain field is called, is a per-device preference in the Tracked-fields sheet (`tp_settings_v1`) — that is how athlete-specific needs reach the UI.
+
+So: **no profile switching, no account, nothing keyed by person inside the app.** If you find yourself adding a person dimension to a `localStorage` key, stop — that is tenancy, and it was rejected. The one exception is `athleteId`, which the app *carries through* from `program.json` into the session export purely so a log file says which `athlete/<slug>/logs/` folder it belongs in. It is a label, not a selector.
 
 ## The wider workflow this app sits in
 
 This repo is **step 3** of a four-step loop. Steps 1, 2 and 4 are done by a Claude coaching project whose data now lives **inside this repo, under `athlete/`** (see Repo layout). The app and the coaching project still never talk to each other — the only integration is JSON files on disk.
 
-1. **Plan** — a `program-planner` skill interviews the athlete and writes a Program Planning Doc, which the athlete approves.
-2. **Build** — a `program-builder` skill turns the approved plan into three artefacts: a Markdown phase map, a colour-banded `.xlsx`, and **`program.json`** (schema `tp-program-1`).
-3. **Track (this repo)** — the athlete imports `program.json`, trains, and logs the session offline. The app exports **`session-<date>-<day>.json`** (schema `tp-session-1`).
-4. **Review** — the athlete saves that file into `athlete/logs/` and asks Claude to review it; the coach compares logged loads/RPE/pain against the prescription and adjusts.
+1. **Plan** — a `program-planner` skill reads `athlete/<slug>/personal-profile.md`, interviews the athlete, and writes a Program Planning Doc into `athlete/<slug>/plans/`, which the athlete approves.
+2. **Build** — a `program-builder` skill turns the approved plan into three artefacts in `athlete/<slug>/programs/`: a Markdown phase map, a colour-banded `.xlsx` with one tab per week, and **`program.json`** (schema `tp-program-2`). **Every week of the block is authored explicitly** — see below.
+3. **Track (this repo)** — the athlete imports `program.json`, trains, and logs the session offline. The app exports **`session-<date>-<day>.json`** (schema `tp-session-2`).
+4. **Review** — the athlete saves that file into `athlete/<slug>/logs/` and asks Claude to review it; the coach compares logged loads/RPE/pain against the prescription and adjusts.
 
-**Implication for design decisions:** the app's job is to make *capturing decision-relevant data* fast and reliable under gym conditions. Every field exists because a coach needs it downstream. Read `athlete/personal-profile.md` (local-only, gitignored) before removing or restyling any input — the pain, readiness and RPE fields exist for a specific tendon-monitoring protocol.
+**Implication for design decisions:** the app's job is to make *capturing decision-relevant data* fast and reliable under gym conditions. Every field exists because a coach needs it downstream. Read the relevant `athlete/<slug>/personal-profile.md` (local-only, gitignored) before removing or restyling any input — the pain, readiness and RPE fields exist for a specific tendon-monitoring protocol.
+
+### Schema v2
+
+Both contracts are at version 2, on both sides.
+
+- `tp-program-2` materialises every week as real rows, instead of Week 1 plus a prose progression rule. This fixed the live bug where the app showed Week 1 prescriptions no matter which week was selected.
+- `tp-session-2` adds a per-set `sets[]` array alongside the flat summary fields, which stay authoritative for the summary and are never recomputed from `sets`.
+
+**Both readers must accept both versions indefinitely.** A v1 programme can be sitting in `localStorage` on a phone mid-block, and v1 log files are already on disk. In the app the whole difference is decided by `isV2()`, and every consumer asks `dayExercises()` — v2 filters by day **and** week, v1 by day only and keeps the "apply your progression rule" banner. Do not scatter `meta.schema` checks beyond those two functions.
+
+`samples/` carries fixtures for both versions, and `samples/apptest.js` exercises both. Full detail in `docs/data-contracts.md`.
 
 ## Architecture in one paragraph
 
@@ -30,17 +48,22 @@ This repo is **step 3** of a four-step loop. Steps 1, 2 and 4 are done by a Clau
 ```
 index.html  sw.js  manifest.webmanifest  icon-*.png   the PWA — deploy root, committed
 program.json                                          bundled SAMPLE programme, committed
-samples/                                              fixtures for development
+samples/                                              fixtures for development (v1 and v2)
 docs/                                                 committed docs (see README table)
-athlete/                                              coaching project data — NOT for committing
-  personal-profile.md    athlete health + strength context   (gitignored)
-  logs/*.json            exported session logs               (gitignored)
-  sources/               coaching research notes             (currently committed)
+athlete/                                              coaching project data
+  README.md              layout + privacy rules              (committed)
+  skills/                program-planner, program-builder    (committed)
+  sources/               coaching research notes             (committed)
+  <slug>/                ONE FOLDER PER ATHLETE              (gitignored)
+    personal-profile.md    health, injuries, strength baselines
+    plans/                 Program Planning Docs
+    programs/              phase map, .xlsx, rows.json, program.json
+    logs/*.json            exported session logs
 ```
 
 The PWA must stay at the **repo root** — GitHub Pages serves `/` from `main`, and moving it breaks the deployed URL and every installed home-screen icon.
 
-The `program-planner` and `program-builder` skills have **not** moved into this repo yet; they still live in `Fitness/training-prog-project/skills/`. That folder also remains the backup for everything under `athlete/` — gitignored files can be lost by a branch switch or `git clean`.
+`Fitness/training-prog-project/` remains the backup for everything gitignored under `athlete/` — gitignored files can be lost by a branch switch or `git clean`. The skills themselves are now canonical in `athlete/skills/`; see `athlete/README.md`.
 
 ### Two worktrees
 
@@ -56,8 +79,8 @@ Both are git worktrees of the same clone, so `athlete/` exists only in the workt
 - **Offline-first is the point.** It's used in a gym basement. Any feature that needs the network must degrade to a no-op, never block the UI.
 - **Relative paths only** (`./sw.js`, `./program.json`). The app is hosted from a subpath (`https://jacques-rs.github.io/workout-tracker-app/`) — absolute paths break it.
 - **`localStorage` is the source of truth for in-progress logs.** Never clear it as a side effect. Autosave on every input; a dropped connection or closed tab must never lose a logged set.
-- **Never commit real training data. The GitHub repo is public.** `athlete/personal-profile.md` contains medical detail and `athlete/logs/` contains the training record; both are gitignored and must stay that way. The bundled `program.json` stays a sample. Before any commit that touches `athlete/`, run `git status` and `git check-ignore -v <path>` — a mis-scoped rule puts health data in public git history permanently, where deleting the file later does not remove it.
-- **Schema compatibility.** `tp-program-1` is produced by an external skill. If you change what the app expects, update `docs/data-contracts.md` and say so clearly in the response, because the generator must change in lockstep.
+- **Never commit real training data. The GitHub repo is public.** Every `athlete/<slug>/` folder holds medical detail and a training record. The ignore rules are **deny-by-default**: `athlete/*` (no trailing slash, so it matches stray files too), with `.gitignore`, `README.md`, `skills/` and `sources/` named back in. That way a new athlete's folder, and anything unanticipated inside it, is covered the moment it exists. **Do not invert this into a list of things to exclude** — then anything you didn't think of is published by default. The bundled `program.json` stays a sample. Before any commit that touches `athlete/`, run `git status` and `git check-ignore -v <path>`; health data in public git history is permanent, and deleting the file later does not remove it.
+- **Schema compatibility.** `tp-program-2` is produced by an external skill. If you change what the app expects, update `docs/data-contracts.md` and say so clearly in the response, because the generator must change in lockstep. Both readers accept v1 and v2; dropping v1 support strands a phone mid-block.
 
 ## Conventions
 
@@ -74,11 +97,38 @@ There is no test suite. After edits, at minimum:
 
 ```bash
 python3 -m http.server 8000        # then open http://localhost:8000
-node --check <(sed -n '/<script>/,/<\/script>/p' index.html | sed '1d;$d')   # JS syntax
-python3 -c "import json;[json.load(open(f)) for f in ['program.json','manifest.webmanifest']]"
+
+# JS syntax — index.html has TWO script blocks (the head theme script and the app),
+# so check each one; a naive sed of the first <script> to the last </script> fails.
+python3 - <<'EOF'
+import re, subprocess
+for i, b in enumerate(re.findall(r"<script[^>]*>(.*?)</script>", open("index.html").read(), re.S)):
+    open(f"/tmp/blk{i}.js", "w").write(b)
+    print(i, subprocess.run(["node", "--check", f"/tmp/blk{i}.js"]).returncode)
+EOF
+
+# every JSON in the repo parses
+python3 -c "import json,glob;[json.load(open(f)) for f in ['program.json','manifest.webmanifest']+glob.glob('samples/*.json')]"
+
+# generator scripts still import and reject bad input
+python3 -m py_compile athlete/skills/program-builder/scripts/*.py
+
+# app logic: week filtering, per-set round-trip, export shape, v1 + v2
+node samples/apptest.js
 ```
 
-Then manually: import a sample programme, tick items, reload the page (state must survive), toggle airplane mode (app must still open), and export a session (file must parse and match `tp-session-1`).
+`samples/apptest.js` is the closest thing to a test suite here — dependency-free, it stubs
+enough DOM to load the inline script and drive it. It does **not** test rendering, layout or
+offline behaviour. Extend it when you touch filtering, logging or export.
+
+Then manually, **against both fixture versions** (`samples/program.sample.json` and
+`samples/program.v2.sample.json`): import it, tick items, reload the page (state must
+survive), toggle airplane mode (app must still open), and export a session. Check the layout
+on a narrow screen — the per-set row is five columns wide and 320px is the real floor. A v1
+programme must keep working; that's the whole point of keeping both fixtures.
+
+Before committing anything under `athlete/`, also run `git status` and
+`git check-ignore -v athlete/<slug>/personal-profile.md athlete/<slug>/logs/`.
 
 ## Deployment
 

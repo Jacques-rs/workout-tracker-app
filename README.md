@@ -1,8 +1,8 @@
 # Workout Tracker
 
-An installable, offline-first PWA for reading a training programme and logging each session in the gym. Single user, no accounts, no backend.
+An installable, offline-first PWA for reading a training programme and logging each session in the gym. No accounts, no backend; one athlete per device.
 
-Sessions export as JSON, which an AI coach reviews to adjust the next week's training. The coaching side of that loop — the athlete profile, past logs and research the coach reads — lives alongside the app in `athlete/`, which is **not committed**.
+Sessions export as JSON, which an AI coach reviews to adjust the next week's training. The coaching side of that loop lives alongside the app in `athlete/`: the planner and builder skills plus shared research are committed, and each athlete's own folder — profile, plans, programmes, logs — is **gitignored**.
 
 Live at <https://jacques-rs.github.io/workout-tracker-app/>.
 
@@ -41,7 +41,7 @@ Launch from the home-screen icon — it runs full-screen and works with no signa
 1. Select week, day and date at the top.
 2. Fill the session check-in (bodyweight, sleep, readiness, HRV note).
 3. Per exercise: read the prescription, expand coach notes or the progression rule if needed, tick it done, and log actual load / sets×reps / RPE / knee pain / notes. The blue "Log:" line says what's worth capturing.
-4. Tap **Export session** and save the file into `athlete/logs/`. (Or **Copy JSON** and paste it into chat.)
+4. Tap **Export session** and save the file into `athlete/<your-slug>/logs/`. (Or **Copy JSON** and paste it into chat.)
 5. Next morning, re-open the session by setting the date back, add next-morning knee pain, and re-export.
 
 Everything autosaves on device as you go.
@@ -51,11 +51,11 @@ Everything autosaves on device as you go.
 | Doc | Contents |
 |---|---|
 | `CLAUDE.md` | Primary context: purpose, constraints, conventions, repo layout. Read first. |
-| `docs/data-contracts.md` | The `tp-program-1` input and `tp-session-1` output schemas. |
+| `docs/data-contracts.md` | The `tp-program-2` input and `tp-session-2` output schemas, and how v1 of each is still supported. |
 | `docs/architecture.md` | File layout, state model, service worker, export flow, known quirks. |
 | `docs/roadmap.md` | Known gaps and candidate features, with rationale. |
-| `samples/` | Fixtures for development and testing. |
-| `athlete/` | Coaching project data — profile and session logs (gitignored), plus `sources/` research. |
+| `samples/README.md` | Development fixtures, v1 and v2 of both schemas. |
+| `athlete/README.md` | Coaching-project layout: the planner/builder skills, shared research, and one gitignored folder per athlete. |
 
 ## Privacy
 
@@ -63,6 +63,6 @@ Everything autosaves on device as you go.
 
 Logged data stays in the browser's `localStorage` on the device and only leaves when a file is exported or JSON copied. Nothing is transmitted anywhere.
 
-The `athlete/` folder holds real health and training data in the working tree and is gitignored. Do not commit anything under it, and never commit a real programme or session log. Check with `git status` and `git check-ignore -v <path>` before committing — once health data is in public history, deleting the file does not remove it.
+Each `athlete/<slug>/` folder holds real health and training data in the working tree. The ignore rules are **deny-by-default**: every folder under `athlete/` is ignored except `skills/` and `sources/`, so a new athlete's folder — and anything dropped into it, including an export the phone share sheet saved one level too high — is covered without editing a file. Never commit a real programme or session log. Check with `git status` and `git check-ignore -v <path>` before committing; once health data is in public history, deleting the file does not remove it.
 
 Because those files are gitignored, git will not protect them: a branch switch or `git clean` can delete them silently. `Fitness/training-prog-project/` is the backup — keep it.
