@@ -63,7 +63,7 @@ presence of a field.
 |---|---|
 | `meta.days` | **Ordered** list of day labels. Drives the day selector; order matters. |
 | `meta.weeks` | Populates the week selector (1..N). Under v2 every one of those weeks has rows. |
-| `meta.version` | **Optional; the app ignores it entirely.** Revision number of this programme: `1` on the initial build, +1 each time `review-workout-log` revises a week mid-block. It exists so a `program.json`, its archived copy in `revisions/program-v<N>.json` and its `CHANGELOG.md` entry line up. A file with no `version` predates the convention — read it as v1. **Not carried into the session export** (see below), so it identifies the file, not what the athlete trained off. |
+| `meta.version` | **Optional.** Revision number of this programme: `1` on the initial build, +1 each time `review-workout-log` revises a week mid-block. It exists so a `program.json`, its archived copy in `revisions/program-v<N>.json` and its `CHANGELOG.md` entry line up. The app reads it in exactly one place, `progVersion()`, which shows it as `· v<N>` in the header and stamps it into every export as `programVersion` — so a log states which revision it was trained off. **A file with no `version` reads as `0`, not `1`:** the app stays silent rather than claiming a revision number it cannot know. Nothing about rendering or filtering depends on it. |
 | `meta.athleteId` | **v2.** Lowercase slug of `meta.athlete`, matching the `athlete/<slug>/` folder. Passed through to the session export so a log file identifies its athlete without relying on the filename. Absent in v1 — fall back to slugging `meta.athlete`. |
 | `exercises[].id` | Unique per exercise **across the whole file**. v2 convention `w<week>d<daySlot>e<exerciseIndex>`, where `daySlot` is the number in the `Day N` label (`Day 3` → `d3`), falling back to position in `meta.days` if the labels aren't distinctly numbered. v1 was `d<dayIndex>e<exerciseIndex>`. **This is the key the app stores logged data under** — the v1→v2 id change means logs recorded against a v1 programme do not line up with the v2 one. Expected and accepted at the version boundary; exported session files are unaffected because they denormalise `prescribed` and are keyed by exercise name. |
 | `exercises[].week` | **v2: load-bearing.** The app renders only the exercises whose `week` matches the selected week. In v1 it was ignored. |
@@ -146,16 +146,19 @@ convention on the coaching side (owned by the `review-workout-log` skill, not by
 - The athlete re-imports. **This is a manual step with no prompt.** Until they do, the app is
   showing a superseded prescription and is not wrong to — it has no way to know.
 
-**What the app must do about all this: nothing.** `version` is additive and ignored, importing a
+**What the app must do about all this: almost nothing.** `version` is additive — the app
+displays it and passes it through to the export, and nothing else keys off it. Importing a
 revised programme is an ordinary import, and logged data keyed by exercise `id` survives as long
 as the ids are stable — which they are, because they are derived from week, day slot and
 position. Reordering or inserting exercises within a revised day *does* shift the ids below the
 change, and logs already recorded against those ids will land on the wrong exercise. Prefer
 substituting an exercise in place over reordering a day mid-block.
 
-**How a reader detects a stale log:** compare the log's denormalised `prescribed` values against
-the current `program.json` for that week and day. If they differ, the athlete trained off an
-earlier revision. There is no version stamp in the export to shortcut this — see `docs/roadmap.md`.
+**How a reader detects a stale log:** compare the log's `programVersion` against the current
+`meta.version` — one integer comparison. On a `tp-session-1` or `-2` log the field does not
+exist; fall back to diffing the log's denormalised `prescribed` values against the current
+`program.json` for that week and day, and if they differ the athlete trained off an earlier
+revision.
 
 ---
 
