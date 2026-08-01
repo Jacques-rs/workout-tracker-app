@@ -12,17 +12,40 @@ other — the only integration is JSON files on disk.
 ```
 athlete/
   README.md                  this file                                    committed
-  skills/                    program-planner, program-builder             committed
+  skills/                    planner, builder, review-workout-log         committed
   sources/                   coaching research notes                      committed
   <athlete>/                 ONE FOLDER PER ATHLETE                       gitignored
     personal-profile.md        health, injuries, strength baselines
     plans/                     Program Planning Docs (planner output)
-    programs/                  Architecture map, .xlsx, rows.json, program.json
+    programs/                  one folder per block (see below)
     logs/                      session-<date>-<day>.json exported by the app
 ```
 
+### Inside `programs/` — the block folder
+
+**A block folder is whichever directory holds that block's `program.json`.** Everything for the
+block sits beside it:
+
+```
+programs/<block-slug>/
+  <Block name> - Architecture & Phase Map.md
+  <Block name> - Programme.xlsx
+  rows.json                  the 13-column source both outputs are built from
+  program.json               current revision, the file the athlete imports
+  CHANGELOG.md               one entry per revision: date, what, and why
+  revisions/
+    program-v1.json          superseded revisions, archived before overwrite
+    rows-v1.json
+```
+
+Older blocks sit **flat** in `programs/` with no subfolder. That is fine and is left alone — a
+block folder that moves mid-block breaks every path the athlete and the chat history refer to.
+New blocks get their own subfolder, because a flat `programs/` can only hold one `program.json`.
+
 `skills/` and `sources/` are **shared** — the coaching framework is the same for everyone.
-What differs per athlete is the profile, the plan, the programme and the logs.
+What differs per athlete is the profile, the plan, the programme and the logs. Every skill takes
+the athlete as an input and reads only that person's folder; nothing about an individual is
+hardcoded in a skill.
 
 Folder names are lowercase slugs (`jacques`, not `Jacques`). The display name lives in
 `personal-profile.md` and in `meta.athlete` inside `program.json`.
