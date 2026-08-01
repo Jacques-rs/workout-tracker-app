@@ -588,10 +588,12 @@ const el = (t,props={},kids=[])=>{const n=document.createElement(t);
   (Array.isArray(kids)?kids:[kids]).forEach(c=>c!=null&&n.append(c.nodeType?c:document.createTextNode(c)));
   return n;};
 
-const LS = { prog:"tp_program_v1", set:"tp_settings_v1", sess:(d,day)=>`tp_sess_v1::${d}::${day}` };
-/* `focus` is the index of the exercise shown in the focus view. It is view state, not
-   logged data, so it is deliberately not persisted: on a cold start it is derived from
-   what is already ticked off, which lands you on the first exercise you haven't done. */
+const LS = { prog:"tp_program_v1", set:"tp_settings_v1", pos:"tp_pos_v1",
+  sess:(d,day)=>`tp_sess_v1::${d}::${day}` };
+/* `week` and `day` ARE persisted (LS.pos) — see restorePos(). `focus` is not: it is the
+   index of the exercise shown in the focus view, and on a cold start it is derived from
+   what is already ticked off, which lands you on the first exercise you haven't done.
+   `date` is not either — it keys the stored session, so it always starts at today. */
 let PROGRAM=null, STATE={week:1,day:null,date:todayISO(),focus:0};
 
 function todayISO(){const d=new Date();const z=n=>String(n).padStart(2,"0");
@@ -782,13 +784,13 @@ function paintDays(){
    rebuilt from the new one; week does not (the session key is date + day). */
 function selectDay(d){
   if(d===STATE.day)return;
-  STATE.day=d;resetFocus();paintDays();renderCheckin();renderHeader();renderMain();
+  STATE.day=d;savePos();resetFocus();paintDays();renderCheckin();renderHeader();renderMain();
 }
 function selectDate(v){
   STATE.date=v||todayISO();resetFocus();renderCheckin();renderHeader();renderMain();
 }
 function selectWeek(w){
-  STATE.week=Number(w)||1;resetFocus();renderHeader();renderMain();
+  STATE.week=Number(w)||1;savePos();resetFocus();renderHeader();renderMain();
 }
 
 function dataSection(){
@@ -954,10 +956,37 @@ function progVersion(){
   return Number.isFinite(v)&&v>0?Math.floor(v):0;
 }
 
+/* ---------- where the athlete is in the block ----------
+   Week and day are a position, not a preference: week 5 is a fact about the block, and a
+   refresh — or the service worker activating a new build mid-session — must not drop it
+   back to Week 1 Day 1 and silently show the wrong prescriptions. Date is deliberately
+   NOT restored: it keys the stored session, so reopening the app the next morning must
+   start a new day rather than reopen yesterday's file. */
+function firstDay(){return (PROGRAM&&PROGRAM.meta&&PROGRAM.meta.days&&PROGRAM.meta.days[0])||null;}
+function savePos(){
+  try{localStorage.setItem(LS.pos,JSON.stringify({week:STATE.week,day:STATE.day}));}catch(e){}
+}
+function restorePos(){
+  STATE.day=firstDay();
+  let p=null;
+  try{p=JSON.parse(localStorage.getItem(LS.pos)||"null");}catch(e){}
+  if(!p||typeof p!=="object")return;
+  /* Clamp against the programme actually loaded, not against what was saved. A saved week
+     can point past the end of a shorter block imported since, and a saved day can name a
+     day this programme doesn't have — either would render an empty screen. */
+  const w=Number(p.week), weeks=Number(PROGRAM.meta.weeks)||1;
+  if(Number.isFinite(w)&&w>=1&&w<=weeks)STATE.week=Math.floor(w);
+  const days=Array.isArray(PROGRAM.meta.days)?PROGRAM.meta.days:[];
+  if(days.indexOf(p.day)>=0)STATE.day=p.day;
+}
+
 function loadProgram(obj){
   if(!obj||!obj.meta||!Array.isArray(obj.exercises))throw new Error("Not a valid program.json (need meta + exercises).");
   PROGRAM=obj; localStorage.setItem(LS.prog,JSON.stringify(obj));
+  /* A fresh import starts at the top of the block — and that reset has to be persisted,
+     or the next refresh would restore the position from the programme just replaced. */
   STATE.week=1; STATE.day=(obj.meta.days&&obj.meta.days[0])||null; STATE.date=todayISO();
+  savePos();
   resetFocus();
   renderAll();
 }
@@ -967,7 +996,7 @@ async function boot(){
   const saved=localStorage.getItem(LS.prog);
   if(saved){try{PROGRAM=JSON.parse(saved);}catch(e){}}
   if(!PROGRAM){try{const r=await fetch("./program.json",{cache:"no-store"});if(r.ok)PROGRAM=await r.json();}catch(e){}}
-  if(PROGRAM){STATE.day=(PROGRAM.meta.days&&PROGRAM.meta.days[0])||null;resetFocus();}
+  if(PROGRAM){restorePos();resetFocus();}
   renderAll();
 }
 

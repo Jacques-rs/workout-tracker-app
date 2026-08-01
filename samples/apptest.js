@@ -544,5 +544,65 @@ console.log("\nrobustness — bad or legacy stored data must not break the gym")
      "and an exercise logged only per-set never reads as “nothing logged”");
 }
 
+console.log("\nwhere you are in the block survives a refresh");
+{
+  /* What boot() does to the position on a cold start: a fresh STATE, then restorePos().
+     Date is carried over rather than re-derived so the test doesn't depend on the clock —
+     boot() starts it at today on purpose, which is tested separately below. */
+  const refresh = () => {
+    app.STATE = { week: 1, day: null, date: app.STATE.date, focus: 0 };
+    app.restorePos();
+  };
+
+  const prog = loadFixture("program.v2.sample.json");
+  const day2 = prog.meta.days[1];
+  app.selectWeek(3);
+  app.selectDay(day2);
+  refresh();
+  is(app.STATE.week, 3, "the selected week is restored, not reset to 1");
+  is(app.STATE.day, day2, "and so is the selected day");
+
+  /* The bug this guards: week 5 prescriptions silently becoming week 1's on reload. */
+  app.selectWeek(4);
+  const wk4 = app.dayExercises().map(e => e.id);
+  refresh();
+  is(app.dayExercises().map(e => e.id), wk4, "so the exercises on screen are still that week's");
+
+  /* Clamped against the programme actually loaded, not against what was saved. */
+  store.set("tp_pos_v1", JSON.stringify({ week: 99, day: day2 }));
+  refresh();
+  is(app.STATE.week, 1, "a saved week past the end of the block falls back to week 1");
+  store.set("tp_pos_v1", JSON.stringify({ week: 2, day: "Day 9 (Sun) - not in this program" }));
+  refresh();
+  is(app.STATE.day, prog.meta.days[0], "a saved day this programme lacks falls back to day 1");
+  is(app.STATE.week, 2, "without discarding the week alongside it");
+
+  /* localStorage is hand-editable and survives builds — it must never be trusted. */
+  store.set("tp_pos_v1", "{not json");
+  refresh();
+  is([app.STATE.week, app.STATE.day], [1, prog.meta.days[0]], "corrupt saved position is ignored");
+
+  /* A fresh import starts at the top of the block, and that has to be written through:
+     otherwise the next refresh restores a position belonging to the replaced programme. */
+  app.selectWeek(4);
+  loadFixture("program.v2.sample.json");
+  is(JSON.parse(store.get("tp_pos_v1")).week, 1, "importing a programme resets the saved week");
+  refresh();
+  is(app.STATE.week, 1, "so a refresh straight after an import stays at week 1");
+
+  /* v1 has no per-week rows, but the athlete still moves through weeks against the
+     progression banner, so the selection has to stick there too. */
+  loadFixture("program.sample.json");
+  app.selectWeek(5);
+  refresh();
+  is(app.STATE.week, 5, "a v1 programme restores its week as well");
+
+  /* Date is deliberately NOT restored — it keys the stored session, so reopening the app
+     the next morning must open a new day, not yesterday's file. */
+  app.selectDate("2020-01-01");
+  is(JSON.parse(store.get("tp_pos_v1")).week, 5, "changing the date leaves the position alone");
+  assert(!/2020-01-01/.test(store.get("tp_pos_v1")), "and the date itself is never persisted");
+}
+
 console.log(failures ? `\n${failures} FAILED\n` : "\nall passed\n");
 process.exit(failures ? 1 : 0);
