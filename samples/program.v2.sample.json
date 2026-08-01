@@ -3,6 +3,7 @@
     "block": "SAMPLE BLOCK - dev fixture only",
     "athlete": "Sample Athlete",
     "weeks": 4,
+    "version": 3,
     "generated": "sample",
     "days": [
       "Day 1 (Mon) - Clean Skill + Front Squat + Knee Capacity",

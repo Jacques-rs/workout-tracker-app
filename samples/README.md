@@ -5,13 +5,15 @@ Fake data for testing the app. **Never real training data** — see `athlete/REA
 | File | Schema | Use it to test |
 |---|---|---|
 | `program.sample.json` | `tp-program-1` | A Week-1-only programme already on a phone. Day-only filtering, progression banner past week 1. |
-| `program.v2.sample.json` | `tp-program-2` | Every week authored. Day **and** week filtering, no banner. Loads step +2.5 kg per week so switching weeks is visibly different. 4 weeks × 2 days. Its `meta.athleteId` is deliberately `fixture-slug`, which is **not** what slugging `meta.athlete` would give — otherwise a test could not tell the `athleteId` field from the v1 name-slugging fallback. |
+| `program.v2.sample.json` | `tp-program-2` | Every week authored. Day **and** week filtering, no banner. Loads step +2.5 kg per week so switching weeks is visibly different. 4 weeks × 2 days. Its `meta.athleteId` is deliberately `fixture-slug`, which is **not** what slugging `meta.athlete` would give — otherwise a test could not tell the `athleteId` field from the v1 name-slugging fallback. Its `meta.version` is deliberately **3**, for the same reason: a test expecting `1` would also pass against a hard-wired value. |
 | `session.sample.json` | `tp-session-1` | A log with **no `sets[]` and no `tracking`** — a file exported before either existed. The coach path must still read it, treating missing `tracking` as all-true. |
-| `session.v2.sample.json` | `tp-session-2` | Per-set logging. One entry (`Heel-elevated front squat - top set`) has `sets[]` with a 100 → 80 → 80 drop and a flat `load` of `80`; every other entry has `sets: []`. Carries `athleteId` and `tracking`. |
+| `session.v2.sample.json` | `tp-session-2` | Per-set logging. One entry (`Heel-elevated front squat - top set`) has `sets[]` with a 100 → 80 → 80 drop and a flat `load` of `80`; every other entry has `sets: []`. Carries `athleteId` and `tracking`, and the retired `session.amPainNextDay` / `tracking.painNextMorning` pair. |
+| `session.v3.sample.json` | `tp-session-3` | The current export. Same session as the v2 file so the two diff cleanly, but with `session.amPainOnWaking` / `tracking.painOnWaking` in place of the next-morning pair, and a `programVersion`. Its waking score (4) is deliberately **not** the v2 file's next-morning score (2) — they measure different mornings, and a reader that treats them as the same field shows up as a wrong number rather than a passing test. |
 
-Both versions are kept on purpose: the app has to import either without breaking, because a
-v1 programme can be sitting in `localStorage` on a phone mid-block. Test both after any change
-to import, filtering, or export.
+All versions are kept on purpose: the app has to import either programme version without
+breaking, because a v1 programme can be sitting in `localStorage` on a phone mid-block, and
+the coaching side has to read every session version because logs from all three are already
+on disk. Test both programme fixtures after any change to import, filtering, or export.
 
 The v2 fixtures were derived from the v1 ones by hand, not by a script, so they are not
 byte-comparable — `program.v2.sample.json` is a shorter block (4 weeks) with stepped loads so

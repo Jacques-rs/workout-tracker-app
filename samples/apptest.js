@@ -10,9 +10,10 @@
  *
  *   - a tp-program-2 programme filters by day AND week
  *   - a tp-program-1 programme still filters by day only, and keeps its banner
- *   - per-set rows round-trip into a tp-session-2 export
+ *   - per-set rows round-trip into a tp-session-3 export
  *   - the flat summary fields are exported as logged, never recomputed
  *   - athleteId survives, including the v1 fallback
+ *   - the programme revision is displayed and stamped on the export
  *
  * Run it after any change to filtering, logging or export. Rendering, layout and
  * offline behaviour still need a real phone.
@@ -210,7 +211,7 @@ console.log("\nper-set logging round-trip");
   app.saveSession(s);
 
   const out = app.buildSessionExport();
-  is(out.schema, "tp-session-2", "schema is tp-session-2");
+  is(out.schema, "tp-session-3", "schema is tp-session-3");
   is(out.athleteId, "fixture-slug", "athleteId taken from meta, not re-slugged from the name");
   const entry = out.entries.find(x => x.exercise === ex.name);
   is(entry.sets.length, 3, "the blank 4th row is dropped from the export");
@@ -242,9 +243,73 @@ console.log("\ntp-program-1 export still works (v1 fallback)");
 {
   loadFixture("program.sample.json");
   const out = app.buildSessionExport();
-  is(out.schema, "tp-session-2", "a v1 programme still exports the current session schema");
+  is(out.schema, "tp-session-3", "a v1 programme still exports the current session schema");
   is(out.athleteId, "sample-athlete", "athleteId derived by slugging meta.athlete when absent");
   assert(out.entries.every(x => Array.isArray(x.sets)), "sets array present even with nothing logged");
+}
+
+console.log("\nprogramme revision — displayed and stamped on the export");
+{
+  /* The v2 fixture is deliberately at v3, not v1: a test that passes because the
+     expected value happens to be 1 would also pass with the field hard-wired. */
+  loadFixture("program.v2.sample.json");
+  is(app.progVersion(), 3, "version read from meta.version");
+  is(app.buildSessionExport().programVersion, 3, "and stamped on the export");
+  app.renderAll();
+  assert(/·\s*v3$/.test(stubFor("#blockSub").text),
+         `shown next to the block name (got ${JSON.stringify(stubFor("#blockSub").text)})`);
+
+  /* A programme from before the revision convention. The app must not invent "v1". */
+  loadFixture("program.sample.json");
+  is(app.progVersion(), 0, "an unversioned programme reads as 0");
+  is(app.buildSessionExport().programVersion, 0, "exported as 0, not omitted");
+  app.renderAll();
+  assert(!/v\d/.test(stubFor("#blockSub").text),
+         "and no version is claimed in the header");
+
+  /* Junk in meta.version must not put "vNaN" on screen or in a log file. */
+  loadFixture("program.v2.sample.json");
+  for(const junk of ["", "two", -1, 0, null, {}]){
+    app.PROGRAM.meta.version = junk;
+    is(app.progVersion(), 0, `meta.version ${JSON.stringify(junk)} reads as 0`);
+  }
+  app.PROGRAM.meta.version = "4";
+  is(app.progVersion(), 4, "a numeric string still works");
+}
+
+console.log("\npain on waking — a pre-session field, not a next-morning one");
+{
+  loadFixture("program.v2.sample.json");
+  app.STATE.week = 1;
+
+  /* It has to be reachable at check-in, before a single set is logged — that is the
+     whole point of the move away from amPainNextDay. */
+  const checkin = cards().find(c => c.classList.contains("sessioncard"));
+  assert(!!checkin, "the check-in card renders");
+  const labels = checkin.findAll(n => n.classList.contains("lbl")).map(n => n.text);
+  assert(labels.some(t => /on waking/i.test(t)),
+         `labelled for the morning reading (got ${JSON.stringify(labels)})`);
+  is(labels[0], "Knee pain on waking", "and it is the first field, not buried under bodyweight");
+  assert(!labels.some(t => /next AM/i.test(t)), "the old next-morning field is gone");
+
+  const s = app.getSession();
+  s.session.amPainOnWaking = "4";
+  app.saveSession(s);
+  const out = app.buildSessionExport();
+  is(out.session.amPainOnWaking, "4", "the reading round-trips into the export");
+  assert(!("amPainNextDay" in out.session), "and amPainNextDay is not exported at all");
+  is(out.tracking.painOnWaking, true, "tracking says the field was available");
+  assert(!("painNextMorning" in out.tracking), "the old tracking key is gone too");
+
+  /* Switched off, the key keeps its shape so the coach never probes for it. */
+  app.SETTINGS.painOnWaking = false;
+  const off = app.buildSessionExport();
+  is(off.tracking.painOnWaking, false, "switching it off is recorded");
+  assert("amPainOnWaking" in off.session, "but the key still ships, so silence is readable");
+  const noPain = cards().find(c => c.classList.contains("sessioncard"))
+    .findAll(n => n.classList.contains("lbl")).map(n => n.text);
+  assert(!noPain.some(t => /on waking/i.test(t)), "and the input is not rendered");
+  app.SETTINGS.painOnWaking = true;
 }
 
 console.log("\nper-set UI — the buttons an athlete actually taps");
@@ -367,7 +432,7 @@ console.log("\nrobustness — bad or legacy stored data must not break the gym")
   assert(cards().length > 0, "the day still renders");
   const out = app.buildSessionExport();
   is(Object.keys(out.session).sort(),
-     ["amPainNextDay", "bodyweightKg", "hrvNote", "overall", "readiness", "sleep"],
+     ["amPainOnWaking", "bodyweightKg", "hrvNote", "overall", "readiness", "sleep"],
      "the export still carries every session key");
   is(out.entries.find(x => x.exercise === ex.name).sets, [], "a legacy entry exports sets: []");
   is(out.entries.find(x => x.exercise === ex.name).load, "60", "and keeps what was logged");

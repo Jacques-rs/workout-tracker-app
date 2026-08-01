@@ -487,8 +487,8 @@ function slug(s){return (s||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace
 const FIELD_DEFS=[
   {key:"painPerExercise",name:"Pain per exercise",
    desc:"A 0–10 pain box on every exercise. Knee load varies hugely between movements, so this is what identifies which movement to regress."},
-  {key:"painNextMorning",name:"Next-morning pain",
-   desc:"Session-level 0–10, filled the morning after by re-opening the session via the date picker."},
+  {key:"painOnWaking",name:"Pain on waking",
+   desc:"Session-level 0–10, filled at check-in. It reads how the tissue woke up today, which is the response to the LAST session — not this one."},
   {key:"readiness",name:"Readiness",desc:"Green / Amber / Red — governs whether load progresses, holds or regresses."},
   {key:"sleep",name:"Sleep score",desc:"Subjective 1–5."},
   {key:"bodyweight",name:"Bodyweight",desc:"Logged in kg at check-in."},
@@ -685,6 +685,15 @@ function athleteId(){
   if(!PROGRAM||!PROGRAM.meta)return "";
   return PROGRAM.meta.athleteId||slug(PROGRAM.meta.athlete)||"";
 }
+/* Revision of the loaded programme. A week gets revised mid-block after a review, and
+   re-importing is a manual step with no prompt — so this is shown next to the block name
+   and stamped on every export, to answer "is the phone on the current version?" without
+   diffing prescriptions. 0 means the programme predates versioning; the UI stays silent
+   rather than claiming "v1", which would be a guess. */
+function progVersion(){
+  const v=PROGRAM&&PROGRAM.meta?Number(PROGRAM.meta.version):NaN;
+  return Number.isFinite(v)&&v>0?Math.floor(v):0;
+}
 
 function loadProgram(obj){
   if(!obj||!obj.meta||!Array.isArray(obj.exercises))throw new Error("Not a valid program.json (need meta + exercises).");
@@ -703,7 +712,12 @@ async function boot(){
 }
 
 /* ---------- session persistence ---------- */
-const BLANK_SESSION={bodyweightKg:"",sleep:"",readiness:"",hrvNote:"",amPainNextDay:"",overall:""};
+/* `amPainOnWaking` replaced `amPainNextDay` at tp-session-3. The old field asked for
+   tomorrow's response to today's session, which meant re-opening a closed session the
+   next morning — so in practice it arrived empty, and an empty tendon reading looks
+   exactly like a good one. This is the same measurement taken at check-in, when the app
+   is already open. It is the response to the PREVIOUS session; see docs/data-contracts.md. */
+const BLANK_SESSION={bodyweightKg:"",sleep:"",readiness:"",hrvNote:"",amPainOnWaking:"",overall:""};
 function sessionKey(){return LS.sess(STATE.date,STATE.day);}
 function getSession(){
   const raw=localStorage.getItem(sessionKey());
@@ -737,7 +751,9 @@ function renderAll(){
     $("#main").append(el("div",{className:"banner"},"No program.json found. Tap Import and choose the program.json from your Drive folder."));
     $("#weekSel").innerHTML="";$("#dayPicker").innerHTML="";updateProgress();return;}
   $("#blockName").textContent=PROGRAM.meta.block||"Training block";
-  $("#blockSub").textContent=`${PROGRAM.meta.athlete||""} · ${PROGRAM.meta.weeks||"?"}-week block`;
+  const rev=progVersion();
+  $("#blockSub").textContent=`${PROGRAM.meta.athlete||""} · ${PROGRAM.meta.weeks||"?"}-week block`
+    +(rev?` · v${rev}`:"");
   const wk=$("#weekSel");wk.innerHTML="";
   for(let i=1;i<=(PROGRAM.meta.weeks||1);i++)
     wk.append(el("option",{value:i,textContent:"Week "+i,selected:i===STATE.week}));
@@ -801,15 +817,17 @@ function sessionCard(s){
   c.append(el("span",{className:"rail"}));
   c.dataset.readiness=SETTINGS.readiness?(s.session.readiness||""):"";
   c.append(el("div",{className:"ex-name"},"Session check-in"));
-  c.append(el("div",{className:"rx"},"Fill what's useful — you can re-open this session tomorrow by changing the date."));
+  c.append(el("div",{className:"rx"},"Fill this before you start — it's how today began, not how it went."));
   const wrap=el("div",{className:"log"});
   const mk=(k,label,type="text",attrs={},unit)=>{
     const inp=el("input",{type,value:s.session[k]??"",attrs});
     inp.oninput=()=>{s.session[k]=inp.value;saveSession(s);};
     return field(label,inp,unit);
   };
-  if(SETTINGS.bodyweight)wrap.append(mk("bodyweightKg","Bodyweight","number",{},"kg"));
-  if(SETTINGS.sleep)wrap.append(mk("sleep","Sleep","number",{min:1,max:5},"/5"));
+  /* First in the grid on purpose: for a tendon block this is the highest-value number in
+     the file, it is only true before training, and it used to be the one that got missed. */
+  if(SETTINGS.painOnWaking)
+    wrap.append(mk("amPainOnWaking",painLbl(" on waking"),"number",{min:0,max:10},"/10"));
   if(SETTINGS.readiness){
     const rd=el("select",{},["","Green","Amber","Red"].map(o=>
       el("option",{value:o,textContent:o||"Readiness…",selected:s.session.readiness===o})));
@@ -817,8 +835,8 @@ function sessionCard(s){
       c.dataset.readiness=rd.value;};
     wrap.append(field("Readiness",rd));
   }
-  if(SETTINGS.painNextMorning)
-    wrap.append(mk("amPainNextDay",painLbl(" next AM"),"number",{min:0,max:10},"/10"));
+  if(SETTINGS.sleep)wrap.append(mk("sleep","Sleep","number",{min:1,max:5},"/5"));
+  if(SETTINGS.bodyweight)wrap.append(mk("bodyweightKg","Bodyweight","number",{},"kg"));
   if(SETTINGS.hrvNote){
     const hrv=el("input",{type:"text",value:s.session.hrvNote||"",
       attrs:{placeholder:"e.g. HRV 62, at baseline"}});
@@ -886,7 +904,7 @@ function summaryText(e){
   return b.length?b.join(" · "):"nothing logged";
 }
 
-/* ---------- per-set logging (tp-session-2) ----------
+/* ---------- per-set logging (sets[], added at tp-session-2) ----------
    Deliberately opt-in per exercise. Most sets are the same, and rendering N rows of
    inputs on every card would slow down the common case for the sake of the rare one.
    The flat load/reps/RPE row above stays the summary and is never derived from these.
@@ -1104,8 +1122,12 @@ function buildSessionExport(){
   const tracking={painLabel:(SETTINGS.painLabel||"").trim()};
   FIELD_DEFS.forEach(f=>tracking[f.key]=!!SETTINGS[f.key]);
   return {
-    schema:"tp-session-2",
+    schema:"tp-session-3",
     block:PROGRAM.meta.block,athlete:PROGRAM.meta.athlete,athleteId:athleteId(),
+    /* Which revision of the programme this was actually trained off. Without it the coach
+       has to diff the denormalised `prescribed` values against the current program.json to
+       spot an athlete who never re-imported. 0 means the programme predates versioning. */
+    programVersion:progVersion(),
     week:STATE.week,day:STATE.day,date:STATE.date,
     exportedAt:new Date().toISOString(),
     tracking,

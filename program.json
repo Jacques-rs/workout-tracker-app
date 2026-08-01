@@ -3,6 +3,7 @@
     "block": "SAMPLE — replace via Import",
     "athlete": "Sample Athlete",
     "weeks": 6,
+    "version": 1,
     "generated": "sample",
     "days": [
       "Day 1 (Mon) - Clean Skill + Front Squat + Knee Capacity",
