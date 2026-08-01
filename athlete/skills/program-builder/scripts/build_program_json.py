@@ -4,8 +4,17 @@ build_program_json.py - convert programme rows into program.json for the tracker
 
 Reads the SAME rows.json used by build_xlsx.py (a list of 13-field rows, or
 {"rows": [...]}), and emits a program.json with schema "tp-program-2". Loading,
-validation, week numbers and day ordering all come from rows_common, so the two
-scripts cannot drift apart in how they read the same file.
+input validation, week numbers and day ordering all come from rows_common, so
+the two scripts cannot drift apart in how they read the same file.
+
+Two validation passes, and they answer different questions:
+  rows_common.load_rows  - is the INPUT well formed? (column count, week is an
+                           integer, no tabs in a cell)
+  validate_program       - would the OUTPUT satisfy the contract the app relies
+                           on? (id collisions, a day label not in meta.days, a
+                           week with no rows). Runs on the assembled programme
+                           BEFORE anything is written, so a failure leaves no
+                           broken program.json on disk. See docs/data-contracts.md.
 
 WEEKS ARE MATERIALISED (schema tp-program-2)
 -------------------------------------------
@@ -39,6 +48,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from rows_common import (DAY, die, day_order, day_slots, load_rows,  # noqa: E402
                          sort_rows, week_of)
+from validate_program import validate  # noqa: E402
 
 
 def slugify(name):
@@ -67,27 +77,25 @@ def build(rows, block, athlete, weeks, allow_partial, version=1):
             "logHint": v[10], "focus": v[11], "progression": v[12],
         })
 
+    # Fail here rather than in validate_program for the two problems that are
+    # really about the INPUT, so the error names rows.json and the flag the
+    # author needs. validate_program catches both too, in output terms; under
+    # --allow-partial-weeks it is the only one that speaks, which is why the
+    # warning branch below just falls through to it instead of printing its own.
     authored = sorted({e["week"] for e in exercises})
     extra = [w for w in authored if w > weeks]
     if extra:
-        die(f"rows contain week(s) {extra} beyond --weeks {weeks}")
+        die(f"rows.json contains week(s) {extra} beyond --weeks {weeks}")
     missing = [w for w in range(1, weeks + 1) if w not in authored]
-    if missing:
-        msg = (f"rows.json is missing week(s) {missing} of {weeks}. Under tp-program-2 "
-               "every week must be authored explicitly - the app renders the week the "
-               "athlete selected and will show nothing for a missing week.")
-        if not allow_partial:
-            die(msg + "\n  Pass --allow-partial-weeks only if you really mean it.")
-        print("WARNING: " + msg, file=sys.stderr)
+    if missing and not allow_partial:
+        die(f"rows.json is missing week(s) {missing} of {weeks}. Under tp-program-2 "
+            "every week must be authored explicitly - the app renders the week the "
+            "athlete selected and will show nothing for a missing week.\n"
+            "  Pass --allow-partial-weeks only if you really mean it.")
 
-    # Every day should appear in every authored week; a gap is nearly always an
-    # authoring slip rather than an intentional rest week.
-    for w in authored:
-        gaps = [d for d in order
-                if not any(e["week"] == w and e["day"] == d for e in exercises)]
-        if gaps:
-            print(f"WARNING: week {w} has no rows for: {'; '.join(gaps)}",
-                  file=sys.stderr)
+    # Per-day gaps within an authored week are checked by validate_program in
+    # main(), over the assembled programme. Duplicating either check here only
+    # printed the same warning twice in two different wordings.
 
     return {
         "meta": {
@@ -127,6 +135,19 @@ def main():
 
     prog = build(load_rows(a.input), a.block, a.athlete, int(a.weeks),
                  a.allow_partial_weeks, int(a.version))
+
+    # Validate the assembled file BEFORE writing it. rows_common already vetted
+    # the input, but some breakages only exist once the rows are a programme -
+    # an id collision, a day label that drifts between weeks. Writing first and
+    # checking after would leave a broken program.json on disk for the athlete
+    # to import.
+    rep = validate(prog, a.output, a.allow_partial_weeks)
+    rep.render()
+    if rep.errors:
+        die(f"refusing to write {a.output}: it would not satisfy the "
+            "tp-program-2 contract (see docs/data-contracts.md). Nothing was "
+            "written; fix rows.json and re-run.")
+
     with open(a.output, "w", encoding="utf-8") as f:
         json.dump(prog, f, ensure_ascii=False, indent=2)
 

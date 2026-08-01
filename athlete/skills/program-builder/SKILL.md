@@ -132,6 +132,25 @@ Schema (`tp-program-2`): `{ "meta": {block, athlete, athleteId, weeks, version, 
 The script **exits non-zero if any week of the block has no rows.** That is the guard against
 regressing to a Week-1-only programme; fix the rows rather than overriding it.
 
+**The assembled programme is validated before it is written.** `build_program_json.py` runs
+`scripts/validate_program.py` over the finished structure and refuses to write the file if it
+would break the `tp-program-2` contract — so a bad `program.json` never lands on disk for the
+athlete to import. This is a *different* check from the `rows_common` one above: a `rows.json`
+can be perfectly well-formed and still assemble into a programme the app mishandles (an id
+collision, a `day` that drifts by one space from `meta.days`, a `--weeks` count that disagrees
+with the rows). Errors block the write; warnings — a week missing one day, no `logHint`, no
+`category` — print and continue. To check a file the builder didn't just produce:
+
+```
+python3 <skills>/program-builder/scripts/validate_program.py path/to/program.json
+```
+
+The strictness lives here and **not in the app on purpose.** The app validates almost nothing
+on Import, because a slightly-off programme must still open in a gym basement rather than
+hard-fail in front of an athlete who came to train. That leniency is only safe because this
+runs first. The full contract is `docs/data-contracts.md`; if you add a rule to the validator,
+add it there too.
+
 **Round-trip / review convention:** the athlete imports `program.json` into the tracker, logs a session offline, and exports `session-<date>-<day>.json` into `athlete/<slug>/logs/`. Reviewing that log is **not this skill's job** — hand off to `review-workout-log`, which compares the log against the prescription for that week and day, proposes the smallest effective adjustment behind an approval gate, and on approval edits `rows.json` and re-runs these same two scripts with a bumped `--version`. Revising through the builder is what keeps the workbook and `program.json` in step.
 
 Write the block folder so that is possible: put `rows.json`, `program.json`, the workbook and the phase map **together in one folder**, and prefer `programs/<block-slug>/` over a flat `programs/` for a new block — a flat folder can only hold one `program.json`. See `athlete/README.md`.
@@ -139,6 +158,9 @@ Write the block folder so that is possible: put `rows.json`, `program.json`, the
 ## Verification checklist (run before presenting)
 - **Every week of the block has its own rows.** `build_program_json.py` exited 0 without
   `--allow-partial-weeks`, and its "Rows per week" line shows W1..Wn.
+- **The contract validator passed** — it runs automatically inside the build, so exit 0 means
+  it passed. Read any WARNING lines rather than skipping past them; each one is a plausible
+  authoring slip.
 - The workbook has one tab per week, and the day labels are identical string-for-string
   across weeks.
 - No Progression Rule reads as a future instruction ("W4: add 2.5 kg"). They state why this
