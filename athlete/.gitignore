@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# Editor / OS noise
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# --- Athlete data: NEVER commit ---
+# personal-profile.md contains medical detail. logs/ and programs/ contain
+# training and health data. See plans/PLAN-C-repo-move.md before changing
+# anything in this section.
+personal-profile.md
+logs/
+programs/
+sources/
+plans/
+
+# Python
+__pycache__/
+*.pyc
+
+# Transient build output
+~$*.xlsx
+
+# Packaged skill bundles are build artefacts — skills/ is canonical.
+# See skills/README.md for how to rebuild one.
+*.skill

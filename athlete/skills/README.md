@@ -1,0 +1,33 @@
+# Skills — canonical source
+
+The **unpacked directories in this folder are canonical**: `program-planner/` and `program-builder/`.
+Edit those. Nothing else.
+
+A `.skill` file is just a zip of one of these directories — a build artefact, not a source.
+Never edit a bundle, and never treat one as the current version: it is a snapshot that goes
+stale the moment a `SKILL.md` changes here.
+
+## Rebuilding a bundle
+
+Only needed when installing or sharing a skill. Build it fresh, use it, then delete it —
+do not leave bundles lying around in the project.
+
+```bash
+cd skills/program-builder && zip -r ../../program-builder.skill . -x '.DS_Store' && cd -
+```
+
+The zip must contain `SKILL.md` at its **root**, not nested inside a folder — hence the
+`cd` into the directory rather than zipping the directory by name.
+
+Verify before installing:
+
+```bash
+unzip -l program-builder.skill   # SKILL.md must be the first-level entry
+```
+
+## Current contents
+
+| Directory | Contains |
+|---|---|
+| `program-planner/` | `SKILL.md`, `reference/planning-doc-template.md` |
+| `program-builder/` | `SKILL.md`, `scripts/build_program_json.py`, `scripts/build_xlsx.py` |
