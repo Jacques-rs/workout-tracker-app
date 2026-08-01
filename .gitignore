@@ -1,1 +1,7 @@
 .DS_Store
+
+# personal details
+docs/athlete-context.md
+
+# claude projects for athletes
+athlete/*
