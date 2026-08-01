@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Training Tracker</title>
-<meta name="theme-color" content="#000000" id="metaTheme" />
+<meta name="theme-color" content="#14213d" id="metaTheme" />
 <link rel="manifest" href="./manifest.webmanifest" />
 <link rel="apple-touch-icon" href="./icon-192.png" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -34,25 +34,26 @@
      Readiness Green/Amber/Red can't come from one chroma, so --good/--warn/--bad are
      semantic: in-palette where the palette has that hue, added where it doesn't. */
 
-  /* A · dark — "Ink & Amber". Also the no-JS fallback. */
+  /* A · dark — "Navy & Amber". Navy is the page itself, wells are black, and amber is
+     used liberally (accent, disclosures, rails). Also the no-JS fallback. */
   html:not([data-theme]),html[data-theme="a-dark"]{
-    --bg:#000000; --panel:#0e1626; --panel-hi:#14213d; --well:#06090f;
-    --line:#24345a; --line-soft:#16223a;
-    --ink:#ffffff; --ink-dim:#e5e5e5; --muted:#97a0b5; --placeholder:#6b7488;
-    --accent:#fca311; --on-accent:#14213d; --accent-soft:rgba(252,163,17,.13);
+    --bg:#14213d; --panel:#1b2b4d; --panel-hi:#24365e; --well:#0b1428;
+    --line:#33477a; --line-soft:#233255;
+    --ink:#ffffff; --ink-dim:#e5e5e5; --muted:#9fadc9; --placeholder:#7182a5;
+    --accent:#fca311; --on-accent:#000000; --accent-soft:rgba(252,163,17,.16);
     --accent-ink:#fca311;
-    --accent2:#e5e5e5; --accent2-soft:rgba(229,229,229,.08);
-    --good:#3fa87f; --good-soft:rgba(63,168,127,.12); --good-soft-2:rgba(63,168,127,.03);
-    --good-line:rgba(63,168,127,.45);
-    --warn:#fca311; --bad:#e0503c;
-    --ring:0 0 0 3px rgba(252,163,17,.25); --scrim:rgba(0,0,0,.78);
-    --footer-bg:rgba(14,22,38,.93); --bg-fade:rgba(0,0,0,0);
-    --toast-bg:#14213d; --toast-ink:#ffffff; --toast-line:#fca311;
-    --top-hi-a:rgba(255,255,255,.08); --top-hi-b:rgba(255,255,255,.02);
-    --tab-shadow:rgba(0,0,0,.5);
-    --cat-warm:#8590a8; --cat-tendon:#fca311; --cat-skill:#e5e5e5;
-    --cat-strength:#6d8ecb; --cat-cond:#c07c14; --cat-accessory:#b0a48c;
-    --meta-theme:#000000;
+    --accent2:#fca311; --accent2-soft:rgba(252,163,17,.10);
+    --good:#47b48c; --good-soft:rgba(71,180,140,.14); --good-soft-2:rgba(71,180,140,.04);
+    --good-line:rgba(71,180,140,.5);
+    --warn:#fca311; --bad:#e2604d;
+    --ring:0 0 0 3px rgba(252,163,17,.28); --scrim:rgba(0,0,0,.7);
+    --footer-bg:rgba(27,43,77,.93); --bg-fade:rgba(20,33,61,0);
+    --toast-bg:#000000; --toast-ink:#e5e5e5; --toast-line:#fca311;
+    --top-hi-a:rgba(255,255,255,.10); --top-hi-b:rgba(255,255,255,.03);
+    --tab-shadow:rgba(0,0,0,.45);
+    --cat-warm:#8496b8; --cat-tendon:#fca311; --cat-skill:#e5e5e5;
+    --cat-strength:#6d8ecb; --cat-cond:#d0830c; --cat-accessory:#bdb08f;
+    --meta-theme:#14213d;
   }
   /* A · light — "Paper & Amber" */
   html[data-theme="a-light"]{
@@ -74,25 +75,26 @@
     --cat-strength:#41598f; --cat-cond:#a05f0c; --cat-accessory:#6d6250;
     --meta-theme:#ffffff;
   }
-  /* B · dark — "Slate & Mint" */
+  /* B · dark — "Teal & Mint". Mid-dark teal page, pale mint as the accent, so buttons
+     read light-on-dark rather than colour-on-dark. */
   html[data-theme="b-dark"]{
-    --bg:#364958; --panel:#3b6064; --panel-hi:#487479; --well:#2b3a46;
-    --line:#55828b; --line-soft:#44676d;
-    --ink:#f4fbf4; --ink-dim:#c9e4ca; --muted:#9dbdb0; --placeholder:#7d9c96;
-    --accent:#87bba2; --on-accent:#243b33; --accent-soft:rgba(135,187,162,.16);
-    --accent-ink:#87bba2;
-    --accent2:#c9e4ca; --accent2-soft:rgba(201,228,202,.10);
-    --good:#87bba2; --good-soft:rgba(135,187,162,.14); --good-soft-2:rgba(135,187,162,.04);
-    --good-line:rgba(135,187,162,.5);
-    --warn:#d9a03c; --bad:#c8574a;
-    --ring:0 0 0 3px rgba(135,187,162,.28); --scrim:rgba(27,37,45,.76);
-    --footer-bg:rgba(59,96,100,.93); --bg-fade:rgba(54,73,88,0);
-    --toast-bg:#2b3a46; --toast-ink:#c9e4ca; --toast-line:#87bba2;
-    --top-hi-a:rgba(255,255,255,.08); --top-hi-b:rgba(255,255,255,.02);
+    --bg:#3b6064; --panel:#4a747a; --panel-hi:#55828b; --well:#2f4f53;
+    --line:#6f9aa0; --line-soft:#557f85;
+    --ink:#ffffff; --ink-dim:#c9e4ca; --muted:#aecdc3; --placeholder:#8fb0ab;
+    --accent:#c9e4ca; --on-accent:#2f4f53; --accent-soft:rgba(201,228,202,.18);
+    --accent-ink:#c9e4ca;
+    --accent2:#87bba2; --accent2-soft:rgba(135,187,162,.12);
+    --good:#c9e4ca; --good-soft:rgba(201,228,202,.15); --good-soft-2:rgba(201,228,202,.04);
+    --good-line:rgba(201,228,202,.55);
+    --warn:#e6bb5c; --bad:#e07d6c;
+    --ring:0 0 0 3px rgba(201,228,202,.30); --scrim:rgba(31,52,55,.76);
+    --footer-bg:rgba(74,116,122,.94); --bg-fade:rgba(59,96,100,0);
+    --toast-bg:#364958; --toast-ink:#c9e4ca; --toast-line:#c9e4ca;
+    --top-hi-a:rgba(255,255,255,.11); --top-hi-b:rgba(255,255,255,.03);
     --tab-shadow:rgba(0,0,0,.35);
-    --cat-warm:#8fa4a8; --cat-tendon:#87bba2; --cat-skill:#c9e4ca;
-    --cat-strength:#74a7b8; --cat-cond:#d9a03c; --cat-accessory:#a9c4a3;
-    --meta-theme:#364958;
+    --cat-warm:#9db8bc; --cat-tendon:#87bba2; --cat-skill:#c9e4ca;
+    --cat-strength:#b6dbe0; --cat-cond:#e6bb5c; --cat-accessory:#b7d3b0;
+    --meta-theme:#3b6064;
   }
   /* B · light — "Mint Paper" */
   html[data-theme="b-light"]{
