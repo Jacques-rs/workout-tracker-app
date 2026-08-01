@@ -20,6 +20,105 @@ presence of a field.
 
 ---
 
+# The contract
+
+The tables below are **normative**: they say which fields must exist, what type they are, and
+which side owns each one. Everything after them is the *why* — the reasoning, the history and
+the reading rules. If the two ever disagree, the tables win and the prose is stale.
+
+**Owner** is the side that decides a field's value. The other side reads it and must not
+invent, correct or recompute it.
+
+- **skill** — written by `program-builder`. The app treats it as given.
+- **app** — written by the app at export. The coaching side treats it as given.
+- **athlete** — typed by a human into the app. Free text; never assume it parses.
+
+**Required** means a reader may assume the key is present *for that schema version*. Anything
+else must be handled when missing — the last column of each optional table gives the actual
+fallback, not a suggestion.
+
+Note the asymmetry between the two sides. A programme is hand-authored, so a field can be
+genuinely absent. **A session file is machine-written and never omits a key** — the app merges
+every entry against a blank template at export, so on the session side "optional" means the
+*value* may be `""`, not that the key may be missing. That is why the review step never has to
+probe.
+
+`program-builder` enforces the input table via `scripts/validate_program.py`, which runs on the
+assembled programme before the file is written. **The app enforces almost none of it, on
+purpose** — a slightly-off programme must still open in a gym basement rather than hard-fail in
+front of an athlete who came to train. That leniency is only safe because something upstream is
+strict. Do not move the strictness into the app.
+
+## `tp-program-*` — required
+
+| Field | Type | v1 | v2 | Owner | Notes |
+|---|---|---|---|---|---|
+| `meta.block` | string | ✅ | ✅ | skill | Block name; shown in the header, copied to every export. |
+| `meta.athlete` | string | ✅ | ✅ | skill | Display name. |
+| `meta.athleteId` | slug | — | ✅ | skill | Names `athlete/<slug>/`. **v1: absent — slugify `meta.athlete`.** |
+| `meta.weeks` | number | ✅ | ✅ | skill | Block length; drives the week selector 1..N. |
+| `meta.days` | string[] | ✅ | ✅ | skill | **Ordered.** Drives the day selector. Labels must be byte-identical wherever they appear. |
+| `meta.schema` | string | ✅ | ✅ | skill | `tp-program-1` \| `tp-program-2`. Read this first; never infer the version. |
+| `exercises[].id` | string | ✅ | ✅ | skill | **Unique across the whole file.** The key logged data is stored under in `localStorage`. |
+| `exercises[].day` | string | ✅ | ✅ | skill | Must equal a `meta.days` entry **exactly** — the filter is string equality. |
+| `exercises[].name` | string | ✅ | ✅ | skill | Non-empty. |
+| `exercises[].week` | number | ignored | ✅ | skill | **v2: load-bearing** — the app renders only the selected week. v1 ignores it. |
+
+## `tp-program-*` — optional
+
+| Field | Type | Owner | If absent |
+|---|---|---|---|
+| `meta.version` | number ≥1 | skill | Treated as **`0`**, not `1` — the app does not invent a revision number it cannot know. Shown as `· v<N>` in the header (silent when `0`) and stamped into every export as `programVersion`. |
+| `meta.generated` | string | skill | No effect. |
+| `exercises[].sets`, `reps`, `load`, `rpe`, `tempo`, `rest` | **string** | skill | Renders empty. **Never numbers** — they hold ranges and prose (`"8-10 min"`, `"~115-135 kg"`). |
+| `exercises[].logHint` | string | skill | No blue "Log:" line. |
+| `exercises[].focus`, `progression` | string | skill | Section collapsed/absent. |
+| `exercises[].category` | string | skill | Guessed from `name`; no tag if nothing matches. Purely presentational — nothing filters or gates on it. |
+
+## `tp-session-*` — required
+
+The app writes these **unconditionally** — no key is omitted because a value is empty or a
+field was switched off. So "required for v3" here means *always present in a v3 file*, and a
+reader never has to probe.
+
+| Field | Type | v1 | v2 | v3 | Owner | Notes |
+|---|---|---|---|---|---|---|
+| `schema` | string | ✅ | ✅ | ✅ | app | `tp-session-1` \| `-2` \| `-3`. Read first. |
+| `block`, `athlete` | string | ✅ | ✅ | ✅ | skill→app | Copied from `meta`, unchanged. |
+| `athleteId` | slug | — | ✅ | ✅ | skill→app | From `meta.athleteId`, else slugged from `meta.athlete`. Names the `athlete/<slug>/logs/` folder. **Can be `""`** if the programme had neither. |
+| `programVersion` | number | — | — | ✅ | app | `meta.version` of the programme trained off. **`0`** = the programme predates versioning. |
+| `week`, `day`, `date` | number/string | ✅ | ✅ | ✅ | app | What was trained, and when. |
+| `exportedAt` | ISO string | ✅ | ✅ | ✅ | app | |
+| `tracking` | object | — | ✅ | ✅ | app | Which optional fields this device collects. **Absent = treat as all-true.** |
+| `session` | object | ✅ | ✅ | ✅ | athlete | Check-in block. Always present, always with every key — merged from a blank template at export. |
+| `entries[]` | array | ✅ | ✅ | ✅ | app | **Every** exercise for the day, including untouched (`done: false`). Skips are data. |
+| `entries[].exercise` | string | ✅ | ✅ | ✅ | app | Entries are keyed by name, not `id` — so the v1→v2 id change does not affect logs. |
+| `entries[].prescribed` | object | ✅ | ✅ | ✅ | skill→app | Denormalised so a log is reviewable without the programme. |
+| `entries[].done` | bool | ✅ | ✅ | ✅ | athlete | |
+| `entries[].sets[]` | array | — | ✅ | ✅ | athlete | `[]` when only the summary was logged. Contiguous from 1. |
+
+## `tp-session-*` — value-optional
+
+Every key below **always exists** in a file of the right version; what varies is whether it
+holds anything. `""` means *not logged*; the matching `tracking` flag is what tells you whether
+it is *not collected*. Distinguishing those two is the whole reason `tracking` exists.
+
+| Field | Type | Owner | Empty means |
+|---|---|---|---|
+| `session.*`, `entries[].load`/`reps`/`rpe`/`painDuring`/`notes` | **string** | athlete | `""`, never `null`. Check `tracking` before reading silence as a clean week. |
+| `session.amPainOnWaking` | string | athlete | **v3.** Describes the **previous** session — see the dedicated section. v1/v2 carry `amPainNextDay`, a *different morning*. |
+| `entries[].category` | string | skill→app | Only present if the programme declared one. Passed through so a log stays self-contained. |
+
+**The only numbers the app writes** are `week`, `programVersion` and `sets[].set`. On the
+programme side, `meta.weeks` and `exercises[].week`. Everything else is a string, including
+every prescription — never assume one parses numerically.
+
+**Keys never disappear.** Switching a field off in the Tracked-fields sheet flips a `tracking`
+flag; the key stays and its value is `""`. That is what lets a reader tell *not logged* from
+*not tracked*, and it means the review step never probes for missing keys.
+
+---
+
 ## Input: `program.json` (schema `tp-program-2`)
 
 ```json
@@ -109,9 +208,42 @@ change; until then step 3/4 carry the UI and are correct on the current sample p
 
 The leading `Day <N>` is parsed for the day index (colour bands in the spreadsheet, ordering here), so keep that prefix intact.
 
-### Validation the app performs
+### Where validation happens — generator strict, app lenient
 
-Minimal, by design: `meta` must exist and `exercises` must be an array, else Import shows an error. Everything else is treated as optional/prose. Be careful adding strict validation — a slightly-off programme should still open in the gym rather than hard-fail.
+Two checks, deliberately unequal.
+
+**The app checks almost nothing.** `meta` must exist and `exercises` must be an array, else
+Import shows an error. Everything else is treated as optional prose. Be careful adding strict
+validation here — a slightly-off programme should still open in the gym rather than hard-fail
+in front of an athlete who came to train.
+
+**The generator checks everything**, because that is where a failure is cheap: it costs a
+rebuild, not a session. `program-builder/scripts/validate_program.py` runs over the assembled
+programme **before the file is written**, so a contract-breaking `program.json` never reaches
+disk for the athlete to import.
+
+```bash
+python3 athlete/skills/program-builder/scripts/validate_program.py program.json
+python3 samples/validatortest.py     # 32 checks: fixtures pass, 23 breakages rejected
+```
+
+| | |
+|---|---|
+| **ERROR** (exit 1, blocks the write) | The app will visibly do the wrong thing: a missing required field, a wrong type, a `day` not in `meta.days`, duplicate ids, a v2 week with no rows. |
+| **WARNING** (printed, never fatal) | Plausibly deliberate but usually an authoring slip: a week missing one day, no `logHint` anywhere, no `category` declared, a v1 file. |
+
+Note the division of labour with `rows_common.load_rows`, which validates the builder's
+**input**. They answer different questions, and the second cannot be folded into the first: a
+`rows.json` can be perfectly well-formed and still assemble into a programme the app
+mishandles — an id collision, a day label that drifts by one space between weeks, a `--weeks`
+count that disagrees with the rows. Those only exist once the file is a programme.
+
+The one relaxation is `--allow-partial-weeks`, which downgrades "week N has no exercises" to a
+warning and nothing else. If you meet a v2 file with gaps, that flag is why.
+
+**Adding a rule to the validator is a change to this document too.** The app is the other party
+to the contract; a rule enforced upstream but written down nowhere is just a build that fails
+for reasons no one can look up.
 
 ### Weeks: materialised in v2, a template in v1
 

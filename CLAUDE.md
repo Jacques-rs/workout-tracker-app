@@ -119,13 +119,24 @@ python3 -c "import json,glob;[json.load(open(f)) for f in ['program.json','manif
 # generator scripts still import and reject bad input
 python3 -m py_compile athlete/skills/program-builder/scripts/*.py
 
+# every programme in the repo satisfies the tp-program-* contract
+python3 athlete/skills/program-builder/scripts/validate_program.py \
+  program.json samples/program.sample.json samples/program.v2.sample.json
+
 # app logic: week filtering, per-set round-trip, export shape, v1 + v2
 node samples/apptest.js
+
+# the validator itself: fixtures pass, 23 known breakages are rejected
+python3 samples/validatortest.py
 ```
 
-`samples/apptest.js` is the closest thing to a test suite here — dependency-free, it stubs
-enough DOM to load the inline script and drive it. It does **not** test rendering, layout or
-offline behaviour. Extend it when you touch filtering, logging or export.
+Two test files, and they check opposite directions. `samples/apptest.js` proves the app reads
+a **good** programme correctly — dependency-free, it stubs enough DOM to load the inline script
+and drive it. `samples/validatortest.py` proves the builder refuses to emit a **bad** one.
+Neither tests rendering, layout or offline behaviour. Extend `apptest.js` when you touch
+filtering, logging or export; extend `validatortest.py` when you add a rule to
+`validate_program.py` — a validator with no negative test is worse than none, because it buys
+false confidence.
 
 Then manually, **against both fixture versions** (`samples/program.sample.json` and
 `samples/program.v2.sample.json`): import it, tick items, reload the page (state must
