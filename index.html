@@ -267,6 +267,49 @@
   textarea{width:100%;min-height:56px;resize:vertical;font-weight:400;line-height:1.5}
   @media (min-width:460px){.sessioncard .log{grid-template-columns:repeat(3,minmax(0,1fr))}}
 
+  /* Per-set rows. Opt-in, so vertical space is affordable — width is the hard part.
+     Below 360px four inputs across leaves ~25px of text room, which clips a 3-digit
+     load and every placeholder, so the row wraps to two lines instead. Same idea as
+     .log.tight's 360px gate; explicit areas because auto-placement would strand the
+     set number and the delete button on the wrong line. */
+  .sets{margin-top:var(--s2)}
+  .setrow{display:grid;gap:var(--s1);align-items:center;margin-top:var(--s2);
+    grid-template-columns:16px minmax(0,1fr) minmax(0,1fr) 26px;
+    grid-template-areas:"n load reps del" "n rpe pain del"}
+  .setrow:not(.pain){grid-template-areas:"n load reps del" "n rpe rpe del"}
+  .setrow>.n{grid-area:n}
+  .setrow>.del{grid-area:del}
+  .setrow>.c-load{grid-area:load}
+  .setrow>.c-reps{grid-area:reps}
+  .setrow>.c-rpe{grid-area:rpe}
+  .setrow>.c-pain{grid-area:pain}
+  @media (min-width:360px){
+    .setrow{grid-template-columns:16px repeat(4,minmax(0,1fr)) 26px;
+      grid-template-areas:"n load reps rpe pain del"}
+    .setrow:not(.pain){grid-template-columns:16px repeat(3,minmax(0,1fr)) 26px;
+      grid-template-areas:"n load reps rpe del"}
+  }
+  .setrow>.n{font-size:var(--t-xs);color:var(--muted);font-weight:700;text-align:right}
+  .setrow input{width:100%;text-align:center}
+  /* The header only makes sense while the row is a single line. */
+  .setrow.head{display:none;margin-top:0}
+  @media (min-width:360px){.setrow.head{display:grid}}
+  .setrow.head span{font-size:var(--t-xs);color:var(--muted);font-weight:600;
+    text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .setrow>.del{background:none;border:0;color:var(--muted);font-size:var(--t-md);
+    line-height:1;padding:4px 0;min-height:26px}
+  .setnote input{width:100%;margin-top:var(--s1)}
+  .setbtn{display:block;width:100%;margin-top:var(--s2);padding:9px 10px;
+    border-radius:var(--r-sm);background:var(--panel-hi);
+    border:1px solid var(--line-soft);color:var(--ink-dim);
+    font-size:var(--t-xs);font-weight:700;letter-spacing:.3px}
+  /* Clearing every set is the one destructive action on this screen. It is quiet,
+     separated from "+ Add set", and needs a second tap to confirm — a chalked thumb
+     that misses must not wipe the sets that were just logged. */
+  .setbtn.danger{background:none;border-color:transparent;color:var(--muted);
+    font-weight:600;margin-top:var(--s1)}
+  .setbtn.danger.armed{border-color:var(--bad);color:var(--bad);font-weight:700}
+
   .donebtn{width:100%;margin-top:var(--s3);padding:12px;border-radius:var(--r-sm);
     background:var(--panel-hi);border:1px solid var(--line);color:var(--ink-dim);
     font-weight:700;font-size:var(--t-sm);letter-spacing:.3px}
@@ -449,7 +492,9 @@ const FIELD_DEFS=[
   {key:"readiness",name:"Readiness",desc:"Green / Amber / Red — governs whether load progresses, holds or regresses."},
   {key:"sleep",name:"Sleep score",desc:"Subjective 1–5."},
   {key:"bodyweight",name:"Bodyweight",desc:"Logged in kg at check-in."},
-  {key:"hrvNote",name:"HRV / notes",desc:"Free text for HRV and anything else about recovery."}
+  {key:"hrvNote",name:"HRV / notes",desc:"Free text for HRV and anything else about recovery."},
+  {key:"perSetLogging",name:"Per-set logging",
+   desc:"Adds a “Log each set” option to every exercise, for when the sets weren't all the same. The single load/reps/RPE row stays either way."}
 ];
 /* palette+mode live in the same per-device settings object as the tracked fields.
    They are cosmetic, so they are deliberately NOT part of the session export. */
@@ -610,7 +655,37 @@ function catOf(ex){
   return null;                                  /* no tag, neutral rail */
 }
 
-/* ---------- program loading ---------- */
+/* ---------- program loading ----------
+   Two programme schemas are live at once, on purpose:
+     tp-program-1  Week 1 only; later weeks described in prose in `progression`.
+     tp-program-2  every week authored as its own rows.
+   A phone can be mid-block on a v1 programme in localStorage, so v1 must keep
+   working indefinitely — this is the one place the difference is decided, and
+   everything else asks dayExercises(). See docs/data-contracts.md. */
+function isV2(){return !!(PROGRAM&&PROGRAM.meta&&PROGRAM.meta.schema==="tp-program-2");}
+/* The exercises on screen right now. v2 filters by day AND week; v1 by day only,
+   because under v1 every row is week 1 and filtering on week would empty the list. */
+function dayExercises(){
+  if(!PROGRAM||!Array.isArray(PROGRAM.exercises))return [];
+  return PROGRAM.exercises.filter(e=>
+    e.day===STATE.day && (!isV2() || Number(e.week)===Number(STATE.week)));
+}
+/* A v2 row whose `week` isn't a number matches no week at all, so the exercise would
+   vanish from the whole block and the athlete would simply never do it. The generator
+   rejects that input, but a hand-edited programme can still arrive — count them so the
+   UI can say so out loud rather than quietly dropping work. */
+function orphanExercises(){
+  if(!isV2())return [];
+  return PROGRAM.exercises.filter(e=>e.day===STATE.day&&!Number.isFinite(Number(e.week)));
+}
+/* meta.athleteId names the athlete/<slug>/logs/ folder an export belongs in. v1
+   programmes predate it; derive the same slug from the display name so a log file
+   is still filed correctly. A label, never a selector — the app has no profiles. */
+function athleteId(){
+  if(!PROGRAM||!PROGRAM.meta)return "";
+  return PROGRAM.meta.athleteId||slug(PROGRAM.meta.athlete)||"";
+}
+
 function loadProgram(obj){
   if(!obj||!obj.meta||!Array.isArray(obj.exercises))throw new Error("Not a valid program.json (need meta + exercises).");
   PROGRAM=obj; localStorage.setItem(LS.prog,JSON.stringify(obj));
@@ -628,13 +703,26 @@ async function boot(){
 }
 
 /* ---------- session persistence ---------- */
+const BLANK_SESSION={bodyweightKg:"",sleep:"",readiness:"",hrvNote:"",amPainNextDay:"",overall:""};
 function sessionKey(){return LS.sess(STATE.date,STATE.day);}
 function getSession(){
   const raw=localStorage.getItem(sessionKey());
-  if(raw){try{return JSON.parse(raw);}catch(e){}}
+  if(raw){
+    try{
+      const s=JSON.parse(raw);
+      /* Normalise on the way in. A session written by an older build can be missing
+         `session` or `entries` entirely, and rendering must not die on it — a blank
+         app with a full localStorage is the one failure with no way back in the gym. */
+      if(s&&typeof s==="object"){
+        s.session={...BLANK_SESSION,...(s.session||{})};
+        if(!s.entries||typeof s.entries!=="object")s.entries={};
+        return s;
+      }
+    }catch(e){}
+  }
   return {block:PROGRAM?PROGRAM.meta.block:"",athlete:PROGRAM?PROGRAM.meta.athlete:"",
     week:STATE.week,day:STATE.day,date:STATE.date,
-    session:{bodyweightKg:"",sleep:"",readiness:"",hrvNote:"",amPainNextDay:"",overall:""},
+    session:{...BLANK_SESSION},
     entries:{}};
 }
 function saveSession(s){s.week=STATE.week;s.day=STATE.day;s.date=STATE.date;
@@ -683,11 +771,21 @@ function renderMain(){
   if(!PROGRAM)return;
   const s=getSession();
   m.append(sessionCard(s));
-  const exs=PROGRAM.exercises.filter(e=>e.day===STATE.day);
-  const authoredWeeks=[...new Set(PROGRAM.exercises.map(e=>e.week))];
-  if(STATE.week>Math.max(...authoredWeeks))
-    m.append(el("div",{className:"banner"},`Week ${STATE.week}: prescriptions below are the Week-1 template — apply each exercise's Progression Rule for this week.`));
-  if(!exs.length)m.append(el("div",{className:"banner"},"No exercises for this day in the program."));
+  const exs=dayExercises();
+  /* v1 only: the rows on screen are the Week-1 template, so past week 1 the athlete
+     has to apply the progression rule themselves. v2 authors every week, so the
+     prescription shown IS this week's and the banner would be a lie. */
+  if(!isV2()){
+    const authoredWeeks=PROGRAM.exercises.map(e=>Number(e.week)||1);
+    if(authoredWeeks.length&&STATE.week>Math.max(...authoredWeeks))
+      m.append(el("div",{className:"banner"},`Week ${STATE.week}: prescriptions below are the Week-1 template — apply each exercise's Progression Rule for this week.`));
+  }
+  if(!exs.length)m.append(el("div",{className:"banner"},isV2()
+    ?`No exercises for week ${STATE.week} of this day in the program.`
+    :"No exercises for this day in the program."));
+  const orphans=orphanExercises();
+  if(orphans.length)m.append(el("div",{className:"banner"},
+    `${orphans.length} exercise${orphans.length>1?"s":""} on this day (${orphans.map(o=>o.name).join("; ")}) have no valid week and are not shown in any week. Re-generate program.json.`));
   exs.forEach(ex=>m.append(exerciseCard(ex,s)));
   updateProgress();
 }
@@ -760,17 +858,151 @@ function chipsEl(ex){
   if(ex.rest&&ex.rest!=="-")w.append(el("span",{className:"chip k"},"Rest "+ex.rest));
   return w;
 }
+const txt=v=>String(v??"").trim();
 function summaryText(e){
   const b=[];
-  if(e.load)b.push(e.load);
-  if(e.reps)b.push(e.reps);
-  if(e.rpe)b.push("RPE "+e.rpe);
-  if(SETTINGS.painPerExercise&&e.painDuring!=="")b.push(painLbl().toLowerCase()+" "+e.painDuring+"/10");
+  const sets=Array.isArray(e.sets)?e.sets:[];
+  const col=k=>sets.map(x=>txt(x[k])).filter(Boolean);
+  /* When the sets differed, their shape is the point ("100 → 80 → 80" says the first
+     set was wrong), so it beats the flat load, which is only the headline. When they
+     agree, or when only the per-set rows were filled in, still say something: a card
+     that reads "nothing logged" over data the athlete did enter looks like data loss
+     and invites them to type it again. */
+  const loads=col("load");
+  if(loads.length>1&&new Set(loads).size>1)b.push(loads.join(" → "));
+  else if(txt(e.load))b.push(txt(e.load));
+  else if(loads.length)b.push(loads[0]+(loads.length>1?` ×${loads.length}`:""));
+
+  if(txt(e.reps))b.push(txt(e.reps));
+  else if(col("reps").length)b.push(col("reps").join("/"));
+
+  const rpe=txt(e.rpe)||col("rpe").slice(-1)[0];
+  if(rpe)b.push("RPE "+rpe);
+
+  if(SETTINGS.painPerExercise){
+    const pain=txt(e.painDuring)||col("painDuring").sort().slice(-1)[0];
+    if(pain)b.push(painLbl().toLowerCase()+" "+pain+"/10");
+  }
   return b.length?b.join(" · "):"nothing logged";
 }
 
+/* ---------- per-set logging (tp-session-2) ----------
+   Deliberately opt-in per exercise. Most sets are the same, and rendering N rows of
+   inputs on every card would slow down the common case for the sake of the rare one.
+   The flat load/reps/RPE row above stays the summary and is never derived from these.
+
+   `sets` is stored on the entry as an array; older stored sessions simply don't have
+   the key yet, so every read goes through this. */
+function entrySets(e){if(!Array.isArray(e.sets))e.sets=[];return e.sets;}
+/* Set numbers are data, not decoration — renumber in the array before saving rather
+   than while drawing, or removing set 1 leaves "set: 2, 3" in storage and the numbers
+   only look right until the next render. */
+function renumber(e){entrySets(e).forEach((r,i)=>{r.set=i+1;});return e.sets;}
+/* Prescribed set count, when the generator gave a plain number. "3-4" or "AMRAP" are
+   legitimate values there, so anything non-numeric just means "start with one row". */
+function prescribedSets(ex){
+  const m=/^\s*(\d+)\s*$/.exec(String(ex.sets??""));
+  const n=m?parseInt(m[1],10):1;
+  return Math.min(Math.max(n,1),12);
+}
+/* A new row copies the one before it — "same as previous set" is the common case, so
+   adding a set is one tap and editing only what changed. The first row seeds from the
+   flat fields the athlete has usually already filled in.
+
+   `auto` marks a row the app filled in rather than the athlete. It is local bookkeeping
+   only: exportSets() picks its keys explicitly, so it never reaches a log file. */
+function newSet(e,i){
+  const prev=entrySets(e)[i-1];
+  if(prev)return {set:i+1,load:prev.load,reps:prev.reps,rpe:prev.rpe,painDuring:prev.painDuring,note:"",auto:true};
+  return {set:i+1,load:txt(e.load),reps:"",rpe:txt(e.rpe),painDuring:txt(e.painDuring),note:"",auto:true};
+}
+/* Opening "Log each set" on a 7-set prescription materialises 7 rows, and the athlete
+   then fills in the first one. Without this, the other six stay blank and the "one tap"
+   promise is a lie — so an edit flows down into every row the athlete hasn't touched.
+   Touching a row clears its `auto` flag and it stops following, which means propagation
+   can never overwrite something that was typed. */
+function propagate(e,i,key,value){
+  const rows=entrySets(e);
+  for(let j=i+1;j<rows.length;j++){
+    if(!rows[j].auto)break;
+    rows[j][key]=value;
+  }
+}
+function setsEl(ex,e,s,repaint){
+  const host=el("div",{className:"sets"});
+  const rowCls="setrow"+(SETTINGS.painPerExercise?" pain":"");
+  let armed=false;                                 /* "Clear sets" needs a second tap */
+  const draw=()=>{
+    host.innerHTML="";
+    const rows=entrySets(e);
+    if(rows.length){
+      const head=[el("span",{className:"n"},"#"),
+        el("span",{className:"c-load"},"Load"),
+        el("span",{className:"c-reps"},"Reps"),
+        el("span",{className:"c-rpe"},"RPE")];
+      if(SETTINGS.painPerExercise)head.push(el("span",{className:"c-pain"},painLbl()));
+      head.push(el("span",{className:"del"},""));
+      host.append(el("div",{className:rowCls+" head"},head));
+    }
+    rows.forEach((r,i)=>{
+      const cell=(k,cls,type,attrs={})=>{
+        const inp=el("input",{className:cls,type,value:r[k]??"",attrs});
+        inp.oninput=()=>{
+          r[k]=inp.value;
+          r.auto=false;                            /* typed in — stop following set 1 */
+          propagate(e,i,k,inp.value);
+          saveSession(s);
+          /* Redraw so the rows that just followed show their new value. Re-focusing
+             would fight the keyboard, so only redraw when something actually changed
+             below this row. */
+          if(rows.slice(i+1).some(x=>x.auto))draw();
+          repaint();
+        };
+        return inp;
+      };
+      const kids=[el("span",{className:"n"},String(i+1)),
+        cell("load","c-load","text",{placeholder:"kg","aria-label":`Set ${i+1} load`}),
+        cell("reps","c-reps","text",{placeholder:"reps","aria-label":`Set ${i+1} reps`}),
+        cell("rpe","c-rpe","text",{placeholder:"RPE","aria-label":`Set ${i+1} RPE`})];
+      if(SETTINGS.painPerExercise)
+        kids.push(cell("painDuring","c-pain","number",{min:0,max:10,placeholder:"0","aria-label":`Set ${i+1} ${painLbl().toLowerCase()}`}));
+      const del=el("button",{className:"del",attrs:{"aria-label":`Remove set ${i+1}`}},"×");
+      del.onclick=()=>{rows.splice(i,1);renumber(e);saveSession(s);armed=false;draw();repaint();};
+      kids.push(del);
+      host.append(el("div",{className:rowCls},kids));
+      /* Always rendered, not hidden behind another tap: "too heavy" on set 1 is
+         precisely the signal the coach needs, and it is worthless if it is awkward
+         to reach with a bar racked. */
+      const note=el("input",{type:"text",value:r.note||"",
+        attrs:{placeholder:`Set ${i+1} note…`,"aria-label":`Set ${i+1} note`}});
+      note.oninput=()=>{r.note=note.value;r.auto=false;saveSession(s);};
+      host.append(el("div",{className:"setnote"},note));
+    });
+    const add=el("button",{className:"setbtn"},
+      rows.length?"+ Add set":`Log each set (${prescribedSets(ex)} prescribed)`);
+    add.onclick=()=>{
+      if(rows.length)rows.push(newSet(e,rows.length));
+      else for(let i=0;i<prescribedSets(ex);i++)rows.push(newSet(e,i));
+      renumber(e);saveSession(s);armed=false;draw();repaint();
+    };
+    host.append(add);
+    if(rows.length){
+      const clear=el("button",{className:"setbtn danger"+(armed?" armed":"")},
+        armed?"Tap again to clear all sets":"Clear sets");
+      clear.onclick=()=>{
+        if(!armed){armed=true;draw();setTimeout(()=>{if(armed){armed=false;draw();}},4000);return;}
+        e.sets=[];saveSession(s);armed=false;draw();repaint();
+      };
+      host.append(clear);
+    }
+  };
+  draw();
+  return host;
+}
+
 function exerciseCard(ex,s){
-  const e=s.entries[ex.id]||(s.entries[ex.id]={done:false,load:"",reps:"",rpe:"",painDuring:"",notes:""});
+  const e=s.entries[ex.id]||(s.entries[ex.id]={done:false,load:"",reps:"",rpe:"",painDuring:"",notes:"",sets:[]});
+  entrySets(e);                                   /* sessions saved before v2 have no key */
   const cat=catOf(ex);
   const c=el("div",{className:"card"+(e.done?" done":"")});
   if(cat)c.style.setProperty("--cat",cat.color);
@@ -797,15 +1029,21 @@ function exerciseCard(ex,s){
   g.append(mk("rpe","RPE","text",{placeholder:"7"}));
   if(SETTINGS.painPerExercise)
     g.append(mk("painDuring",painLbl(),"number",{min:0,max:10,placeholder:"0"},"/10"));
+  /* Marking done folds the card to one summary line, so a finished session scans as a
+     short list instead of a screen of filled-in inputs. Tap the line to re-open it. */
+  const summary=el("div",{className:"summary-line"},
+    [el("span",{className:"vals"},summaryText(e)),el("span",{className:"edit"},"Edit")]);
+  const refreshSummary=()=>{summary.firstChild.textContent=summaryText(e);};
+
+  /* Sits between the flat row and the notes: it elaborates the numbers directly
+     above it, and only appears when the athlete asks for it. */
+  if(SETTINGS.perSetLogging)g.append(setsEl(ex,e,s,refreshSummary));
+
   const nt=el("textarea",{value:e.notes||"",attrs:{placeholder:"Notes…"}});
   nt.oninput=()=>{e.notes=nt.value;saveSession(s);};
   g.append(el("div",{className:"full"},[el("label",{className:"lbl"},"Notes"),nt]));
   if(ex.logHint)g.append(el("div",{className:"hint"},"Log: "+ex.logHint));
 
-  /* Marking done folds the card to one summary line, so a finished session scans as a
-     short list instead of a screen of filled-in inputs. Tap the line to re-open it. */
-  const summary=el("div",{className:"summary-line"},
-    [el("span",{className:"vals"},summaryText(e)),el("span",{className:"edit"},"Edit")]);
   const btn=el("button",{className:"donebtn",attrs:{"aria-pressed":String(!!e.done)}},"Mark done");
   const extras=[...c.querySelectorAll("details"),...c.querySelectorAll(".chips")];
   let editing=false;
@@ -834,7 +1072,7 @@ function updateProgress(){
   const fill=$("#pbar > i"),cnt=$("#progCount"),lbl=$("#progLabel");
   if(!PROGRAM||!STATE.day){cnt.textContent="—";fill.style.width="0";lbl.textContent="Session";return;}
   const s=getSession();
-  const exs=PROGRAM.exercises.filter(e=>e.day===STATE.day);
+  const exs=dayExercises();
   const done=exs.filter(e=>s.entries[e.id]&&s.entries[e.id].done).length;
   fill.style.width=(exs.length?Math.round(done/exs.length*100):0)+"%";
   lbl.textContent=`Week ${STATE.week} · ${dayParts(STATE.day).short}`;
@@ -842,42 +1080,75 @@ function updateProgress(){
 }
 
 /* ---------- export ---------- */
+const BLANK_ENTRY={done:false,load:"",reps:"",rpe:"",painDuring:"",notes:""};
+/* Per-set rows are exported with a fixed key set and no holes, so the coach never has
+   to probe for a missing field. Rows that are entirely empty are dropped: an untouched
+   row the athlete added and never filled says nothing, and a phantom set in the log
+   reads as a set that was actually performed. */
+function exportSets(e){
+  /* txt() coerces rather than assuming a string: a number that got in here from a
+     hand-edited localStorage or a future code path must not throw. An export that
+     silently does nothing is the worst failure this app has. */
+  return (Array.isArray(e.sets)?e.sets:[])
+    .map(r=>({load:txt(r.load),reps:txt(r.reps),rpe:txt(r.rpe),
+              painDuring:txt(r.painDuring),note:txt(r.note)}))
+    .filter(r=>r.load||r.reps||r.rpe||r.painDuring||r.note)
+    .map((r,i)=>({set:i+1,...r}));
+}
 function buildSessionExport(){
   const s=getSession();
-  const exs=PROGRAM.exercises.filter(e=>e.day===STATE.day);
+  const exs=dayExercises();
   /* `tracking` is additive metadata: it tells the coach whether an empty pain value means
      "no pain logged" or "this athlete doesn't track pain". Every other key keeps its shape
      so the review step never sees a missing field. See docs/data-contracts.md. */
   const tracking={painLabel:(SETTINGS.painLabel||"").trim()};
   FIELD_DEFS.forEach(f=>tracking[f.key]=!!SETTINGS[f.key]);
   return {
-    schema:"tp-session-1",
-    block:PROGRAM.meta.block,athlete:PROGRAM.meta.athlete,
+    schema:"tp-session-2",
+    block:PROGRAM.meta.block,athlete:PROGRAM.meta.athlete,athleteId:athleteId(),
     week:STATE.week,day:STATE.day,date:STATE.date,
     exportedAt:new Date().toISOString(),
     tracking,
-    session:s.session,
-    entries:exs.map(ex=>({exercise:ex.name,
-      ...(ex.category?{category:ex.category}:{}),
-      prescribed:{sets:ex.sets,reps:ex.reps,load:ex.load,rpe:ex.rpe},
-      ...(s.entries[ex.id]||{done:false,load:"",reps:"",rpe:"",painDuring:"",notes:""})}))
+    /* Merged, like entries: a session stored before a check-in field existed must
+       still export every key, or the coach has to probe for missing ones. */
+    session:{...BLANK_SESSION,...(s.session||{})},
+    entries:exs.map(ex=>{
+      const e={...BLANK_ENTRY,...(s.entries[ex.id]||{})};
+      /* The flat load/reps/RPE are the athlete's own summary and are exported as
+         logged — never recomputed from `sets`. When they disagree (flat 80, sets
+         100/80/80) that difference is information, not drift. */
+      const {sets,...flat}=e;
+      return {exercise:ex.name,
+        ...(ex.category?{category:ex.category}:{}),
+        prescribed:{sets:ex.sets,reps:ex.reps,load:ex.load,rpe:ex.rpe},
+        ...flat,
+        sets:exportSets(e)};
+    })
   };
 }
+/* Both export paths are wrapped: a throw here would look like the button doing
+   nothing, at the one moment the session has to leave the phone. Better to say so —
+   the data is still in localStorage and Copy JSON is the fallback. */
 function exportSession(){
   if(!PROGRAM){toast("Load a program first");return;}
-  const data=buildSessionExport();
-  const name=`session-${STATE.date}-${slug(STATE.day)||"day"}.json`;
-  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
-  const url=URL.createObjectURL(blob);
-  const a=el("a",{href:url,download:name});document.body.append(a);a.click();a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),1500);
-  toast("Exported "+name+" — save into your Drive folder / logs");
+  try{
+    const data=buildSessionExport();
+    const name=`session-${STATE.date}-${slug(STATE.day)||"day"}.json`;
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+    const url=URL.createObjectURL(blob);
+    const a=el("a",{href:url,download:name});document.body.append(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1500);
+    const who=athleteId();
+    toast("Exported "+name+" — save into athlete/"+(who||"<you>")+"/logs/");
+  }catch(err){toast("Export failed: "+err.message+" — try Copy JSON");}
 }
 async function copyJSON(){
   if(!PROGRAM){toast("Load a program first");return;}
-  const txt=JSON.stringify(buildSessionExport(),null,2);
-  try{await navigator.clipboard.writeText(txt);toast("Session JSON copied");}
-  catch(e){const ta=el("textarea",{value:txt});document.body.append(ta);ta.select();
+  let json;
+  try{json=JSON.stringify(buildSessionExport(),null,2);}
+  catch(err){toast("Copy failed: "+err.message);return;}
+  try{await navigator.clipboard.writeText(json);toast("Session JSON copied");}
+  catch(e){const ta=el("textarea",{value:json});document.body.append(ta);ta.select();
     document.execCommand("copy");ta.remove();toast("Session JSON copied");}
 }
 
