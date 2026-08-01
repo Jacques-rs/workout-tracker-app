@@ -11,14 +11,22 @@ Thumbs.db
 .vscode/
 
 # --- Athlete data: NEVER commit ---
-# personal-profile.md contains medical detail. logs/ and programs/ contain
-# training and health data. See plans/PLAN-C-repo-move.md before changing
-# anything in this section.
-personal-profile.md
-logs/
-programs/
-sources/
-plans/
+# Deny-by-default, mirroring the repo-root .gitignore. Everything here is an
+# athlete folder (personal-profile.md, plans/, programs/, logs/) except the
+# shared parts named back in below, which hold no personal data. Ignoring the
+# lot means a file nobody anticipated — an export saved one level too high, a
+# scratch note, an archive/ directory — is covered without editing this file.
+#
+# No trailing slash on `/*`: it must match stray FILES here too, not just
+# directories.
+#
+# Do NOT swap this for a list of filenames to exclude. Listing what to hide
+# means anything unlisted is published by default.
+/*
+!/.gitignore
+!/README.md
+!/skills/
+!/sources/
 
 # Python
 __pycache__/
