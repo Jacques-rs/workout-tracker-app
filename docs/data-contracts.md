@@ -2,29 +2,143 @@
 
 Two JSON shapes cross the boundary between this app and the coaching project. **These are the integration surface — changing them requires changing the generator/consumer on the other side too.**
 
-- `tp-program-1` — **input.** Produced by the `program-builder` skill; consumed by this app.
-- `tp-session-1` — **output.** Produced by this app; consumed by the AI coach at review time.
+- `tp-program-2` — **input.** Produced by the `program-builder` skill; consumed by this app.
+- `tp-session-3` — **output.** Produced by this app; consumed by the `review-workout-log` skill.
+
+The two sides version independently. Older files still exist on disk — an already-imported
+programme on a phone, and session logs exported under every earlier schema — so **every reader
+must accept every version it has ever emitted**. What changed:
+
+| | | |
+|---|---|---|
+| `tp-program-1` → `-2` | Week 1 only; later weeks as prose in `progression` | → every week authored as real rows; `progression` demoted to rationale |
+| `tp-session-1` → `-2` | one load/reps/RPE per exercise | → adds a per-set `sets[]` array; flat fields stay as the summary |
+| `tp-session-2` → `-3` | `amPainNextDay`, filled by re-opening yesterday's session | → `amPainOnWaking`, filled at check-in; adds `programVersion` |
+
+Version detection is `meta.schema` / `schema`. Neither reader should infer version from the
+presence of a field.
 
 ---
 
-## Input: `program.json` (schema `tp-program-1`)
+# The contract
+
+The tables below are **normative**: they say which fields must exist, what type they are, and
+which side owns each one. Everything after them is the *why* — the reasoning, the history and
+the reading rules. If the two ever disagree, the tables win and the prose is stale.
+
+**Owner** is the side that decides a field's value. The other side reads it and must not
+invent, correct or recompute it.
+
+- **skill** — written by `program-builder`. The app treats it as given.
+- **app** — written by the app at export. The coaching side treats it as given.
+- **athlete** — typed by a human into the app. Free text; never assume it parses.
+
+**Required** means a reader may assume the key is present *for that schema version*. Anything
+else must be handled when missing — the last column of each optional table gives the actual
+fallback, not a suggestion.
+
+Note the asymmetry between the two sides. A programme is hand-authored, so a field can be
+genuinely absent. **A session file is machine-written and never omits a key** — the app merges
+every entry against a blank template at export, so on the session side "optional" means the
+*value* may be `""`, not that the key may be missing. That is why the review step never has to
+probe.
+
+`program-builder` enforces the input table via `scripts/validate_program.py`, which runs on the
+assembled programme before the file is written. **The app enforces almost none of it, on
+purpose** — a slightly-off programme must still open in a gym basement rather than hard-fail in
+front of an athlete who came to train. That leniency is only safe because something upstream is
+strict. Do not move the strictness into the app.
+
+## `tp-program-*` — required
+
+| Field | Type | v1 | v2 | Owner | Notes |
+|---|---|---|---|---|---|
+| `meta.block` | string | ✅ | ✅ | skill | Block name; shown in the header, copied to every export. |
+| `meta.athlete` | string | ✅ | ✅ | skill | Display name. |
+| `meta.athleteId` | slug | — | ✅ | skill | Names `athlete/<slug>/`. **v1: absent — slugify `meta.athlete`.** |
+| `meta.weeks` | number | ✅ | ✅ | skill | Block length; drives the week selector 1..N. |
+| `meta.days` | string[] | ✅ | ✅ | skill | **Ordered.** Drives the day selector. Labels must be byte-identical wherever they appear. |
+| `meta.schema` | string | ✅ | ✅ | skill | `tp-program-1` \| `tp-program-2`. Read this first; never infer the version. |
+| `exercises[].id` | string | ✅ | ✅ | skill | **Unique across the whole file.** The key logged data is stored under in `localStorage`. |
+| `exercises[].day` | string | ✅ | ✅ | skill | Must equal a `meta.days` entry **exactly** — the filter is string equality. |
+| `exercises[].name` | string | ✅ | ✅ | skill | Non-empty. |
+| `exercises[].week` | number | ignored | ✅ | skill | **v2: load-bearing** — the app renders only the selected week. v1 ignores it. |
+
+## `tp-program-*` — optional
+
+| Field | Type | Owner | If absent |
+|---|---|---|---|
+| `meta.version` | number ≥1 | skill | Treated as **`0`**, not `1` — the app does not invent a revision number it cannot know. Shown as `· v<N>` in the header (silent when `0`) and stamped into every export as `programVersion`. |
+| `meta.generated` | string | skill | No effect. |
+| `exercises[].sets`, `reps`, `load`, `rpe`, `tempo`, `rest` | **string** | skill | Renders empty. **Never numbers** — they hold ranges and prose (`"8-10 min"`, `"~115-135 kg"`). |
+| `exercises[].logHint` | string | skill | No blue "Log:" line. |
+| `exercises[].focus`, `progression` | string | skill | Section collapsed/absent. |
+| `exercises[].category` | string | skill | Guessed from `name`; no tag if nothing matches. Purely presentational — nothing filters or gates on it. |
+
+## `tp-session-*` — required
+
+The app writes these **unconditionally** — no key is omitted because a value is empty or a
+field was switched off. So "required for v3" here means *always present in a v3 file*, and a
+reader never has to probe.
+
+| Field | Type | v1 | v2 | v3 | Owner | Notes |
+|---|---|---|---|---|---|---|
+| `schema` | string | ✅ | ✅ | ✅ | app | `tp-session-1` \| `-2` \| `-3`. Read first. |
+| `block`, `athlete` | string | ✅ | ✅ | ✅ | skill→app | Copied from `meta`, unchanged. |
+| `athleteId` | slug | — | ✅ | ✅ | skill→app | From `meta.athleteId`, else slugged from `meta.athlete`. Names the `athlete/<slug>/logs/` folder. **Can be `""`** if the programme had neither. |
+| `programVersion` | number | — | — | ✅ | app | `meta.version` of the programme trained off. **`0`** = the programme predates versioning. |
+| `week`, `day`, `date` | number/string | ✅ | ✅ | ✅ | app | What was trained, and when. |
+| `exportedAt` | ISO string | ✅ | ✅ | ✅ | app | |
+| `tracking` | object | — | ✅ | ✅ | app | Which optional fields this device collects. **Absent = treat as all-true.** |
+| `session` | object | ✅ | ✅ | ✅ | athlete | Check-in block. Always present, always with every key — merged from a blank template at export. |
+| `entries[]` | array | ✅ | ✅ | ✅ | app | **Every** exercise for the day, including untouched (`done: false`). Skips are data. |
+| `entries[].exercise` | string | ✅ | ✅ | ✅ | app | Entries are keyed by name, not `id` — so the v1→v2 id change does not affect logs. |
+| `entries[].prescribed` | object | ✅ | ✅ | ✅ | skill→app | Denormalised so a log is reviewable without the programme. |
+| `entries[].done` | bool | ✅ | ✅ | ✅ | athlete | |
+| `entries[].sets[]` | array | — | ✅ | ✅ | athlete | `[]` when only the summary was logged. Contiguous from 1. |
+
+## `tp-session-*` — value-optional
+
+Every key below **always exists** in a file of the right version; what varies is whether it
+holds anything. `""` means *not logged*; the matching `tracking` flag is what tells you whether
+it is *not collected*. Distinguishing those two is the whole reason `tracking` exists.
+
+| Field | Type | Owner | Empty means |
+|---|---|---|---|
+| `session.*`, `entries[].load`/`reps`/`rpe`/`painDuring`/`notes` | **string** | athlete | `""`, never `null`. Check `tracking` before reading silence as a clean week. |
+| `session.amPainOnWaking` | string | athlete | **v3.** Describes the **previous** session — see the dedicated section. v1/v2 carry `amPainNextDay`, a *different morning*. |
+| `entries[].category` | string | skill→app | Only present if the programme declared one. Passed through so a log stays self-contained. |
+
+**The only numbers the app writes** are `week`, `programVersion` and `sets[].set`. On the
+programme side, `meta.weeks` and `exercises[].week`. Everything else is a string, including
+every prescription — never assume one parses numerically.
+
+**Keys never disappear.** Switching a field off in the drawer's Tracked fields section flips a `tracking`
+flag; the key stays and its value is `""`. That is what lets a reader tell *not logged* from
+*not tracked*, and it means the review step never probes for missing keys.
+
+---
+
+## Input: `program.json` (schema `tp-program-2`)
 
 ```json
 {
   "meta": {
     "block": "Hybrid CrossFit Athleticism - Block 1",
     "athlete": "Jacques",
+    "athleteId": "jacques",
     "weeks": 6,
+    "version": 1,
     "generated": "2026-07-25",
     "days": [
       "Day 1 (Mon) - Clean Skill + Front Squat + Knee Capacity",
       "Day 2 (Tue) - Jerk Skill + Upper Strength + Gymnastics + Aerobic Power"
     ],
-    "schema": "tp-program-1"
+    "schema": "tp-program-2"
   },
   "exercises": [
     {
-      "id": "d1e3",
+      "id": "w1d1e3",
       "week": 1,
       "day": "Day 1 (Mon) - Clean Skill + Front Squat + Knee Capacity",
       "name": "Hang power clean (EMOM every 90s)",
@@ -47,13 +161,16 @@ Two JSON shapes cross the boundary between this app and the coaching project. **
 | Field | Notes |
 |---|---|
 | `meta.days` | **Ordered** list of day labels. Drives the day selector; order matters. |
-| `meta.weeks` | Populates the week selector (1..N). |
-| `exercises[].id` | Unique per exercise. Convention `d<dayIndex>e<exerciseIndex>`. **This is the key the app stores logged data under** — if IDs change between programme versions, existing logs won't line up. |
-| `exercises[].day` | Must match a string in `meta.days` **exactly** — the app filters by string equality. |
+| `meta.weeks` | Populates the week selector (1..N). Under v2 every one of those weeks has rows. |
+| `meta.version` | **Optional.** Revision number of this programme: `1` on the initial build, +1 each time `review-workout-log` revises a week mid-block. It exists so a `program.json`, its archived copy in `revisions/program-v<N>.json` and its `CHANGELOG.md` entry line up. The app reads it in exactly one place, `progVersion()`, which shows it as `· v<N>` in the header and stamps it into every export as `programVersion` — so a log states which revision it was trained off. **A file with no `version` reads as `0`, not `1`:** the app stays silent rather than claiming a revision number it cannot know. Nothing about rendering or filtering depends on it. |
+| `meta.athleteId` | **v2.** Lowercase slug of `meta.athlete`, matching the `athlete/<slug>/` folder. Passed through to the session export so a log file identifies its athlete without relying on the filename. Absent in v1 — fall back to slugging `meta.athlete`. |
+| `exercises[].id` | Unique per exercise **across the whole file**. v2 convention `w<week>d<daySlot>e<exerciseIndex>`, where `daySlot` is the number in the `Day N` label (`Day 3` → `d3`), falling back to position in `meta.days` if the labels aren't distinctly numbered. v1 was `d<dayIndex>e<exerciseIndex>`. **This is the key the app stores logged data under** — the v1→v2 id change means logs recorded against a v1 programme do not line up with the v2 one. Expected and accepted at the version boundary; exported session files are unaffected because they denormalise `prescribed` and are keyed by exercise name. |
+| `exercises[].week` | **v2: load-bearing.** The app renders only the exercises whose `week` matches the selected week. In v1 it was ignored. |
+| `exercises[].day` | Must match a string in `meta.days` **exactly** — the app filters by string equality. Day labels must be byte-identical across weeks, or a day will look empty in some weeks. |
 | `sets`/`reps`/`load`/`rpe`/`tempo`/`rest` | **All strings, not numbers.** They hold ranges and prose ("1 + 3", "8-10 min", "~115-135 kg", "RPE 6-6.5"). Never assume they parse as numeric. |
 | `logHint` | Comes from the spreadsheet's "Completed Notes" column. Rendered as the blue "Log:" line — it tells the athlete which data actually matters for this movement. Empty string for warm-ups. |
 | `focus` | Coaching cues (spreadsheet "Focus / Notes"). Collapsed by default. |
-| `progression` | Per-week plan and hold/stop gate (spreadsheet "Progression Rule"). Collapsed by default. |
+| `progression` | Spreadsheet "Progression Rule". **Meaning changed in v2:** it is now *rationale* — why this week's prescription differs from last week's, plus the hold/stop gate. In v1 it was an instruction the athlete had to execute. Collapsed by default either way. |
 | `category` | **Optional.** Drives the coloured left rail and the tag on each exercise card. Not currently emitted by `program-builder` — see below. |
 
 ### Optional: `exercises[].category`
@@ -91,31 +208,103 @@ change; until then step 3/4 carry the UI and are correct on the current sample p
 
 The leading `Day <N>` is parsed for the day index (colour bands in the spreadsheet, ordering here), so keep that prefix intact.
 
-### Validation the app performs
+### Where validation happens — generator strict, app lenient
 
-Minimal, by design: `meta` must exist and `exercises` must be an array, else Import shows an error. Everything else is treated as optional/prose. Be careful adding strict validation — a slightly-off programme should still open in the gym rather than hard-fail.
+Two checks, deliberately unequal.
 
-### Important current behaviour: weeks are a template
+**The app checks almost nothing.** `meta` must exist and `exercises` must be an array, else
+Import shows an error. Everything else is treated as optional prose. Be careful adding strict
+validation here — a slightly-off programme should still open in the gym rather than hard-fail
+in front of an athlete who came to train.
 
-`program.json` currently carries **Week 1 only**, with later weeks described in prose inside each `progression` field. The app therefore:
+**The generator checks everything**, because that is where a failure is cheap: it costs a
+rebuild, not a session. `program-builder/scripts/validate_program.py` runs over the assembled
+programme **before the file is written**, so a contract-breaking `program.json` never reaches
+disk for the athlete to import.
 
-- filters exercises by **day only**, ignoring `week`;
-- uses the week selector for labelling and for keying saved sessions;
-- shows a banner when the selected week exceeds the highest authored `week`, telling the athlete to apply the progression rule.
+```bash
+python3 athlete/skills/program-builder/scripts/validate_program.py program.json
+python3 samples/validatortest.py     # 32 checks: fixtures pass, 23 breakages rejected
+```
 
-If the generator later authors every week explicitly, the app's filter must become day **and** week. See `docs/roadmap.md`.
+| | |
+|---|---|
+| **ERROR** (exit 1, blocks the write) | The app will visibly do the wrong thing: a missing required field, a wrong type, a `day` not in `meta.days`, duplicate ids, a v2 week with no rows. |
+| **WARNING** (printed, never fatal) | Plausibly deliberate but usually an authoring slip: a week missing one day, no `logHint` anywhere, no `category` declared, a v1 file. |
+
+Note the division of labour with `rows_common.load_rows`, which validates the builder's
+**input**. They answer different questions, and the second cannot be folded into the first: a
+`rows.json` can be perfectly well-formed and still assemble into a programme the app
+mishandles — an id collision, a day label that drifts by one space between weeks, a `--weeks`
+count that disagrees with the rows. Those only exist once the file is a programme.
+
+The one relaxation is `--allow-partial-weeks`, which downgrades "week N has no exercises" to a
+warning and nothing else. If you meet a v2 file with gaps, that flag is why.
+
+**Adding a rule to the validator is a change to this document too.** The app is the other party
+to the contract; a rule enforced upstream but written down nowhere is just a build that fails
+for reasons no one can look up.
+
+### Weeks: materialised in v2, a template in v1
+
+**v2 — every week is authored.** `program.json` carries one exercise row per day *per week*.
+The app filters by **day and week**, so selecting Week 4 shows Week 4's actual prescription.
+`build_program_json.py` exits non-zero if any week in `1..meta.weeks` has no rows, so a
+partial programme cannot reach the app *by accident* — it can still be produced deliberately
+with `--allow-partial-weeks`, which prints a warning. If you meet a v2 file with gaps, that
+flag is why.
+
+**v1 — Week 1 was a template.** Later weeks lived as prose inside each `progression` field.
+The app filtered by **day only**, ignoring `week`, and showed a banner past the highest
+authored week telling the athlete to apply the progression rule themselves. This is what
+caused load and RPE drift in practice (the app showed front squats in a week that called for
+low-bar), and is the reason for v2.
+
+**The app keeps both paths**, and must, while a v1 programme may still be sitting in
+`localStorage` on a phone. The rule is implemented in exactly two functions: `isV2()` decides,
+`dayExercises()` filters — day **and** week for v2 with no banner, day only for v1 with the
+banner. Import of either version succeeds; a returning athlete is never locked out mid-block.
+Keep new schema checks out of the rendering code and inside those two.
+
+### Revisions mid-block
+
+A block gets adjusted while it is running — that is the point of the review step. The
+convention on the coaching side (owned by the `review-workout-log` skill, not by the app):
+
+- The superseded `program.json` is archived to `revisions/program-v<N>.json` **before** the new
+  one is written, alongside the `rows.json` it was built from.
+- `meta.version` increments; `CHANGELOG.md` in the block folder records the date, what changed
+  and **why**.
+- The athlete re-imports. **This is a manual step with no prompt.** Until they do, the app is
+  showing a superseded prescription and is not wrong to — it has no way to know.
+
+**What the app must do about all this: almost nothing.** `version` is additive — the app
+displays it and passes it through to the export, and nothing else keys off it. Importing a
+revised programme is an ordinary import, and logged data keyed by exercise `id` survives as long
+as the ids are stable — which they are, because they are derived from week, day slot and
+position. Reordering or inserting exercises within a revised day *does* shift the ids below the
+change, and logs already recorded against those ids will land on the wrong exercise. Prefer
+substituting an exercise in place over reordering a day mid-block.
+
+**How a reader detects a stale log:** compare the log's `programVersion` against the current
+`meta.version` — one integer comparison. On a `tp-session-1` or `-2` log the field does not
+exist; fall back to diffing the log's denormalised `prescribed` values against the current
+`program.json` for that week and day, and if they differ the athlete trained off an earlier
+revision.
 
 ---
 
-## Output: `session-<date>-<day>.json` (schema `tp-session-1`)
+## Output: `session-<date>-<day>.json` (schema `tp-session-3`)
 
-Filename pattern: `session-2026-07-27-day-1-mon-clean-skill-front-squat-knee-capacity.json` (date, then a slugged day label).
+Filename pattern: `session-2026-07-27-day-1-mon-clean-skill-front-squat-knee-capacity.json` (date, then a slugged day label). Saved into `athlete/<athleteId>/logs/`.
 
 ```json
 {
-  "schema": "tp-session-1",
+  "schema": "tp-session-3",
   "block": "Hybrid CrossFit Athleticism - Block 1",
   "athlete": "Jacques",
+  "athleteId": "jacques",
+  "programVersion": 3,
   "week": 2,
   "day": "Day 1 (Mon) - Clean Skill + Front Squat + Knee Capacity",
   "date": "2026-07-27",
@@ -123,18 +312,19 @@ Filename pattern: `session-2026-07-27-day-1-mon-clean-skill-front-squat-knee-cap
   "tracking": {
     "painLabel": "Knee",
     "painPerExercise": true,
-    "painNextMorning": true,
+    "painOnWaking": true,
     "readiness": true,
     "sleep": true,
     "bodyweight": true,
-    "hrvNote": true
+    "hrvNote": true,
+    "perSetLogging": true
   },
   "session": {
     "bodyweightKg": "88",
     "sleep": "4",
     "readiness": "Green",
     "hrvNote": "HRV 62, at baseline",
-    "amPainNextDay": "2",
+    "amPainOnWaking": "2",
     "overall": "Felt strong; front squat depth better with the wedge."
   },
   "entries": [
@@ -146,16 +336,67 @@ Filename pattern: `session-2026-07-27-day-1-mon-clean-skill-front-squat-knee-cap
       "reps": "7x2",
       "rpe": "6",
       "painDuring": "2",
-      "notes": "Bar path stayed close; no knee response."
+      "notes": "Bar path stayed close; no knee response.",
+      "sets": []
+    },
+    {
+      "exercise": "Heel-elevated front squat - top set",
+      "prescribed": { "sets": "4", "reps": "4", "load": "~100 kg", "rpe": "RPE 7" },
+      "done": true,
+      "load": "80",
+      "reps": "4x4",
+      "rpe": "7",
+      "painDuring": "3",
+      "notes": "First set overshot; dropped 20 kg and it settled.",
+      "sets": [
+        { "set": 1, "load": "100", "reps": "4", "rpe": "9", "painDuring": "3", "note": "too heavy" },
+        { "set": 2, "load": "80",  "reps": "4", "rpe": "7", "painDuring": "3", "note": "" },
+        { "set": 3, "load": "80",  "reps": "4", "rpe": "7", "painDuring": "2", "note": "" }
+      ]
     }
   ]
 }
 ```
 
+### Per-set logging (`entries[].sets`) — new in v2
+
+`sets` is an **array of per-set rows**, present on every entry (`[]` when the athlete logged
+only the summary). It exists because the first set often lands at the wrong RPE and the rest
+are adjusted — v1 flattened that into one number plus a free-text note, so the coach could not
+see which set was which.
+
+| Key | Notes |
+|---|---|
+| `set` | 1-based set number, and always contiguous from 1 — a `set: 3` means a third set was actually performed. |
+| `load`, `reps`, `rpe`, `painDuring` | Same meaning as the flat fields, for this set alone. Strings; `""` when not logged. |
+| `note` | Free text for this set. Usually empty. |
+
+**The flat `load` / `reps` / `rpe` / `painDuring` stay, and stay authoritative for the summary
+view.** They are not derived — the app keeps them as what the athlete considers the headline
+number for the exercise, and a v1 reader that ignores `sets` still gets a sensible answer.
+When they disagree with `sets` (as above: flat `load: "80"`, first set `100`), the flat value
+is the athlete's own summary, not a bug.
+
+**How the app produces `sets`.** Per-set rows are opt-in per exercise — tapping "Log each set"
+materialises the prescribed number of rows, and a value typed into one row flows down into
+every row below it that the athlete has not edited. So the common case (all sets the same)
+costs one entry per field, and correcting set 3 downwards costs one more. Rows that are
+left completely empty are dropped at export and the rest renumbered, so a `set: 3` in a log
+file always means a third set was actually performed. The whole feature can be switched off
+per device in the drawer's Tracked fields section, which shows up as `tracking.perSetLogging: false`.
+
+**Reading rule for the coach:** use `sets` when it is non-empty — it is strictly more
+information. Fall back to the flat fields when `sets` is `[]` or absent (any v1 file). Do not
+average `sets` into a single load; the shape of a session (100 → 80 → 80) *is* the signal.
+
+Programme-side prescriptions stay one-load-per-exercise: `tp-program-2` has no per-set array.
+Ramping sets are expressed in the `load` string as they always were ("60/70/80 kg"). Add a
+prescribed per-set array only if that stops being expressive enough.
+
 ### Field notes
 
 - `tracking` — **additive; added when optional fields became switchable in the app's
-  Tracked-fields sheet.** It disambiguates an empty value: `painDuring: ""` with
+  Tracked fields section.** It disambiguates an empty value: `painDuring: ""` with
   `tracking.painPerExercise: true` means *no pain logged*, whereas `false` means *this
   athlete does not track pain at all*. Without it the coach cannot tell silence from
   absence. Older session files predate the key — treat a missing `tracking` as all-true.
@@ -165,20 +406,80 @@ Filename pattern: `session-2026-07-27-day-1-mon-clean-skill-front-squat-knee-cap
     switched on or not — the review step never has to probe for missing keys.
   - A value logged *before* a field was switched off is still exported as-is. The app does
     not rewrite history; `tracking` is what tells you it is no longer being collected.
-- `entries[].category` — present only if the programme declared one (see `tp-program-1`).
+- `entries[].category` — present only if the programme declared one (see `tp-program-2`; no generator emits it yet).
   Presentational; it is passed through so a session file stays self-contained.
 - `session.readiness` — one of `""`, `"Green"`, `"Amber"`, `"Red"`.
 - `session.sleep` — 1–5 subjective scale (string).
-- `session.amPainNextDay` — next-morning knee pain 0–10. Deliberately editable the day *after* training; the athlete re-opens the session and exports then. **This field is the single most important input to the coach's tendon decisions** (see `docs/athlete-context.md`). Switchable, but on by default; check `tracking.painNextMorning` before concluding anything from an empty value.
+- `session.amPainOnWaking` — **v3**, replacing `amPainNextDay`. Pain 0–10 on waking *this* morning, i.e. the response to the **previous** session. Switchable via `tracking.painOnWaking`, on by default. See the dedicated section below before reading one.
 - `painDuring` — per-exercise knee pain 0–10 during the movement. Switchable via `tracking.painPerExercise`.
-- Every value is a **string** (straight from inputs). Unfilled fields are `""`, not `null`.
+- `athleteId` — **v2.** Slug from `program.json`'s `meta.athleteId`, naming the `athlete/<slug>/logs/` folder this file belongs in. Two athletes exporting into the same Drive folder is otherwise only distinguishable by the human-readable `athlete` name. Absent in v1 files.
+- Everything the athlete typed is a **string** (straight from inputs); unfilled fields are `""`, never `null`. The numbers in these files are only the ones the app computes: top-level `week`, `programVersion`, and `sets[].set`. On the programme side, `meta.weeks` and `exercises[].week` are likewise numbers. Never assume a prescription string parses numerically.
 - `prescribed` is denormalised into each entry on purpose, so a session file is self-contained and reviewable without the original programme.
 - `entries` covers every exercise for that day, including untouched ones (`done: false`, empty values) — the coach needs to see what was skipped.
 
+### Morning pain: `amPainOnWaking` — new in v3, and it replaced a field
+
+`session.amPainOnWaking` is the pain score **on waking the morning of this session**, captured at
+check-in before anything is logged. For a tendon block it is the single most important number in
+the file.
+
+It replaced `session.amPainNextDay` (and `tracking.painNextMorning` became `tracking.painOnWaking`)
+because the old field asked for a reading that only exists *after* the session is over: the
+athlete trains in the morning, feels the 24h response the following morning, and by then has to
+remember to re-open a closed session via the date picker and export it a second time. In
+practice it arrived empty — and an empty tendon reading is indistinguishable from a good one.
+Same measurement, asked at the one moment the app is already open.
+
+**The attribution flips, and that is the whole risk.**
+
+> `amPainOnWaking` on Tuesday's log describes the response to **Monday's** session, not Tuesday's.
+
+A reader that treats it like the old `amPainNextDay` will pin every reading on the wrong session
+and conclude the exact opposite of the truth about a progression. **Attribute by date gap**,
+against the previous log for that athlete:
+
+| Days since the previous log | How to read it |
+|---|---|
+| 1 | The 24h response to that session. This is the decision-grade reading. |
+| more than 1 | A **current baseline**, not attributable to any one session — rest days in between mean nobody was asked on the morning that mattered. Use it for the week-over-week trend, not to judge a single exposure. |
+| no previous log (first of a block) | Baseline only. |
+
+That gap is accepted rather than engineered away: a standalone rest-day check-in would mean a
+second export shape for the coaching side to handle, to capture a reading that is usually less
+decision-relevant than the trend it feeds.
+
+**Reading the older schemas.** `tp-session-1` and `-2` files carry `amPainNextDay` and are still
+on disk, mid-block. Prefer `amPainOnWaking` when present; fall back to `amPainNextDay`; and
+remember the two describe **different mornings** — never merge them into one series without
+shifting the older one by a day.
+
+### `programVersion` — new in v3
+
+Integer. The `meta.version` of the programme the app had loaded when the session was logged, so a
+log states which revision it was actually trained off. `0` means the programme predates the
+revision convention — the app does not invent a `1` it cannot know.
+
+It exists because re-importing after a revision is a manual step with no prompt (see "Revisions
+mid-block"). Before this field the only way to detect an athlete training off a superseded week
+was to diff the log's denormalised `prescribed` values against the current `program.json` — which
+works, and is still the fallback for older logs, but is inference. Now it is a direct comparison
+against `meta.version`.
+
 ### Consumer expectations (the review step)
 
-The coach reads the newest `logs/*.json` and compares logged load/reps/RPE against `prescribed`, checks `painDuring` and `amPainNextDay` against the pain-monitoring rules, reads `readiness`/`sleep` for the autoregulation call, and then recommends the smallest effective adjustment. Keep that in mind before dropping any field.
+The coach reads the newest `athlete/<slug>/logs/*.json` and compares logged load/reps/RPE against `prescribed`, checks `painDuring` and the morning pain field against the pain-monitoring rules, reads `readiness`/`sleep` for the autoregulation call, and then recommends the smallest effective adjustment. Keep that in mind before dropping any field. That step is the `review-workout-log` skill in `athlete/skills/` — its `SKILL.md` is the authoritative description of how these files are read.
 
-**Read `tracking` first.** If `painPerExercise`/`painNextMorning` are `false`, the
-pain-monitoring rules simply don't apply to that athlete — absent pain data is a
-configuration choice, not a missing log or a clean week.
+**Read `schema` first**, then `tracking`, then the entries.
+
+- `schema` tells you which fields exist. `tp-session-1`, `-2` and `-3` must all be readable; a
+  block spans the boundaries. v1 has no `sets[]`; v1 and v2 have `amPainNextDay` rather than
+  `amPainOnWaking`, and the two describe **different mornings**.
+- **`tracking`**: if `painPerExercise` / `painOnWaking` (or `painNextMorning` on an older file)
+  are `false`, the pain-monitoring rules simply don't apply to that athlete — absent pain data is
+  a configuration choice, not a missing log or a clean week.
+- **`programVersion`** against the current `meta.version` answers "did they train off this
+  programme?" in one comparison. On a v1/v2 log the field is absent — fall back to diffing
+  `prescribed`.
+- Review the athlete whose folder the file is in. `athleteId` (v2) confirms it; a file that
+  landed in the wrong folder is a filing mistake, not a licence to apply another athlete's
+  loading rules.

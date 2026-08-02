@@ -1,1 +1,30 @@
 .DS_Store
+
+# Python bytecode, anywhere in the repo. athlete/.gitignore already covers the
+# builder scripts' own __pycache__/; this covers everywhere else, which nothing
+# did.
+__pycache__/
+*.pyc
+
+# personal details
+docs/athlete-context.md
+
+# --- Athlete data: NEVER commit. The GitHub repo is public. ---
+# Deny-by-default: EVERYTHING under athlete/ is ignored, and only the shared,
+# non-personal parts are named back in. A new athlete folder is covered the
+# moment it is created, and so is anything inside it — including a session
+# export the phone share sheet dropped at athlete/ or athlete/<slug>/ instead
+# of in logs/.
+#
+# Note `athlete/*` has NO trailing slash, so it matches files as well as
+# directories. With a slash, a stray athlete/session-2026-08-01.json would be
+# committable — which is precisely the mistake this rule exists to prevent.
+#
+# Do NOT replace this with a list of names like athlete/*/logs/. Naming the
+# things to exclude means anything you did not think of is committed by
+# default, in a public repo, permanently.
+athlete/*
+!athlete/.gitignore
+!athlete/README.md
+!athlete/skills/
+!athlete/sources/

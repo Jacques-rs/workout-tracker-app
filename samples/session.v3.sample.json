@@ -1,0 +1,136 @@
+{
+  "schema": "tp-session-3",
+  "block": "SAMPLE BLOCK - dev fixture only",
+  "athlete": "Sample Athlete",
+  "athleteId": "sample-athlete",
+  "programVersion": 3,
+  "week": 2,
+  "day": "Day 1 (Mon) - Clean Skill + Front Squat + Knee Capacity",
+  "date": "2026-07-27",
+  "exportedAt": "2026-07-27T17:42:10.001Z",
+  "tracking": {
+    "painLabel": "Knee",
+    "painPerExercise": true,
+    "painOnWaking": true,
+    "readiness": true,
+    "sleep": true,
+    "bodyweight": true,
+    "hrvNote": true,
+    "perSetLogging": true
+  },
+  "session": {
+    "bodyweightKg": "88",
+    "sleep": "4",
+    "readiness": "Green",
+    "hrvNote": "HRV 62, at baseline",
+    "amPainOnWaking": "4",
+    "overall": "Woke at 4/10 from Friday's sled, so held the squat. Front squat depth better with the wedge."
+  },
+  "entries": [
+    {
+      "exercise": "Warm-up: bike + movement prep",
+      "prescribed": {
+        "sets": "1",
+        "reps": "8-10 min",
+        "load": "Easy",
+        "rpe": "RPE 3-4"
+      },
+      "done": true,
+      "load": "",
+      "reps": "9 min",
+      "rpe": "",
+      "painDuring": "",
+      "notes": "",
+      "sets": []
+    },
+    {
+      "exercise": "Spanish squat isometric",
+      "prescribed": {
+        "sets": "3",
+        "reps": "45 sec",
+        "load": "Band/strap or rack-supported",
+        "rpe": "Pain <=3/10; effort 6-7/10"
+      },
+      "done": true,
+      "load": "band",
+      "reps": "3x45s",
+      "rpe": "7",
+      "painDuring": "2",
+      "notes": "Settled after the first hold.",
+      "sets": []
+    },
+    {
+      "exercise": "Hang power clean (EMOM every 90s)",
+      "prescribed": {
+        "sets": "7",
+        "reps": "2",
+        "load": "50-70 kg; technically crisp",
+        "rpe": "RPE 5-6"
+      },
+      "done": true,
+      "load": "65 kg",
+      "reps": "7x2",
+      "rpe": "6",
+      "painDuring": "1",
+      "notes": "Bar path stayed close. EMOM felt much better than straight sets.",
+      "sets": []
+    },
+    {
+      "exercise": "Heel-elevated front squat - top set",
+      "prescribed": {
+        "sets": "1",
+        "reps": "4",
+        "load": "Build to top; opening ~115-135 kg",
+        "rpe": "RPE 7 (use RPE-1 to set load)"
+      },
+      "done": true,
+      "load": "80",
+      "reps": "3x4",
+      "rpe": "7",
+      "painDuring": "3",
+      "notes": "First set overshot at 100; dropped 20 kg and it settled.",
+      "sets": [
+        {
+          "set": 1,
+          "load": "100",
+          "reps": "4",
+          "rpe": "9",
+          "painDuring": "3",
+          "note": "too heavy"
+        },
+        {
+          "set": 2,
+          "load": "80",
+          "reps": "4",
+          "rpe": "7",
+          "painDuring": "3",
+          "note": ""
+        },
+        {
+          "set": 3,
+          "load": "80",
+          "reps": "4",
+          "rpe": "7",
+          "painDuring": "2",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "exercise": "Backward sled drag",
+      "prescribed": {
+        "sets": "6",
+        "reps": "20 m",
+        "load": "Sled + ~40-80 kg",
+        "rpe": "RPE 6"
+      },
+      "done": false,
+      "load": "60 kg",
+      "reps": "4x20m",
+      "rpe": "7",
+      "painDuring": "3",
+      "notes": "Cut to 4 reps - turf lane was busy and knee felt warm.",
+      "sets": []
+    }
+  ]
+}
