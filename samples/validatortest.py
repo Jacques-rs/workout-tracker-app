@@ -58,6 +58,15 @@ check("v1 fixture warns about tp-program-1",
 
 base = load("samples/program.v2.sample.json")
 
+# A `sets` value with no digit in it collapses to a single "Set 1 of 1" in the
+# tracker's set-at-a-time logger - fine for AMRAP, usually a slip otherwise.
+# Must warn, never error: "AMRAP" is legitimate and must still open in the gym.
+_no_digit = copy.deepcopy(base)
+_no_digit["exercises"][0]["sets"] = "AMRAP"
+rep = validate(_no_digit, "fixture")
+check("a 'sets' value with no digit warns, not errors",
+      not rep.errors and any("no digit" in w for w in rep.warnings))
+
 
 def mutated(fn):
     p = copy.deepcopy(base)

@@ -126,13 +126,13 @@
   /* ---------- header ----------
      Two rows only. Everything that is decided once a session — week, day, date, the
      check-in — lives in the drawer, because a header the athlete reads past on every
-     scroll is the thing that made the old layout feel cluttered. */
+     scroll is the thing that made the old layout feel cluttered. Row 2 holds the
+     Overview/Log toggle and the done count; the date lives in the context line so the
+     toggle can be worded instead of two bare icons. */
   header{position:sticky;top:0;z-index:20;background:var(--bg);padding:var(--s4) 0 var(--s2)}
   header::after{content:"";position:absolute;left:0;right:0;bottom:-16px;height:16px;
     background:linear-gradient(var(--bg),var(--bg-fade));pointer-events:none}
   .row{display:flex;gap:var(--s2);align-items:center}
-  /* Header actions must never absorb the squeeze — the context line (.ctx) wraps instead. */
-  header .row>button:not(.ctx){flex:0 0 auto;white-space:nowrap}
   .grow{flex:1 1 auto;min-width:0}
   .block-name{font-weight:700;font-size:var(--t-md);letter-spacing:-.2px;line-height:1.2}
   .sub{color:var(--muted);font-size:var(--t-sm);margin-top:1px}
@@ -147,45 +147,36 @@
   .iconbtn.alert::after{content:"";position:absolute;top:4px;right:4px;width:8px;height:8px;
     border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px var(--bg)}
 
-  /* The whole context line is the drawer trigger: changing week or day is a tap on the
-     thing you are already reading, not a hunt for the ≡. */
+  /* The whole context line is the drawer trigger: changing week, day or date is a tap
+     on the thing you are already reading, not a hunt for the ≡. */
   .ctx{flex:1 1 auto;min-width:0;background:transparent;border:0;padding:2px;
     text-align:left;border-radius:var(--r-sm)}
   .ctx-1{display:block;font-weight:700;font-size:var(--t-md);letter-spacing:-.2px;
     line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* Logging onto a date other than today is legitimate but silent and unrecoverable —
+     say so, in the same warm colour the old #progLabel.off used. */
+  .ctx-1.off{color:var(--warn)}
   .ctx-2{display:block;color:var(--muted);font-size:var(--t-sm);font-weight:400;
     margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-  /* All-exercises / one-at-a-time. Icons, not words: two labels plus the ≡ leave the
-     context line about 90px on a 320px screen. */
+  /* progress row: the view toggle (worded, not iconic) and the done count */
+  .prog-wrap{margin-top:var(--s3)}
+  .prog-top{display:flex;justify-content:space-between;align-items:center;gap:var(--s2);
+    margin-bottom:7px}
+  .prog-top .count{color:var(--ink);font-weight:700;font-size:var(--t-sm);flex:0 0 auto}
   .viewseg{flex:0 0 auto;display:flex;gap:2px;padding:3px;background:var(--well);
     border:1px solid var(--line-soft);border-radius:999px}
-  .vbtn{width:34px;height:32px;padding:0;display:grid;place-items:center;border:0;
-    background:transparent;border-radius:999px}
-  .vbtn svg{width:17px;height:17px;fill:none;stroke:var(--muted);stroke-width:1.8;
-    stroke-linecap:round;stroke-linejoin:round}
-  .vbtn[aria-pressed="true"]{background:var(--panel-hi);box-shadow:0 1px 3px var(--tab-shadow)}
-  .vbtn[aria-pressed="true"] svg{stroke:var(--accent-ink)}
-
-  /* progress bar — replaces the old footer "n/m done" fraction */
-  .prog-wrap{margin-top:var(--s3)}
-  .prog-top{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s2);
-    font-size:var(--t-xs);color:var(--muted);text-transform:uppercase;letter-spacing:.7px;
-    margin-bottom:5px}
-  .prog-top .count{color:var(--ink);font-weight:700;letter-spacing:0;text-transform:none;
-    font-size:var(--t-sm);flex:0 0 auto}
-  /* The date left the header when the selectors moved into the drawer, so it is stated
-     here instead — logging a session onto the wrong date is silent and unrecoverable. */
-  #progLabel{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  #progLabel.off{color:var(--warn)}
+  .viewseg button{border:0;background:transparent;color:var(--muted);border-radius:999px;
+    padding:8px 15px;font-size:var(--t-sm);font-weight:700}
+  .viewseg button[aria-pressed="true"]{background:var(--panel-hi);color:var(--ink);
+    box-shadow:0 1px 3px var(--tab-shadow)}
   .pbar{height:6px;border-radius:999px;background:var(--well);overflow:hidden;
     box-shadow:inset 0 0 0 1px var(--line-soft)}
   .pbar[hidden]{display:none}
-  .pbar i{display:block;height:100%;width:0;border-radius:999px;
-    background:linear-gradient(90deg,var(--accent2),var(--accent));
+  .pbar i{display:block;height:100%;width:0;border-radius:999px;background:var(--accent);
     transition:width .35s cubic-bezier(.2,.8,.2,1)}
 
-  /* Focus view only: the bar becomes numbered pips, which say the same thing about
+  /* Log view only: the bar becomes numbered pips, which say the same thing about
      progress and also where you are and what you can jump to. Sticky with the header,
      so a long card never hides the way out of it. */
   .pips{display:flex;gap:var(--s1);overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
@@ -220,17 +211,24 @@
   button.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent);
     font-weight:700}
   button.ghost{background:transparent}
+  button.ghost.danger{color:var(--muted)}
+  button.ghost.danger.armed{border-color:var(--bad);color:var(--bad);font-weight:700}
   .mini{font-size:var(--t-sm);padding:7px 11px}
-  .selrow{display:flex;gap:var(--s2);margin-top:var(--s2)}
-  .selrow>*{min-width:0}
-  #weekSel{flex:0 0 auto}
-  #dateInp{flex:1 1 auto}
   .btnrow{display:flex;gap:var(--s2);margin-top:var(--s2)}
   .btnrow>button{flex:1 1 0}
+  #dateInp{width:100%}
+
+  /* Week stepper (drawer) — bigger targets than a <select>, and it is the most-used
+     control in the drawer. */
+  .stepper{display:flex;align-items:center;gap:var(--s2)}
+  .stepbtn{width:42px;height:42px;padding:0;font-size:var(--t-lg);font-weight:700;flex:0 0 auto}
+  .stepval{flex:1 1 auto;text-align:center;text-align-last:center;font-weight:700;
+    font-size:var(--t-base);height:42px}
+  .daterowbtn{width:100%;text-align:left}
 
   /* day list (drawer) — a full-width row per day, because the drawer has the width the
      old tab strip didn't: the session theme is readable instead of being a truncated tab. */
-  .daylist{display:flex;flex-direction:column;gap:var(--s1);margin-top:var(--s2)}
+  .daylist{display:flex;flex-direction:column;gap:var(--s1);margin-top:var(--s3)}
   .dayitem{display:flex;gap:var(--s3);align-items:baseline;width:100%;text-align:left;
     background:var(--well);border:1px solid var(--line-soft);border-radius:var(--r-sm);
     padding:10px var(--s3)}
@@ -253,40 +251,15 @@
     background:linear-gradient(90deg,var(--top-hi-a),var(--top-hi-b))}
   .rail{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--cat,var(--line-soft))}
   .card.done .rail{background:var(--good)}
-  .ex-head{display:flex;justify-content:space-between;gap:var(--s3);align-items:flex-start}
-  .ex-head>.grow{min-width:0}
   .ex-name{font-weight:700;font-size:var(--t-base);letter-spacing:-.1px;line-height:1.3}
   .card.done .ex-name::after{content:" ✓";color:var(--good);font-weight:800}
+  /* The prescription line, and — when the generator gave tempo/rest — a second, muted
+     one under it. Folded from what used to be a hero number plus a row of pill chips:
+     one line reads faster than four separate widgets for the same three facts. */
   .rx{color:var(--ink-dim);font-size:var(--t-sm);margin-top:var(--s1)}
-  /* Prescription too wordy for the hero — full width under the name, so it wraps normally. */
-  .rx.set{font-weight:600}
-  .rx .rpe{color:var(--muted);font-size:var(--t-xs);font-weight:600;letter-spacing:.6px;
-    text-transform:uppercase;margin-left:6px;white-space:nowrap}
+  .rx.meta{color:var(--muted);font-size:var(--t-xs);margin-top:2px}
   .card.done{border-color:var(--good-line);
     background:linear-gradient(180deg,var(--good-soft),var(--good-soft-2)),var(--panel)}
-
-  .tag{display:inline-block;font-size:var(--t-xs);font-weight:800;letter-spacing:.7px;
-    text-transform:uppercase;color:var(--cat);
-    background:rgba(128,128,128,.14);                              /* fallback */
-    background:color-mix(in srgb,var(--cat) 14%,transparent);
-    border-radius:5px;padding:2px 7px;margin-bottom:5px}
-
-  /* The hero must never win the fight for width against the exercise name — capped at
-     45% whatever it contains, not only when the sets×reps string is long. */
-  .hero{flex:0 0 auto;max-width:45%;text-align:right;font-weight:800;font-size:var(--t-hero);
-    letter-spacing:-.5px;line-height:1.1;white-space:nowrap;font-variant-numeric:tabular-nums}
-  .hero.long{font-size:var(--t-md);letter-spacing:0;white-space:normal}
-  /* The RPE line is prose as often as it is a number — "RPE 7 (use RPE-1 to set load)".
-     It inherits the hero's nowrap, and a 29-character unbreakable line takes the whole
-     row and wraps the exercise name one word per line. It wraps; the number doesn't. */
-  .hero small{display:block;font-size:var(--t-xs);font-weight:600;color:var(--muted);
-    letter-spacing:.6px;text-transform:uppercase;margin-top:2px;
-    white-space:normal;overflow-wrap:anywhere}
-  .chips{display:flex;flex-wrap:wrap;gap:var(--s1);margin-top:var(--s2)}
-  .chip{background:var(--panel-hi);border:1px solid var(--line-soft);border-radius:999px;
-    padding:3px 9px;font-size:var(--t-xs);color:var(--ink-dim);font-weight:600}
-  /* Load is free text and can run to a sentence, so it wraps; tempo/rest are always short. */
-  .chip.k{color:var(--muted);font-weight:400;white-space:nowrap}
 
   details{margin-top:var(--s3);border-top:1px solid var(--line-soft);padding-top:var(--s3)}
   details+details{margin-top:var(--s2)}
@@ -299,14 +272,22 @@
   details .body{color:var(--ink-dim);font-size:var(--t-sm);margin-top:var(--s2);
     white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5}
 
-  /* ---------- log grid ---------- */
+  /* ---------- overview card (read-only) ---------- */
+  /* The whole card is a button to the Log view at this exercise. No inputs live here —
+     that is the entire point of splitting the two surfaces. */
+  .card.ov{cursor:pointer;text-align:left;width:100%}
+  .card.ov:active{transform:scale(.99)}
+  .card.ov:focus-visible{box-shadow:var(--ring)}
+  .ov-status{margin-top:var(--s3);font-size:var(--t-sm);color:var(--muted)}
+  .ov-status.done{color:var(--good);font-weight:700}
+
+  /* ---------- Summary & notes (collapsed flat fields, inside Log view) ---------- */
   /* minmax(0,1fr) not 1fr: an input's intrinsic width exceeds a phone column and plain
      1fr refuses to shrink below it. */
-  .log{margin-top:var(--s4);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s2)}
+  .log{margin-top:var(--s3);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s2)}
   .log>div{min-width:0}
   .log input,.log select,.log textarea{width:100%}
   .log .full{grid-column:1 / -1}
-  /* Four across only once the text fields have room; below 360px fall back to 2×2. */
   @media (min-width:360px){
     .log.tight{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 56px 74px}
     .log.tight.nopain{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 56px}}
@@ -317,69 +298,39 @@
   /* Keep this tight: the suffix eats width from a 56–74px numeric column, and more
      padding clips the value itself on a 360px screen. */
   .fld.has-unit input{padding-right:31px}
-  .hint{font-size:var(--t-sm);color:var(--accent2);grid-column:1/-1;
+  .hint{font-size:var(--t-sm);color:var(--accent2);
     background:var(--accent2-soft);border-left:2px solid var(--accent2);
-    border-radius:0 var(--r-sm) var(--r-sm) 0;padding:var(--s2) var(--s3);margin-top:var(--s1)}
+    border-radius:0 var(--r-sm) var(--r-sm) 0;padding:var(--s2) var(--s3);margin-top:var(--s3)}
   textarea{width:100%;min-height:56px;resize:vertical;font-weight:400;line-height:1.5}
-  /* The check-in lives in the drawer now, which is 400px at its widest whatever the
-     screen is — so its grid stays two columns and the old viewport media query for a
-     third column is gone. */
 
-  /* Per-set rows. Opt-in, so vertical space is affordable — width is the hard part.
-     Below 360px four inputs across leaves ~25px of text room, which clips a 3-digit
-     load and every placeholder, so the row wraps to two lines instead. Same idea as
-     .log.tight's 360px gate; explicit areas because auto-placement would strand the
-     set number and the delete button on the wrong line. */
-  /* It is a child of the .log grid, so without this it lands in one ~90px column and
-     "Log each set (4 prescribed)" wraps to five lines. */
-  .sets{grid-column:1 / -1;margin-top:var(--s2)}
-  .setrow{display:grid;gap:var(--s1);align-items:center;margin-top:var(--s2);
-    grid-template-columns:16px minmax(0,1fr) minmax(0,1fr) 26px;
-    grid-template-areas:"n load reps del" "n rpe pain del"}
-  .setrow:not(.pain){grid-template-areas:"n load reps del" "n rpe rpe del"}
-  .setrow>.n{grid-area:n}
-  .setrow>.del{grid-area:del}
-  .setrow>.c-load{grid-area:load}
-  .setrow>.c-reps{grid-area:reps}
-  .setrow>.c-rpe{grid-area:rpe}
-  .setrow>.c-pain{grid-area:pain}
+  /* ---------- set editor (Log view, one set at a time) ----------
+     Chips show every set already logged plus the one in progress; the fields below are
+     always exactly one set's worth, which is what keeps this usable one-handed and
+     keeps a keystroke from ever having to rebuild the row it is happening in. */
+  .setblock{margin-top:var(--s4)}
+  .setchips{display:flex;gap:var(--s1);overflow-x:auto;scrollbar-width:none;
+    padding-bottom:2px;margin-bottom:var(--s3)}
+  .setchips::-webkit-scrollbar{display:none}
+  .setchip{flex:0 0 auto;min-width:32px;height:30px;padding:0 8px;border-radius:999px;
+    border:1px solid var(--line-soft);background:var(--well);color:var(--muted);
+    font-size:var(--t-xs);font-weight:700;font-variant-numeric:tabular-nums}
+  .setchip[data-state="done"]{color:var(--good);border-color:var(--good-line);background:var(--good-soft)}
+  .setchip[data-state="current"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+  /* Dashed, not just dimmed: an upcoming set is a live button (tap to drop it if you're
+     skipping it), not a disabled placeholder, and it needs to read that way. */
+  .setchip[data-state="todo"]{opacity:.75;border-style:dashed;color:var(--placeholder)}
+  .setchip[data-state="todo"]:active{opacity:1;border-color:var(--bad);color:var(--bad)}
+  .setlabel{font-size:var(--t-sm);color:var(--muted);font-weight:700;margin-bottom:var(--s2)}
+  .setgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s2)}
   @media (min-width:360px){
-    .setrow{grid-template-columns:16px repeat(4,minmax(0,1fr)) 26px;
-      grid-template-areas:"n load reps rpe pain del"}
-    .setrow:not(.pain){grid-template-columns:16px repeat(3,minmax(0,1fr)) 26px;
-      grid-template-areas:"n load reps rpe del"}
-  }
-  .setrow>.n{font-size:var(--t-xs);color:var(--muted);font-weight:700;text-align:right}
-  .setrow input{width:100%;text-align:center}
-  /* The header only makes sense while the row is a single line. */
-  .setrow.head{display:none;margin-top:0}
-  @media (min-width:360px){.setrow.head{display:grid}}
-  .setrow.head span{font-size:var(--t-xs);color:var(--muted);font-weight:600;
-    text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .setrow>.del{background:none;border:0;color:var(--muted);font-size:var(--t-md);
-    line-height:1;padding:4px 0;min-height:26px}
-  .setnote input{width:100%;margin-top:var(--s1)}
-  .setbtn{display:block;width:100%;margin-top:var(--s2);padding:9px 10px;
-    border-radius:var(--r-sm);background:var(--panel-hi);
-    border:1px solid var(--line-soft);color:var(--ink-dim);
-    font-size:var(--t-xs);font-weight:700;letter-spacing:.3px}
-  /* Clearing every set is the one destructive action on this screen. It is quiet,
-     separated from "+ Add set", and needs a second tap to confirm — a chalked thumb
-     that misses must not wipe the sets that were just logged. */
-  .setbtn.danger{background:none;border-color:transparent;color:var(--muted);
-    font-weight:600;margin-top:var(--s1)}
-  .setbtn.danger.armed{border-color:var(--bad);color:var(--bad);font-weight:700}
-
-  .donebtn{width:100%;margin-top:var(--s3);padding:12px;border-radius:var(--r-sm);
-    background:var(--panel-hi);border:1px solid var(--line);color:var(--ink-dim);
-    font-weight:700;font-size:var(--t-sm);letter-spacing:.3px}
-  .donebtn[aria-pressed="true"]{background:var(--good-soft);
-    border-color:var(--good-line);color:var(--good)}
-  .summary-line{margin-top:var(--s3);font-size:var(--t-sm);color:var(--ink-dim);
-    background:var(--well);border:1px solid var(--line-soft);border-radius:var(--r-sm);
-    padding:var(--s2) var(--s3);cursor:pointer;display:flex;justify-content:space-between;gap:var(--s2)}
-  .summary-line .edit{color:var(--accent2);font-weight:700;flex:0 0 auto}
-  .summary-line .vals{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .setgrid{grid-template-columns:repeat(3,minmax(0,1fr)) 70px}
+    .setgrid.nopain{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  .setgrid input{text-align:center;min-height:46px;font-size:var(--t-md)}
+  .setnoteinp{margin-top:var(--s2)}
+  .setnoteinp input{width:100%}
+  .setactions{display:flex;gap:var(--s2);margin-top:var(--s3);flex-wrap:wrap}
+  .setactions .primary{flex:1 1 auto}
+  .setactions .ghost{flex:0 0 auto}
 
   /* readiness tints the check-in card */
   .sessioncard[data-readiness="Green"]{--cat:var(--good)}
@@ -412,13 +363,14 @@
   .drawer-head button{flex:0 0 auto;white-space:nowrap}
   .drawer-body{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;
     padding:0 var(--s4) calc(var(--s5) + env(safe-area-inset-bottom))}
-  .dnote{color:var(--muted);font-size:var(--t-sm);margin:var(--s1) 0 0;line-height:1.5}
+  .dnote{color:var(--muted);font-size:var(--t-sm);margin:var(--s3) 0 0;line-height:1.5}
   body.noscroll{overflow:hidden}
 
   /* Accordion sections. `details.acc` deliberately outguns the generic `details` rules
      used for coach notes — same element, different job. */
   details.acc{margin:var(--s3) 0 0;padding:0;background:var(--well);
     border:1px solid var(--line-soft);border-radius:var(--r-sm);overflow:hidden}
+  details.acc:first-child{margin-top:var(--s3)}
   details.acc+details.acc{margin-top:var(--s2)}
   details.acc>summary{padding:var(--s3);color:var(--ink);font-size:var(--t-sm);font-weight:700}
   details.acc>summary::before{border-left-color:var(--muted)}
@@ -440,10 +392,7 @@
   .sw[aria-checked="true"]::after{transform:translateX(20px);background:var(--accent)}
   .sw:focus-visible{box-shadow:var(--ring)}
 
-  /* ---------- appearance controls (top of the sheet) ---------- */
-  .sec{font-size:var(--t-xs);color:var(--muted);text-transform:uppercase;letter-spacing:.8px;
-    font-weight:700;margin:var(--s5) 0 var(--s2)}
-  .sec:first-child{margin-top:var(--s3)}
+  /* ---------- appearance controls ---------- */
   .pals{display:flex;gap:var(--s2)}
   /* Buttons, not radios: a 26px+ target with the palette visible on it beats a radio
      label you have to read. */
@@ -465,9 +414,9 @@
   .seg-note{font-size:var(--t-xs);color:var(--muted);margin:var(--s2) 0 0;line-height:1.4}
 
   /* ---------- footer / misc ----------
-     One bar, two contents: the export actions in the all-exercises view, and prev/next
-     in the focus view, where the thumb needs them far more than it needs Export. Export
-     is always in the drawer as well, so swapping never strands it. */
+     One bar, two contents: the export actions in Overview, and prev/next in Log, where
+     the thumb needs them far more than it needs Export. Export is always in the drawer
+     as well, so swapping never strands it. */
   .footer-bar{position:fixed;left:0;right:0;bottom:0;z-index:30;
     background:var(--footer-bg);backdrop-filter:blur(12px);border-top:1px solid var(--line);
     padding:var(--s2) var(--s3) calc(var(--s2) + env(safe-area-inset-bottom));
@@ -527,21 +476,15 @@
       <span class="ctx-1" id="ctxLine">Training Tracker</span>
       <span class="ctx-2" id="ctxSub">Import a program to begin</span>
     </button>
-    <div class="viewseg" role="group" aria-label="Exercise view">
-      <button class="vbtn" id="viewAll" aria-pressed="true" title="All exercises"
-              aria-label="Show all exercises">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 7h.01M4.5 12h.01M4.5 17h.01"/>
-        <path d="M9 7h10.5M9 12h10.5M9 17h10.5"/></svg>
-      </button>
-      <button class="vbtn" id="viewOne" aria-pressed="false" title="One at a time"
-              aria-label="Show one exercise at a time">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="12" height="14" rx="2.5"/>
-        <path d="M9.5 10h5M9.5 14h3"/></svg>
-      </button>
-    </div>
   </div>
   <div class="prog-wrap">
-    <div class="prog-top"><span id="progLabel">Session</span><span class="count tnum" id="progCount">—</span></div>
+    <div class="prog-top">
+      <div class="viewseg" role="group" aria-label="Session view">
+        <button id="viewOverview" aria-pressed="true">Overview</button>
+        <button id="viewLog" aria-pressed="false">Log</button>
+      </div>
+      <span class="count tnum" id="progCount">—</span>
+    </div>
     <div class="pbar" id="pbar"><i></i></div>
     <div class="pips" id="pips" hidden></div>
   </div>
@@ -591,43 +534,55 @@ const el = (t,props={},kids=[])=>{const n=document.createElement(t);
 const LS = { prog:"tp_program_v1", set:"tp_settings_v1", pos:"tp_pos_v1",
   sess:(d,day)=>`tp_sess_v1::${d}::${day}` };
 /* `week` and `day` ARE persisted (LS.pos) — see restorePos(). `focus` is not: it is the
-   index of the exercise shown in the focus view, and on a cold start it is derived from
+   index of the exercise shown in the Log view, and on a cold start it is derived from
    what is already ticked off, which lands you on the first exercise you haven't done.
-   `date` is not either — it keys the stored session, so it always starts at today. */
-let PROGRAM=null, STATE={week:1,day:null,date:todayISO(),focus:0};
+   `date` is not either — it keys the stored session, so it always starts at today.
+   `setEdit` is the index of a committed set being re-edited from its chip, or null while
+   typing the next new one — always in-memory, reset by every navigation function below. */
+let PROGRAM=null, STATE={week:1,day:null,date:todayISO(),focus:0,setEdit:null};
 
 function todayISO(){const d=new Date();const z=n=>String(n).padStart(2,"0");
   return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`;}
 function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");
   clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),1900);}
 function slug(s){return (s||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"").slice(0,40);}
+const txt=v=>String(v??"").trim();
+function parseNum(s){const n=parseFloat(s);return Number.isFinite(n)?n:null;}
 
 /* ---------- settings ----------
-   Which optional inputs are shown. Defaults are all-on, so an existing install (and the
-   coaching loop that depends on the pain fields) behaves exactly as before; a user
-   without knee issues turns them off once. Per-device, like everything else here. */
+   Which optional inputs are shown. Defaults are all-on, so the coaching loop that
+   depends on the pain fields behaves as expected out of the box; a user without knee
+   issues turns them off once. Per-device, like everything else here. */
 const FIELD_DEFS=[
   {key:"painPerExercise",name:"Pain per exercise",
-   desc:"A 0–10 pain box on every exercise. Knee load varies hugely between movements, so this is what identifies which movement to regress."},
+   desc:"A 0–10 pain box on every set. Knee load varies hugely between movements, so this is what identifies which movement to regress."},
   {key:"painOnWaking",name:"Pain on waking",
    desc:"Session-level 0–10, filled at check-in. It reads how the tissue woke up today, which is the response to the LAST session — not this one."},
   {key:"readiness",name:"Readiness",desc:"Green / Amber / Red — governs whether load progresses, holds or regresses."},
   {key:"sleep",name:"Sleep score",desc:"Subjective 1–5."},
   {key:"bodyweight",name:"Bodyweight",desc:"Logged in kg at check-in."},
-  {key:"hrvNote",name:"HRV / notes",desc:"Free text for HRV and anything else about recovery."},
-  {key:"perSetLogging",name:"Per-set logging",
-   desc:"Adds a “Log each set” option to every exercise, for when the sets weren't all the same. The single load/reps/RPE row stays either way."}
+  {key:"hrvNote",name:"HRV / notes",desc:"Free text for HRV and anything else about recovery."}
 ];
 /* palette+mode+view live in the same per-device settings object as the tracked fields.
    They are cosmetic, so they are deliberately NOT part of the session export — the
-   `tracking` block is built from FIELD_DEFS alone, so nothing here can leak into a log. */
-const SET_DEFAULTS={painLabel:"Knee",palette:"a",mode:"auto",view:"list"};
+   `tracking` block is built from FIELD_DEFS alone, so nothing here can leak into a log.
+   `sv` is a one-shot settings-migration marker — see loadSettings(). */
+const SET_DEFAULTS={painLabel:"Knee",palette:"a",mode:"auto",view:"focus",sv:1};
 FIELD_DEFS.forEach(f=>SET_DEFAULTS[f.key]=true);
 let SETTINGS={...SET_DEFAULTS};
 
 function loadSettings(){
-  try{const raw=localStorage.getItem(LS.set);
-    if(raw)SETTINGS={...SET_DEFAULTS,...JSON.parse(raw)};}catch(e){}
+  try{
+    const raw=localStorage.getItem(LS.set);
+    if(raw){
+      const stored=JSON.parse(raw);
+      SETTINGS={...SET_DEFAULTS,...stored};
+      /* An install from before Log became the default view has no `sv` and its stored
+         `view` is the old all-exercises default — opening straight onto the new
+         read-only Overview would look like logging had vanished. One-shot fix-up. */
+      if(!stored||!stored.sv){SETTINGS.view="focus";SETTINGS.sv=1;saveSettings();}
+    }
+  }catch(e){}
 }
 function saveSettings(){localStorage.setItem(LS.set,JSON.stringify(SETTINGS));}
 
@@ -693,7 +648,7 @@ function renderAppearance(host){
 
 function renderFields(host){
   host.innerHTML="";
-  host.append(el("p",{className:"dnote"},"Turn off what you don't need. Nothing already logged is deleted — hidden fields just stop appearing, and the export records what you were tracking."));
+  host.append(el("p",{className:"dnote"},"Turn off what you don't need — nothing already logged is deleted."));
   FIELD_DEFS.forEach(f=>{
     const sw=el("button",{className:"sw",attrs:{role:"switch","aria-checked":String(!!SETTINGS[f.key]),
       "aria-label":f.name}});
@@ -730,7 +685,10 @@ let DAYBTNS=[];
 /* Which accordions are open. In memory, not storage — it is "where I was a moment ago",
    not a preference, and rebuilding the drawer must not collapse a section under the
    athlete's thumb. */
-const ACC={checkin:true,appearance:false,fields:false};
+const ACC={checkin:true,data:false,appearance:false,fields:false};
+/* Whether the date row shows the picker or just the value — also drawer-local state,
+   reset every time the drawer opens so a stale open picker doesn't reappear later. */
+let dateEditing=false;
 
 function accordion(key,title,build,statId){
   const stat=el("span",{className:"accstat"});
@@ -780,6 +738,41 @@ function renderDayList(host){
 function paintDays(){
   DAYBTNS.forEach(x=>x.node.setAttribute("aria-pressed",String(x.day===STATE.day)));
 }
+/* Arrows for the one-tap case, a dropdown in between for the far one — jumping from
+   Week 1 to Week 6 by tapping "next" five times is exactly the kind of navigation this
+   was supposed to fix. */
+function weekStepper(){
+  const weeks=PROGRAM.meta.weeks||1;
+  const wrap=el("div",{className:"stepper"});
+  const dec=el("button",{className:"stepbtn",attrs:{"aria-label":"Previous week"}},"‹");
+  const sel=el("select",{className:"stepval",attrs:{"aria-label":"Week"}});
+  for(let i=1;i<=weeks;i++)
+    sel.append(el("option",{value:i,textContent:"Week "+i,selected:i===STATE.week}));
+  const inc=el("button",{className:"stepbtn",attrs:{"aria-label":"Next week"}},"›");
+  dec.disabled=STATE.week<=1;
+  inc.disabled=STATE.week>=weeks;
+  dec.onclick=()=>{selectWeek(STATE.week-1);renderDrawer();};
+  sel.onchange=()=>{selectWeek(sel.value);renderDrawer();};
+  inc.onclick=()=>{selectWeek(STATE.week+1);renderDrawer();};
+  wrap.append(dec,sel,inc);
+  return wrap;
+}
+function dateRow(){
+  const wrap=el("div",{});
+  if(dateEditing){
+    const dt=el("input",{id:"dateInp",type:"date",value:STATE.date,
+      attrs:{"aria-label":"Session date"}});
+    dt.onchange=()=>{selectDate(dt.value);dateEditing=false;renderDrawer();};
+    wrap.append(dt);
+  }else{
+    const today=STATE.date===todayISO();
+    const btn=el("button",{className:"ghost daterowbtn"},
+      `${today?"Today":"Date"} · ${fmtDate(STATE.date)}`);
+    btn.onclick=()=>{dateEditing=true;renderDrawer();};
+    wrap.append(btn);
+  }
+  return wrap;
+}
 /* Day and date both switch which stored session is open, so the check-in has to be
    rebuilt from the new one; week does not (the session key is date + day). */
 function selectDay(d){
@@ -793,43 +786,31 @@ function selectWeek(w){
   STATE.week=Number(w)||1;savePos();resetFocus();renderHeader();renderMain();
 }
 
-function dataSection(){
-  const box=el("div",{},[
-    el("div",{className:"sec"},"Program & data"),
-    el("p",{className:"dnote"},"Export saves session-<date>-<day>.json to this phone, to be filed in the athlete's logs folder. Copy JSON is the fallback if the download misbehaves.")]);
+function renderDataSection(host){
+  host.innerHTML="";
   const imp=el("button",{className:"ghost"},"Import program…");
   imp.onclick=()=>$("#fileInp").click();
-  box.append(el("div",{className:"btnrow"},[imp]));
   const copy=el("button",{className:"ghost"},"Copy JSON");copy.onclick=copyJSON;
   const exp=el("button",{className:"primary"},"Export session");exp.onclick=exportSession;
-  box.append(el("div",{className:"btnrow"},[copy,exp]));
-  return box;
+  host.append(el("div",{className:"btnrow"},[imp]));
+  host.append(el("div",{className:"btnrow"},[copy,exp]));
 }
 
 function renderDrawer(){
   const host=$("#drawerBody");if(!host)return;
   host.innerHTML="";DAYBTNS=[];
   if(PROGRAM){
-    host.append(el("div",{className:"sec"},"Session"));
-    const wk=el("select",{id:"weekSel",attrs:{"aria-label":"Week"}});
-    for(let i=1;i<=(PROGRAM.meta.weeks||1);i++)
-      wk.append(el("option",{value:i,textContent:"Week "+i,selected:i===STATE.week}));
-    wk.onchange=()=>selectWeek(wk.value);
-    const dt=el("input",{id:"dateInp",type:"date",value:STATE.date,
-      attrs:{"aria-label":"Session date"}});
-    dt.onchange=()=>selectDate(dt.value);
-    host.append(el("div",{className:"selrow"},[wk,dt]));
+    host.append(weekStepper());
     const days=el("div",{className:"daylist"});
     renderDayList(days);
     host.append(days);
+    host.append(dateRow());
     host.append(accordion("checkin","Session check-in",b=>{b.id="checkinHost";},"checkinStat"));
   }else{
     host.append(el("p",{className:"dnote"},
       "No program loaded. Import a program.json and the week, day and check-in appear here."));
   }
-  host.append(dataSection());
-  host.append(el("div",{className:"sec"},"Settings"));
-  host.append(el("p",{className:"dnote"},"Per-device — this phone only."));
+  host.append(accordion("data","Program & data",renderDataSection));
   host.append(accordion("appearance","Appearance",renderAppearance));
   host.append(accordion("fields","Tracked fields",renderFields));
   renderCheckin();
@@ -848,6 +829,7 @@ function renderCheckin(){
 
 function drawerOpen(){return $("#drawerWrap").classList.contains("in");}
 function openDrawer(){
+  dateEditing=false;
   renderDrawer();
   $("#drawerWrap").classList.add("in");
   $("#menuBtn").setAttribute("aria-expanded","true");
@@ -857,16 +839,22 @@ function closeDrawer(){
   $("#drawerWrap").classList.remove("in");
   $("#menuBtn").setAttribute("aria-expanded","false");
   document.body.classList.remove("noscroll");
+  /* The check-in may just have been edited. Main's cards were built holding an older
+     session object; without this, the next keystroke in any card autosaves that stale
+     copy and silently overwrites whatever was just typed in the drawer. */
+  renderMain();
 }
 function toggleDrawer(){drawerOpen()?closeDrawer():openDrawer();}
 
 /* ---------- exercise categories ----------
-   Colour + label for an exercise's left rail. Resolution order:
+   Colour for an exercise's left rail. Resolution order:
      1. an explicit `category` on the exercise (tp-program-1 optional field)
      2. a keyword guess from the exercise name
-     3. nothing — neutral rail, no tag (never assert a category we don't have)
+     3. nothing — neutral rail (never assert a category we don't have)
    Colours are CSS variables, not hex: each theme picks rail colours from its own
-   palette, so a category keeps its *slot* across themes rather than its exact hue. */
+   palette, so a category keeps its *slot* across themes rather than its exact hue.
+   The uppercase tag chip that used to sit on every card is gone — the rail alone
+   carries the category now; see CLAUDE.md. */
 const CATS={
   warmup:  {label:"Warm-up",       color:"var(--cat-warm)"},
   tendon:  {label:"Tendon/prehab", color:"var(--cat-tendon)"},
@@ -901,7 +889,6 @@ const SPARE_COLORS=["var(--cat-skill)","var(--cat-strength)","var(--cat-cond)",
   "var(--cat-accessory)","var(--cat-tendon)","var(--cat-warm)"];
 function spareColor(s){let h=0;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;
   return SPARE_COLORS[h%SPARE_COLORS.length];}
-function titleCase(s){return s.charAt(0).toUpperCase()+s.slice(1);}
 
 function catOf(ex){
   const declared=(ex.category||"").toString().trim();
@@ -955,6 +942,27 @@ function progVersion(){
   const v=PROGRAM&&PROGRAM.meta?Number(PROGRAM.meta.version):NaN;
   return Number.isFinite(v)&&v>0?Math.floor(v):0;
 }
+/* Prescribed set count, when the generator gave a plain number or a plain range —
+   the set-at-a-time editor materialises this many chips before the athlete has logged
+   anything. "3-4" or "AMRAP" are legitimate prose values, so anything else just means
+   "start with one set": a range takes its lower bound (the extra set is one tap of
+   "Log another set"); prose collapses to a single Set 1 of 1. */
+function prescribedSets(ex){
+  const s=String(ex.sets??"").trim();
+  const plain=/^(\d+)$/.exec(s);
+  if(plain)return Math.min(Math.max(parseInt(plain[1],10),1),12);
+  const range=/^(\d+)\s*[-–—]\s*(\d+)$/.exec(s);
+  if(range)return Math.min(Math.max(parseInt(range[1],10),1),12);
+  return 1;
+}
+/* How many set chips the athlete actually wants shown right now. Starts at the
+   prescription but is adjustable downward — tapping away an upcoming (never-logged) chip
+   in the set editor sets `e.setTarget`, so skipping a set the plan called for doesn't
+   leave a dead, always-outstanding slot sitting on the card forever. It never overrides
+   what's already been committed — buildSetEditor() takes the max of this and rows.length. */
+function targetSets(ex,e){
+  return (typeof e.setTarget==="number"&&e.setTarget>=1)?e.setTarget:prescribedSets(ex);
+}
 
 /* ---------- where the athlete is in the block ----------
    Week and day are a position, not a preference: week 5 is a fact about the block, and a
@@ -1007,29 +1015,155 @@ async function boot(){
    exactly like a good one. This is the same measurement taken at check-in, when the app
    is already open. It is the response to the PREVIOUS session; see docs/data-contracts.md. */
 const BLANK_SESSION={bodyweightKg:"",sleep:"",readiness:"",hrvNote:"",amPainOnWaking:"",overall:""};
+
+/* An exercise entry. `sets[]` holds only *committed* rows — a set the athlete actually
+   confirmed with "Log set N". `draft` is the set currently being typed, seeded from the
+   set before it; it is never in `sets[]` and never reaches an export (see exportEntry).
+   `summaryAuto` says whether load/reps/rpe/painDuring are still following the sets —
+   editing any of them directly in "Summary & notes" turns following off for good,
+   exactly like a per-set row that stops following once it's been typed into. `setTarget`
+   is the athlete's own adjusted set count (see targetSets()) — null until they remove an
+   upcoming chip, so it doesn't have to be reset when a programme is re-imported. */
+function blankDraft(){return {load:"",reps:"",rpe:"",painDuring:"",note:""};}
+function seedDraft(row){return {load:txt(row.load),reps:txt(row.reps),rpe:txt(row.rpe),
+  painDuring:txt(row.painDuring),note:""};}
+function draftEmpty(d){return !(txt(d.load)||txt(d.reps)||txt(d.rpe)||txt(d.painDuring)||txt(d.note));}
+function blankEntry(){return {done:false,load:"",reps:"",rpe:"",painDuring:"",notes:"",
+  sets:[],draft:blankDraft(),summaryAuto:true,setTarget:null};}
+function renumber(e){(e.sets||[]).forEach((r,i)=>{r.set=i+1;});return e.sets;}
+
+/* ---------- deriving the flat summary from sets[] ----------
+   Every one of these must be safe on an empty or partial set list: never fabricate an
+   RPE of 0 from nothing logged, never emit "NaN" from prose ("7-8"), never assert a
+   reps count sets[] doesn't support. */
+function pickMode(vals){
+  if(!vals.length)return "";
+  const freq=new Map();
+  vals.forEach(v=>freq.set(v,(freq.get(v)||0)+1));
+  let best=vals[0],bestCount=freq.get(vals[0]);
+  freq.forEach((c,v)=>{
+    if(c>bestCount){best=v;bestCount=c;}
+    else if(c===bestCount){
+      /* Tie: prefer the numerically heavier value (a dropped-load top set beats its
+         back-off sets), falling back to the first-seen when neither parses. */
+      const pv=parseNum(v),pb=parseNum(best);
+      if(pv!=null&&(pb==null||pv>pb)){best=v;bestCount=c;}
+    }
+  });
+  return best;
+}
+function pickMax(vals){
+  if(!vals.length)return "";
+  const nums=vals.map(v=>({v,n:parseNum(v)})).filter(x=>x.n!=null);
+  if(nums.length){let b=nums[0];nums.forEach(x=>{if(x.n>b.n)b=x;});return b.v;}
+  return vals[vals.length-1];               /* nothing parsed ("7-8") — last raw string */
+}
+function deriveReps(rows){
+  const vals=rows.map(r=>txt(r.reps));
+  if(!vals.some(Boolean))return "";
+  const allFilled=vals.every(Boolean);
+  if(allFilled&&new Set(vals).size===1)return vals.length===1?vals[0]:`${vals.length}x${vals[0]}`;
+  if(allFilled)return vals.join("/");
+  return vals.map(v=>v||"-").join("/");      /* a hole is shown, never silently dropped */
+}
+function deriveSummary(rows){
+  return {
+    load: pickMode(rows.map(r=>txt(r.load)).filter(Boolean)),
+    reps: deriveReps(rows),
+    rpe: pickMax(rows.map(r=>txt(r.rpe)).filter(Boolean)),
+    painDuring: pickMax(rows.map(r=>txt(r.painDuring)).filter(Boolean))
+  };
+}
+function applyDerivedSummary(e){
+  if(e.summaryAuto===false)return;
+  const d=deriveSummary(e.sets);
+  e.load=d.load;e.reps=d.reps;e.rpe=d.rpe;e.painDuring=d.painDuring;
+}
+
+/* ---------- migrating a stored entry ----------
+   Runs inside getSession(), so every reader — renderMain, updateProgress, export — sees
+   the current shape regardless of which build wrote the file on disk. Idempotent: run it
+   twice and the second pass changes nothing, which matters because it runs on every read. */
+function normalizeEntry(e){
+  let changed=false;
+  if(!Array.isArray(e.sets)){e.sets=[];changed=true;}
+  /* The old "Log each set" table seeded rows the athlete hadn't actually typed into yet
+     and flagged them `auto`. The set-at-a-time editor never writes that flag, so any row
+     that still carries it predates this build and was never confirmed — drop it, or a
+     7-set exercise where only set 1 was ever typed exports as 7 sets performed. */
+  if(e.sets.some(r=>r&&"auto" in r)){
+    /* Rebuild the survivors too, not just drop the auto:true rows — a row that carried
+       the key at all predates this build, and leaving `auto:false` sitting on it is
+       stale bookkeeping the new model never reads or writes. */
+    e.sets=e.sets.filter(r=>!(r&&r.auto)).map(r=>({set:r.set,
+      load:txt(r.load),reps:txt(r.reps),rpe:txt(r.rpe),painDuring:txt(r.painDuring),note:txt(r.note)}));
+    renumber(e);
+    changed=true;
+  }
+  /* Per-set logging used to be opt-in, so most existing logs are flat-only. Promote that
+     into one committed set rather than let derivation below silently blank it out — but
+     not for a box ticked with nothing logged at all (a warm-up needs no invented set). */
+  if(!e.sets.length&&(txt(e.load)||txt(e.reps)||txt(e.rpe)||txt(e.painDuring))){
+    e.sets=[{set:1,load:txt(e.load),reps:txt(e.reps),rpe:txt(e.rpe),painDuring:txt(e.painDuring),note:""}];
+    changed=true;
+  }
+  if(!e.draft||typeof e.draft!=="object"){
+    e.draft=e.sets.length?seedDraft(e.sets[e.sets.length-1]):blankDraft();
+    changed=true;
+  }
+  if(typeof e.summaryAuto!=="boolean"){e.summaryAuto=true;changed=true;}
+  if(changed)applyDerivedSummary(e);
+  return changed;
+}
+
 function sessionKey(){return LS.sess(STATE.date,STATE.day);}
 function getSession(){
   const raw=localStorage.getItem(sessionKey());
+  let s=null;
   if(raw){
     try{
-      const s=JSON.parse(raw);
-      /* Normalise on the way in. A session written by an older build can be missing
-         `session` or `entries` entirely, and rendering must not die on it — a blank
-         app with a full localStorage is the one failure with no way back in the gym. */
-      if(s&&typeof s==="object"){
-        s.session={...BLANK_SESSION,...(s.session||{})};
-        if(!s.entries||typeof s.entries!=="object")s.entries={};
-        return s;
+      const parsed=JSON.parse(raw);
+      if(parsed&&typeof parsed==="object"){
+        parsed.session={...BLANK_SESSION,...(parsed.session||{})};
+        if(!parsed.entries||typeof parsed.entries!=="object")parsed.entries={};
+        s=parsed;
       }
     }catch(e){}
   }
-  return {block:PROGRAM?PROGRAM.meta.block:"",athlete:PROGRAM?PROGRAM.meta.athlete:"",
+  if(!s)s={block:PROGRAM?PROGRAM.meta.block:"",athlete:PROGRAM?PROGRAM.meta.athlete:"",
     week:STATE.week,day:STATE.day,date:STATE.date,
-    session:{...BLANK_SESSION},
-    entries:{}};
+    session:{...BLANK_SESSION},entries:{}};
+  let changed=false;
+  Object.keys(s.entries).forEach(id=>{
+    const e={...blankEntry(),...s.entries[id]};
+    if(normalizeEntry(e))changed=true;
+    s.entries[id]=e;
+  });
+  if(changed){try{localStorage.setItem(sessionKey(),JSON.stringify(s));}catch(e){}}
+  return s;
 }
-function saveSession(s){s.week=STATE.week;s.day=STATE.day;s.date=STATE.date;
-  localStorage.setItem(sessionKey(),JSON.stringify(s));updateProgress();}
+function saveSession(s){
+  s.week=STATE.week;s.day=STATE.day;s.date=STATE.date;
+  /* localStorage can throw (quota, private mode) — never let a keystroke's autosave
+     take the rest of the app down with it. */
+  try{localStorage.setItem(sessionKey(),JSON.stringify(s));}catch(e){}
+  updateProgress(s);
+}
+
+/* ---------- set mutation ---------- */
+function commitSet(e){
+  if(draftEmpty(e.draft))return false;
+  const row={set:e.sets.length+1,load:txt(e.draft.load),reps:txt(e.draft.reps),
+    rpe:txt(e.draft.rpe),painDuring:txt(e.draft.painDuring),note:txt(e.draft.note)};
+  e.sets.push(row);
+  e.draft=seedDraft(row);
+  applyDerivedSummary(e);
+  return true;
+}
+function deleteSet(e,idx){
+  e.sets.splice(idx,1);renumber(e);
+  applyDerivedSummary(e);
+}
 
 /* ---------- rendering ---------- */
 function renderAll(){renderHeader();renderDrawer();renderMain();}
@@ -1043,6 +1177,7 @@ function renderHeader(){
     name.textContent="Training Tracker";
     sub.textContent="No program loaded — tap Import";
     $("#ctxLine").textContent="Training Tracker";
+    $("#ctxLine").classList.remove("off");
     $("#ctxSub").textContent="Import a program to begin";
     return;
   }
@@ -1050,8 +1185,12 @@ function renderHeader(){
   const rev=progVersion();
   sub.textContent=`${PROGRAM.meta.athlete||""} · ${PROGRAM.meta.weeks||"?"}-week block`
     +(rev?` · v${rev}`:"");
-  $("#ctxLine").textContent=STATE.day
-    ?`Week ${STATE.week} · ${dayParts(STATE.day).short}`:`Week ${STATE.week}`;
+  const today=STATE.date===todayISO();
+  const ctx=$("#ctxLine");
+  ctx.textContent=STATE.day
+    ?`Week ${STATE.week} · ${dayParts(STATE.day).short} ${fmtDateShort(STATE.date)}`+(today?"":" · not today")
+    :`Week ${STATE.week}`;
+  ctx.classList.toggle("off",!today);
   $("#ctxSub").textContent=STATE.day?dayTheme(STATE.day):"No training days in this program";
 }
 /* "Day 1 (Mon) - Clean Skill + Front Squat" -> {num:"D1", short:"Mon"} */
@@ -1075,12 +1214,20 @@ function fmtDate(iso){
     return d.toLocaleDateString(undefined,{weekday:"short",day:"numeric",month:"short"});
   }catch(e){return iso;}
 }
+/* Same, without the weekday — the header already states that via the day name. */
+function fmtDateShort(iso){
+  try{
+    const d=new Date(iso+"T00:00:00");
+    if(isNaN(d.getTime()))return iso;
+    return d.toLocaleDateString(undefined,{day:"numeric",month:"short"});
+  }catch(e){return iso;}
+}
 
 /* ---------- view mode ----------
-   "list"  — every exercise for the day; the original screen.
-   "focus" — one exercise, with prev/next and one pip per exercise in the header.
-   Both draw the SAME exerciseCard: the focus view changes how many are on screen, and
-   is never a second rendering path that could drift from the first. */
+   "list"  — Overview: every exercise for the day, read-only, tap one to open it.
+   "focus" — Log: one exercise, with prev/next and one pip per exercise in the header.
+   Internal values kept as "list"/"focus" from the previous layout; only the on-screen
+   wording changed to Overview/Log. */
 function viewMode(){return SETTINGS.view==="focus"?"focus":"list";}
 function setView(v){
   const next=v==="focus"?"focus":"list";
@@ -1089,8 +1236,8 @@ function setView(v){
 }
 function syncView(){
   const focus=viewMode()==="focus";
-  $("#viewAll").setAttribute("aria-pressed",String(!focus));
-  $("#viewOne").setAttribute("aria-pressed",String(focus));
+  $("#viewOverview").setAttribute("aria-pressed",String(!focus));
+  $("#viewLog").setAttribute("aria-pressed",String(focus));
   $("#fExport").hidden=focus;
   $("#fNav").hidden=!focus;
   $("#pbar").hidden=focus;
@@ -1105,7 +1252,7 @@ function firstUndone(){
   const i=exs.findIndex(e=>!(s.entries[e.id]&&s.entries[e.id].done));
   return i<0?exs.length-1:i;
 }
-function resetFocus(){STATE.focus=firstUndone();}
+function resetFocus(){STATE.focus=firstUndone();STATE.setEdit=null;}
 function clampFocus(){
   const n=dayExercises().length,i=Math.floor(Number(STATE.focus));
   STATE.focus=n?Math.max(0,Math.min(Number.isFinite(i)?i:0,n-1)):0;
@@ -1113,6 +1260,7 @@ function clampFocus(){
 function goFocus(i){
   const n=dayExercises().length;if(!n)return;
   const next=Math.max(0,Math.min(i,n-1));
+  STATE.setEdit=null;
   if(next===STATE.focus)return;
   STATE.focus=next;renderMain();scrollTop();
 }
@@ -1146,20 +1294,22 @@ function renderMain(){
     `${orphans.length} exercise${orphans.length>1?"s":""} on this day (${orphans.map(o=>o.name).join("; ")}) have no valid week and are not shown in any week. Re-generate program.json.`));
   clampFocus();
   if(viewMode()==="focus"){
-    if(exs.length)m.append(exerciseCard(exs[STATE.focus],s,STATE.focus));
+    if(exs.length)m.append(logCard(exs[STATE.focus],s,STATE.focus));
   }else{
-    exs.forEach((ex,i)=>m.append(exerciseCard(ex,s,i)));
+    exs.forEach((ex,i)=>m.append(overviewCard(ex,s,i)));
   }
   renderNav();
-  updateProgress();
+  updateProgress(s);
 }
 
 /* The pip strip is rebuilt only when the set of exercises on screen changes; paintNav()
    keeps done-state and position current on every keystroke without rebuilding it. */
 let PIPS=[];
+let NAV_AT=-1;                    /* last STATE.focus the pip strip was scrolled to */
 function renderNav(){
   syncView();
   const host=$("#pips");host.innerHTML="";PIPS=[];
+  NAV_AT=-1;
   if(viewMode()!=="focus"||!PROGRAM)return;
   dayExercises().forEach((ex,i)=>{
     const b=el("button",{className:"pip",attrs:{title:ex.name,
@@ -1180,8 +1330,41 @@ function paintNav(sess){
     ?`${Math.min(STATE.focus+1,exs.length)} / ${exs.length}`:"—";
   $("#prevBtn").disabled=STATE.focus<=0;
   $("#nextBtn").disabled=STATE.focus>=exs.length-1;
-  const cur=PIPS[STATE.focus];
-  if(cur&&cur.scrollIntoView)cur.scrollIntoView({block:"nearest",inline:"nearest"});
+  /* Runs on every keystroke via saveSession() → updateProgress(). Scrolling the pip
+     strip into view on every character (and while a soft keyboard is up) is what made
+     the screen jump while typing — only actually do it when the position changes, and
+     never while an input is focused. */
+  if(STATE.focus!==NAV_AT){
+    NAV_AT=STATE.focus;
+    const active=document.activeElement,tag=active&&active.tagName;
+    const typing=tag==="INPUT"||tag==="TEXTAREA";
+    const cur=PIPS[STATE.focus];
+    if(!typing&&cur&&cur.scrollIntoView)cur.scrollIntoView({block:"nearest",inline:"nearest"});
+  }
+}
+
+/* Called on every autosave (saveSession → here), so it repaints state and never rebuilds
+   structure. Accepts the session object already in hand so it never has to re-fetch and
+   re-parse localStorage on every keystroke — see saveSession() and renderMain(). */
+function updateProgress(sess){
+  const fill=$("#pbar > i"),cnt=$("#progCount");
+  if(!PROGRAM||!STATE.day){
+    if(cnt)cnt.textContent="—";
+    if(fill)fill.style.width="0";
+    $("#menuBtn").classList.remove("alert");
+    paintNav();return;
+  }
+  const s=sess||getSession();
+  const exs=dayExercises();
+  const done=exs.filter(e=>s.entries[e.id]&&s.entries[e.id].done).length;
+  fill.style.width=(exs.length?Math.round(done/exs.length*100):0)+"%";
+  cnt.textContent=`${done}/${exs.length} done`;
+  /* The only nag in the app: a dot on the ≡ until the check-in has something in it.
+     It lives here because this runs on every save, so it clears as soon as it's wrong. */
+  $("#menuBtn").classList.toggle("alert",!checkinFilled(s));
+  const stat=$("#checkinStat");
+  if(stat)stat.textContent=checkinSummary(s);
+  paintNav(s);
 }
 
 function field(labelText,node,unit){
@@ -1229,291 +1412,289 @@ function sessionCard(s){
   return c;
 }
 
-/* The hero is a right-aligned nowrap column, so it only works for a compact "6 × 2".
-   The generator legitimately puts prose in sets/reps ("2 rounds" × "3 clean high pulls +
-   3 tall cleans + …"); as a hero that crushes the exercise name to one letter per line.
-   Past RX_MAX the prescription becomes a full-width line under the name instead. */
-const RX_MAX=16;
-const rxText=ex=>`${ex.sets||"?"} × ${ex.reps||"?"}`;
-function heroEl(ex){
-  const txt=rxText(ex);
-  if(txt.length>RX_MAX)return null;
-  const h=el("div",{className:"hero"+(txt.length>9?" long":"")},[txt]);
-  if(ex.rpe)h.append(el("small",{},ex.rpe));
-  return h;
+/* ---------- exercise head (shared by Overview and Log) ----------
+   The one place both surfaces draw from, so they cannot drift: category rail colour
+   (set by the caller), name, and the prescription folded into one or two plain lines —
+   no separate hero number, no pill-chip row. Everything past this point is where the
+   two views genuinely differ (read-only status line vs. the set editor), which is why
+   they are two bodies rather than one branchy card builder. */
+function rxLine(ex){
+  const bits=[`${ex.sets||"?"} × ${ex.reps||"?"}`];
+  if(ex.load)bits.push(ex.load);
+  /* No "RPE " prefix here — the generator's own prescribed value already carries it
+     ("RPE 5-6") or is prose that doesn't want one ("Pain <=3/10; effort 6-7/10"). */
+  if(ex.rpe)bits.push(ex.rpe);
+  return bits.join(" · ");
 }
-function rxEl(ex){
-  const r=el("div",{className:"rx set"},[rxText(ex)]);
-  if(ex.rpe)r.append(el("span",{className:"rpe"},ex.rpe));
-  return r;
+function metaLine(ex){
+  const bits=[];
+  if(ex.tempo&&ex.tempo!=="-")bits.push("Tempo "+ex.tempo);
+  if(ex.rest&&ex.rest!=="-")bits.push("Rest "+ex.rest);
+  return bits.join(" · ");
 }
-function chipsEl(ex){
-  const w=el("div",{className:"chips"});
-  /* "-" is the generator's way of saying "not applicable" — don't render "Rest -". */
-  if(ex.load)w.append(el("span",{className:"chip"},ex.load));
-  if(ex.tempo&&ex.tempo!=="-")w.append(el("span",{className:"chip k"},"Tempo "+ex.tempo));
-  if(ex.rest&&ex.rest!=="-")w.append(el("span",{className:"chip k"},"Rest "+ex.rest));
-  return w;
-}
-const txt=v=>String(v??"").trim();
-function summaryText(e){
-  const b=[];
-  const sets=Array.isArray(e.sets)?e.sets:[];
-  const col=k=>sets.map(x=>txt(x[k])).filter(Boolean);
-  /* When the sets differed, their shape is the point ("100 → 80 → 80" says the first
-     set was wrong), so it beats the flat load, which is only the headline. When they
-     agree, or when only the per-set rows were filled in, still say something: a card
-     that reads "nothing logged" over data the athlete did enter looks like data loss
-     and invites them to type it again. */
-  const loads=col("load");
-  if(loads.length>1&&new Set(loads).size>1)b.push(loads.join(" → "));
-  else if(txt(e.load))b.push(txt(e.load));
-  else if(loads.length)b.push(loads[0]+(loads.length>1?` ×${loads.length}`:""));
-
-  if(txt(e.reps))b.push(txt(e.reps));
-  else if(col("reps").length)b.push(col("reps").join("/"));
-
-  const rpe=txt(e.rpe)||col("rpe").slice(-1)[0];
-  if(rpe)b.push("RPE "+rpe);
-
-  if(SETTINGS.painPerExercise){
-    const pain=txt(e.painDuring)||col("painDuring").sort().slice(-1)[0];
-    if(pain)b.push(painLbl().toLowerCase()+" "+pain+"/10");
-  }
-  return b.length?b.join(" · "):"nothing logged";
-}
-
-/* ---------- per-set logging (sets[], added at tp-session-2) ----------
-   Deliberately opt-in per exercise. Most sets are the same, and rendering N rows of
-   inputs on every card would slow down the common case for the sake of the rare one.
-   The flat load/reps/RPE row above stays the summary and is never derived from these.
-
-   `sets` is stored on the entry as an array; older stored sessions simply don't have
-   the key yet, so every read goes through this. */
-function entrySets(e){if(!Array.isArray(e.sets))e.sets=[];return e.sets;}
-/* Set numbers are data, not decoration — renumber in the array before saving rather
-   than while drawing, or removing set 1 leaves "set: 2, 3" in storage and the numbers
-   only look right until the next render. */
-function renumber(e){entrySets(e).forEach((r,i)=>{r.set=i+1;});return e.sets;}
-/* Prescribed set count, when the generator gave a plain number. "3-4" or "AMRAP" are
-   legitimate values there, so anything non-numeric just means "start with one row". */
-function prescribedSets(ex){
-  const m=/^\s*(\d+)\s*$/.exec(String(ex.sets??""));
-  const n=m?parseInt(m[1],10):1;
-  return Math.min(Math.max(n,1),12);
-}
-/* A new row copies the one before it — "same as previous set" is the common case, so
-   adding a set is one tap and editing only what changed. The first row seeds from the
-   flat fields the athlete has usually already filled in.
-
-   `auto` marks a row the app filled in rather than the athlete. It is local bookkeeping
-   only: exportSets() picks its keys explicitly, so it never reaches a log file. */
-function newSet(e,i){
-  const prev=entrySets(e)[i-1];
-  if(prev)return {set:i+1,load:prev.load,reps:prev.reps,rpe:prev.rpe,painDuring:prev.painDuring,note:"",auto:true};
-  return {set:i+1,load:txt(e.load),reps:"",rpe:txt(e.rpe),painDuring:txt(e.painDuring),note:"",auto:true};
-}
-/* Opening "Log each set" on a 7-set prescription materialises 7 rows, and the athlete
-   then fills in the first one. Without this, the other six stay blank and the "one tap"
-   promise is a lie — so an edit flows down into every row the athlete hasn't touched.
-   Touching a row clears its `auto` flag and it stops following, which means propagation
-   can never overwrite something that was typed. */
-function propagate(e,i,key,value){
-  const rows=entrySets(e);
-  for(let j=i+1;j<rows.length;j++){
-    if(!rows[j].auto)break;
-    rows[j][key]=value;
-  }
-}
-function setsEl(ex,e,s,repaint){
-  const host=el("div",{className:"sets"});
-  const rowCls="setrow"+(SETTINGS.painPerExercise?" pain":"");
-  let armed=false;                                 /* "Clear sets" needs a second tap */
-  const draw=()=>{
-    host.innerHTML="";
-    const rows=entrySets(e);
-    if(rows.length){
-      const head=[el("span",{className:"n"},"#"),
-        el("span",{className:"c-load"},"Load"),
-        el("span",{className:"c-reps"},"Reps"),
-        el("span",{className:"c-rpe"},"RPE")];
-      if(SETTINGS.painPerExercise)head.push(el("span",{className:"c-pain"},painLbl()));
-      head.push(el("span",{className:"del"},""));
-      host.append(el("div",{className:rowCls+" head"},head));
-    }
-    rows.forEach((r,i)=>{
-      const cell=(k,cls,type,attrs={})=>{
-        const inp=el("input",{className:cls,type,value:r[k]??"",attrs});
-        inp.oninput=()=>{
-          r[k]=inp.value;
-          r.auto=false;                            /* typed in — stop following set 1 */
-          propagate(e,i,k,inp.value);
-          saveSession(s);
-          /* Redraw so the rows that just followed show their new value. Re-focusing
-             would fight the keyboard, so only redraw when something actually changed
-             below this row. */
-          if(rows.slice(i+1).some(x=>x.auto))draw();
-          repaint();
-        };
-        return inp;
-      };
-      const kids=[el("span",{className:"n"},String(i+1)),
-        cell("load","c-load","text",{placeholder:"kg","aria-label":`Set ${i+1} load`}),
-        cell("reps","c-reps","text",{placeholder:"reps","aria-label":`Set ${i+1} reps`}),
-        cell("rpe","c-rpe","text",{placeholder:"RPE","aria-label":`Set ${i+1} RPE`})];
-      if(SETTINGS.painPerExercise)
-        kids.push(cell("painDuring","c-pain","number",{min:0,max:10,placeholder:"0","aria-label":`Set ${i+1} ${painLbl().toLowerCase()}`}));
-      const del=el("button",{className:"del",attrs:{"aria-label":`Remove set ${i+1}`}},"×");
-      del.onclick=()=>{rows.splice(i,1);renumber(e);saveSession(s);armed=false;draw();repaint();};
-      kids.push(del);
-      host.append(el("div",{className:rowCls},kids));
-      /* Always rendered, not hidden behind another tap: "too heavy" on set 1 is
-         precisely the signal the coach needs, and it is worthless if it is awkward
-         to reach with a bar racked. */
-      const note=el("input",{type:"text",value:r.note||"",
-        attrs:{placeholder:`Set ${i+1} note…`,"aria-label":`Set ${i+1} note`}});
-      note.oninput=()=>{r.note=note.value;r.auto=false;saveSession(s);};
-      host.append(el("div",{className:"setnote"},note));
-    });
-    const add=el("button",{className:"setbtn"},
-      rows.length?"+ Add set":`Log each set (${prescribedSets(ex)} prescribed)`);
-    add.onclick=()=>{
-      if(rows.length)rows.push(newSet(e,rows.length));
-      else for(let i=0;i<prescribedSets(ex);i++)rows.push(newSet(e,i));
-      renumber(e);saveSession(s);armed=false;draw();repaint();
-    };
-    host.append(add);
-    if(rows.length){
-      const clear=el("button",{className:"setbtn danger"+(armed?" armed":"")},
-        armed?"Tap again to clear all sets":"Clear sets");
-      clear.onclick=()=>{
-        if(!armed){armed=true;draw();setTimeout(()=>{if(armed){armed=false;draw();}},4000);return;}
-        e.sets=[];saveSession(s);armed=false;draw();repaint();
-      };
-      host.append(clear);
-    }
-  };
-  draw();
-  return host;
-}
-
-function exerciseCard(ex,s,idx){
-  const e=s.entries[ex.id]||(s.entries[ex.id]={done:false,load:"",reps:"",rpe:"",painDuring:"",notes:"",sets:[]});
-  entrySets(e);                                   /* sessions saved before v2 have no key */
-  const cat=catOf(ex);
-  const c=el("div",{className:"card"+(e.done?" done":"")});
-  if(cat)c.style.setProperty("--cat",cat.color);
-  c.append(el("span",{className:"rail"}));
-
-  const left=el("div",{className:"grow"});
-  if(cat)left.append(el("div",{},el("span",{className:"tag"},cat.label)));
-  left.append(el("div",{className:"ex-name"},ex.name));
-  const hero=heroEl(ex);
-  if(!hero)left.append(rxEl(ex));
-  left.append(chipsEl(ex));
-  c.append(el("div",{className:"ex-head"},hero?[left,hero]:[left]));
-
-  if(ex.focus)c.append(collapse("Coach notes",ex.focus));
-  if(ex.progression)c.append(collapse("Progression rule",ex.progression));
-
-  const g=el("div",{className:"log tight"+(SETTINGS.painPerExercise?"":" nopain")});
-  const mk=(k,label,type="text",attrs={},unit)=>{
-    const inp=el("input",{type,value:e[k]??"",attrs});
-    inp.oninput=()=>{e[k]=inp.value;saveSession(s);};return field(label,inp,unit);};
-  /* Placeholders stay short — a long "e.g. …" clips in a 56px field and reads as a bug. */
-  g.append(mk("load","Load","text",{placeholder:"90"},"kg"));
-  g.append(mk("reps","Sets × reps","text",{placeholder:"4×6"}));
-  g.append(mk("rpe","RPE","text",{placeholder:"7"}));
-  if(SETTINGS.painPerExercise)
-    g.append(mk("painDuring",painLbl(),"number",{min:0,max:10,placeholder:"0"},"/10"));
-  /* Marking done folds the card to one summary line, so a finished session scans as a
-     short list instead of a screen of filled-in inputs. Tap the line to re-open it. */
-  const summary=el("div",{className:"summary-line"},
-    [el("span",{className:"vals"},summaryText(e)),el("span",{className:"edit"},"Edit")]);
-  const refreshSummary=()=>{summary.firstChild.textContent=summaryText(e);};
-
-  /* Sits between the flat row and the notes: it elaborates the numbers directly
-     above it, and only appears when the athlete asks for it. */
-  if(SETTINGS.perSetLogging)g.append(setsEl(ex,e,s,refreshSummary));
-
-  const nt=el("textarea",{value:e.notes||"",attrs:{placeholder:"Notes…"}});
-  nt.oninput=()=>{e.notes=nt.value;saveSession(s);};
-  g.append(el("div",{className:"full"},[el("label",{className:"lbl"},"Notes"),nt]));
-  if(ex.logHint)g.append(el("div",{className:"hint"},"Log: "+ex.logHint));
-
-  const btn=el("button",{className:"donebtn",attrs:{"aria-pressed":String(!!e.done)}},"Mark done");
-  const extras=[...c.querySelectorAll("details"),...c.querySelectorAll(".chips")];
-  let editing=false;
-  const paint=()=>{
-    const collapsed=e.done&&!editing;
-    g.style.display=collapsed?"none":"";
-    extras.forEach(n=>{n.style.display=collapsed?"none":"";});
-    summary.style.display=collapsed?"flex":"none";
-    summary.firstChild.textContent=summaryText(e);
-    btn.textContent=e.done?"✓ Logged":"Mark done";
-    btn.setAttribute("aria-pressed",String(!!e.done));
-    c.classList.toggle("done",!!e.done);
-  };
-  summary.onclick=()=>{editing=true;paint();};
-  btn.onclick=()=>{
-    e.done=!e.done;editing=false;saveSession(s);paint();
-    /* In the focus view, marking done means "on to the next one" — that is the whole
-       reason to be in it. Only ever forward, only ever on the card being looked at, and
-       never on un-marking, so a mis-tap costs one tap of Prev and nothing else. */
-    if(e.done&&viewMode()==="focus"&&idx===STATE.focus&&idx<dayExercises().length-1){
-      STATE.focus=idx+1;renderMain();scrollTop();toast("Logged: "+ex.name);
-    }
-  };
-  c.append(g,summary,btn);
-  paint();
-  return c;
+function exerciseHead(ex){
+  const nodes=[el("div",{className:"ex-name"},ex.name),
+               el("div",{className:"rx"},rxLine(ex))];
+  const meta=metaLine(ex);
+  if(meta)nodes.push(el("div",{className:"rx meta"},meta));
+  return nodes;
 }
 
 function collapse(title,body){
   const d=el("details");d.append(el("summary",{},title));d.append(el("div",{className:"body"},body));return d;
 }
 
-/* Called after every keystroke via saveSession(), so it repaints state and never
-   rebuilds structure. Week and day live in the header context line now; this row
-   carries the date and the count. */
-function updateProgress(){
-  const fill=$("#pbar > i"),cnt=$("#progCount"),lbl=$("#progLabel");
-  if(!PROGRAM||!STATE.day){
-    cnt.textContent="—";fill.style.width="0";lbl.textContent="Session";lbl.className="";
-    $("#menuBtn").classList.remove("alert");
-    paintNav();return;
+const txtCol=(rows,k)=>rows.map(x=>txt(x[k])).filter(Boolean);
+/* The one-line summary used on a done Overview card and in "Summary & notes". Prefers
+   the set shape when the sets actually disagree — "100 → 80 → 80" says set 1 was wrong —
+   over the flat fields, which are the headline once they agree or nothing was logged. */
+function summaryText(e){
+  const b=[];
+  const sets=Array.isArray(e.sets)?e.sets:[];
+  const loads=txtCol(sets,"load");
+  if(loads.length>1&&new Set(loads).size>1)b.push(loads.join(" → "));
+  else if(txt(e.load))b.push(txt(e.load));
+  else if(loads.length)b.push(loads[0]+(loads.length>1?` ×${loads.length}`:""));
+
+  if(txt(e.reps))b.push(txt(e.reps));
+  else if(txtCol(sets,"reps").length)b.push(txtCol(sets,"reps").join("/"));
+
+  const rpe=txt(e.rpe)||txtCol(sets,"rpe").slice(-1)[0];
+  if(rpe)b.push("RPE "+rpe);
+
+  if(SETTINGS.painPerExercise){
+    const pain=txt(e.painDuring)||txtCol(sets,"painDuring").sort().slice(-1)[0];
+    if(pain)b.push(painLbl().toLowerCase()+" "+pain+"/10");
   }
-  const s=getSession();
-  const exs=dayExercises();
-  const done=exs.filter(e=>s.entries[e.id]&&s.entries[e.id].done).length;
-  fill.style.width=(exs.length?Math.round(done/exs.length*100):0)+"%";
-  const today=STATE.date===todayISO();
-  lbl.textContent=fmtDate(STATE.date)+(today?"":" · not today");
-  lbl.className=today?"":"off";
-  cnt.textContent=`${done}/${exs.length} done`;
-  /* The only nag in the app: a dot on the ≡ until the check-in has something in it.
-     It lives here because this runs on every save, so it clears as soon as it's wrong. */
-  $("#menuBtn").classList.toggle("alert",!checkinFilled(s));
-  const stat=$("#checkinStat");
-  if(stat)stat.textContent=checkinSummary(s);
-  paintNav(s);
+  return b.length?b.join(" · "):"nothing logged";
+}
+
+/* ---------- Overview card (read-only) ----------
+   Zero inputs — the whole point of splitting this out of the old all-in-one card. Tap
+   anywhere on it to open the exercise in Log view. */
+function overviewCard(ex,s,idx){
+  const e=s.entries[ex.id]||(s.entries[ex.id]=blankEntry());
+  normalizeEntry(e);
+  const cat=catOf(ex);
+  const c=el("div",{className:"card ov"+(e.done?" done":""),
+    attrs:{role:"button",tabindex:"0","aria-label":"Open "+ex.name+" in Log view"}});
+  if(cat)c.style.setProperty("--cat",cat.color);
+  c.append(el("span",{className:"rail"}));
+  const body=el("div",{className:"grow"});
+  body.append(...exerciseHead(ex));
+  const n=e.sets.length;
+  let status=null;
+  if(e.done)status=el("div",{className:"ov-status done"},"✓ "+summaryText(e));
+  else if(n>0)status=el("div",{className:"ov-status"},`${n} of ${prescribedSets(ex)} sets logged`);
+  if(status)body.append(status);
+  c.append(body);
+  const open=()=>{STATE.setEdit=null;STATE.focus=idx;setView("focus");};
+  c.onclick=open;
+  c.onkeydown=ev=>{if(ev.key==="Enter"||ev.key===" "){ev.preventDefault();open();}};
+  return c;
+}
+
+/* ---------- the set editor (Log view) ----------
+   Always exactly one set's fields on screen: the draft (the next new set) or, while
+   STATE.setEdit names a committed row, that row instead. Every oninput here writes
+   straight into the row/draft and autosaves — nothing here may rebuild a container an
+   input lives in; only a button tap (commit / save / cancel / delete / finish) may call
+   `onchange`, which redraws and — since it follows a tap, not a keystroke — is free to
+   refocus the new Load field so the keyboard never has to be reopened by hand. */
+function buildSetEditor(host,ex,e,s,idx,onchange,autofocus){
+  const rows=e.sets;
+  const target=targetSets(ex,e);
+  const editIdx=(STATE.setEdit!=null&&STATE.setEdit>=0&&STATE.setEdit<rows.length)?STATE.setEdit:null;
+  const draftMode=editIdx===null;
+  const curPos=draftMode?rows.length:editIdx;
+  const curNum=curPos+1;
+  const total=Math.max(target,curNum,rows.length+(draftMode?1:0));
+
+  const chips=el("div",{className:"setchips"});
+  for(let i=0;i<total;i++){
+    const state=i<rows.length?(i===editIdx?"current":"done"):(i===curPos?"current":"todo");
+    const chip=el("button",{className:"setchip",attrs:{"data-state":state,
+      "aria-label":state==="todo"?`Remove set ${i+1} — not planning to do it`:"Set "+(i+1)}},String(i+1));
+    if(i<rows.length){
+      /* A logged set: tap to edit it (Save/Cancel/Delete live in the field group below). */
+      chip.onclick=()=>{STATE.setEdit=(i===editIdx)?null:i;onchange();};
+    }else if(state==="todo"){
+      /* An upcoming, never-logged slot: nothing to lose by tapping it away, so it needs
+         no confirmation — this is what "skip a set" means when the set was never done. */
+      chip.onclick=()=>{
+        e.setTarget=Math.max(curPos+1,total-1);
+        saveSession(s);onchange();
+      };
+    }else{
+      chip.disabled=true;                     /* the current draft slot — already here */
+    }
+    chips.append(chip);
+  }
+  host.append(chips);
+  host.append(el("div",{className:"setlabel"},`Set ${curNum} of ${total}`));
+
+  const data=draftMode?e.draft:rows[editIdx];
+  const grid=el("div",{className:"setgrid"+(SETTINGS.painPerExercise?"":" nopain")});
+  const commonAttrs={autocapitalize:"off",autocorrect:"off",spellcheck:"false"};
+  const onFieldInput=()=>{
+    if(!draftMode)applyDerivedSummary(e);
+    saveSession(s);
+  };
+  const loadInp=el("input",{type:"text",value:data.load??"",
+    attrs:{placeholder:"kg",inputmode:"decimal","aria-label":"Load",...commonAttrs}});
+  loadInp.oninput=()=>{data.load=loadInp.value;onFieldInput();};
+  grid.append(field("Load",loadInp));
+  const repsInp=el("input",{type:"text",value:data.reps??"",
+    attrs:{placeholder:"reps",inputmode:"numeric","aria-label":"Reps"}});
+  repsInp.oninput=()=>{data.reps=repsInp.value;onFieldInput();};
+  grid.append(field("Reps",repsInp));
+  /* text + inputmode, not type=number: a number input reports "" while the value is an
+     incomplete float like "7.", so the autosaved RPE would flicker to blank mid-type.
+     This is also what lets RPE hold a half point ("7.5") — see CLAUDE.md. */
+  const rpeInp=el("input",{type:"text",value:data.rpe??"",
+    attrs:{placeholder:"RPE",inputmode:"decimal","aria-label":"RPE",...commonAttrs}});
+  rpeInp.oninput=()=>{data.rpe=rpeInp.value;onFieldInput();};
+  grid.append(field("RPE",rpeInp));
+  if(SETTINGS.painPerExercise){
+    const painInp=el("input",{type:"number",value:data.painDuring??"",
+      attrs:{min:0,max:10,placeholder:"0","aria-label":painLbl()}});
+    painInp.oninput=()=>{data.painDuring=painInp.value;onFieldInput();};
+    grid.append(field(painLbl(),painInp,"/10"));
+  }
+  host.append(grid);
+
+  const note=el("input",{type:"text",value:data.note||"",
+    attrs:{placeholder:`Set ${curNum} note…`,"aria-label":`Set ${curNum} note`}});
+  note.oninput=()=>{data.note=note.value;saveSession(s);};
+  host.append(el("div",{className:"setnoteinp"},note));
+
+  const actions=el("div",{className:"setactions"});
+  if(!draftMode){
+    const save=el("button",{className:"primary"},`Save set ${curNum}`);
+    save.onclick=()=>{STATE.setEdit=null;saveSession(s);onchange();};
+    const cancel=el("button",{className:"ghost"},"Cancel");
+    cancel.onclick=()=>{STATE.setEdit=null;onchange();};
+    const del=el("button",{className:"ghost danger"},"Delete set");
+    let armed=false;
+    del.onclick=()=>{
+      if(!armed){armed=true;del.textContent="Tap again to delete";del.classList.add("armed");
+        setTimeout(()=>{armed=false;},4000);return;}
+      deleteSet(e,editIdx);STATE.setEdit=null;saveSession(s);onchange();
+    };
+    actions.append(save,cancel,del);
+  }else{
+    const commit=el("button",{className:"primary"},
+      rows.length<target?`Log set ${curNum}`:"Log another set");
+    commit.onclick=()=>{if(commitSet(e)){saveSession(s);onchange();}};
+    actions.append(commit);
+    /* Always offered, even with zero sets logged — a warm-up needs no invented set, and
+       cutting a lift short for pain is exactly the signal the coach wants, not something
+       the UI should withhold until a count is met. */
+    const finish=el("button",{className:"ghost"},
+      rows.length>=target?"Finish exercise ›":`Finish exercise (${rows.length} logged)`);
+    finish.onclick=()=>{
+      e.done=true;saveSession(s);
+      if(viewMode()==="focus"&&idx===STATE.focus&&idx<dayExercises().length-1){
+        STATE.focus=idx+1;STATE.setEdit=null;renderMain();scrollTop();toast("Logged: "+ex.name);
+      }else{onchange();}
+    };
+    actions.append(finish);
+  }
+  if(e.done){
+    const undo=el("button",{className:"ghost"},"Un-finish");
+    undo.onclick=()=>{e.done=false;saveSession(s);onchange();};
+    actions.append(undo);
+  }
+  host.append(actions);
+
+  if(autofocus){
+    const first=grid.querySelector("input");
+    if(first&&first.focus)first.focus();
+  }
+}
+
+/* ---------- Summary & notes (collapsed, inside Log view) ----------
+   The flat load/reps/RPE/pain fields, auto-filled from the sets and editable — editing
+   one here is a deliberate override and stops it following future sets (summaryAuto).
+   Kept collapsed: the athlete never has to open it, but it is theirs to correct. */
+function buildSummaryPanel(host,ex,e,s){
+  host.innerHTML="";
+  const wrap=el("div",{className:"log tight"+(SETTINGS.painPerExercise?"":" nopain")});
+  const mk=(k,label,type,attrs,unit)=>{
+    const inp=el("input",{type,value:e[k]??"",attrs});
+    inp.oninput=()=>{e[k]=inp.value;e.summaryAuto=false;saveSession(s);};
+    return {inp,node:field(label,inp,unit)};
+  };
+  const load=mk("load","Load","text",{placeholder:"90"},"kg");
+  const reps=mk("reps","Sets × reps","text",{placeholder:"4×6"});
+  const rpe=mk("rpe","RPE","text",{placeholder:"7"});
+  wrap.append(load.node,reps.node,rpe.node);
+  let pain=null;
+  if(SETTINGS.painPerExercise){
+    pain=mk("painDuring",painLbl(),"number",{min:0,max:10,placeholder:"0"},"/10");
+    wrap.append(pain.node);
+  }
+  host.append(wrap);
+  const nt=el("textarea",{value:e.notes||"",attrs:{placeholder:"Notes…"}});
+  nt.oninput=()=>{e.notes=nt.value;saveSession(s);};
+  host.append(el("div",{className:"full"},[el("label",{className:"lbl"},"Notes"),nt]));
+  host._refresh=()=>{
+    load.inp.value=e.load??"";reps.inp.value=e.reps??"";rpe.inp.value=e.rpe??"";
+    if(pain)pain.inp.value=e.painDuring??"";
+  };
+}
+
+/* ---------- Log card ----------
+   One exercise, worked one set at a time. The set editor rebuilds itself on a commit /
+   edit / delete / finish tap (never on a keystroke); the summary panel is repainted in
+   place afterwards rather than rebuilt, so an open "Summary & notes" section doesn't
+   collapse out from under the athlete's thumb the moment a set is logged. */
+function logCard(ex,s,idx){
+  const e=s.entries[ex.id]||(s.entries[ex.id]=blankEntry());
+  normalizeEntry(e);
+  const cat=catOf(ex);
+  const c=el("div",{className:"card"+(e.done?" done":"")});
+  if(cat)c.style.setProperty("--cat",cat.color);
+  c.append(el("span",{className:"rail"}));
+  c.append(...exerciseHead(ex));
+  if(ex.focus)c.append(collapse("Coach notes",ex.focus));
+  if(ex.progression)c.append(collapse("Progression rule",ex.progression));
+  if(ex.logHint)c.append(el("div",{className:"hint"},"Log: "+ex.logHint));
+
+  const summaryHost=el("div");
+  const refreshSummary=()=>{if(summaryHost._refresh)summaryHost._refresh();};
+
+  const editorHost=el("div",{className:"setblock"});
+  const redraw=(autofocus)=>{
+    editorHost.innerHTML="";
+    buildSetEditor(editorHost,ex,e,s,idx,()=>{redraw(true);refreshSummary();},!!autofocus);
+  };
+  redraw(false);
+  c.append(editorHost);
+
+  buildSummaryPanel(summaryHost,ex,e,s);
+  c.append(collapse("Summary & notes",summaryHost));
+  return c;
 }
 
 /* ---------- export ---------- */
-const BLANK_ENTRY={done:false,load:"",reps:"",rpe:"",painDuring:"",notes:""};
 /* Per-set rows are exported with a fixed key set and no holes, so the coach never has
-   to probe for a missing field. Rows that are entirely empty are dropped: an untouched
-   row the athlete added and never filled says nothing, and a phantom set in the log
-   reads as a set that was actually performed. */
+   to probe for a missing field. A wholly empty row (nothing typed, nothing committed)
+   is dropped as a safety net — commitSet() already refuses to create one. */
 function exportSets(e){
-  /* txt() coerces rather than assuming a string: a number that got in here from a
-     hand-edited localStorage or a future code path must not throw. An export that
-     silently does nothing is the worst failure this app has. */
   return (Array.isArray(e.sets)?e.sets:[])
     .map(r=>({load:txt(r.load),reps:txt(r.reps),rpe:txt(r.rpe),
               painDuring:txt(r.painDuring),note:txt(r.note)}))
     .filter(r=>r.load||r.reps||r.rpe||r.painDuring||r.note)
     .map((r,i)=>({set:i+1,...r}));
+}
+/* A named whitelist, not a rest-spread over the entry: `draft`, `summaryAuto` and
+   `setTarget` are app-local bookkeeping that must never reach a log file, and naming
+   every exported key here — rather than naming the ones to exclude — is what keeps that
+   true as the entry shape grows. */
+function exportEntry(e){
+  return {done:!!e.done,load:txt(e.load),reps:txt(e.reps),rpe:txt(e.rpe),
+          painDuring:txt(e.painDuring),notes:txt(e.notes)};
 }
 function buildSessionExport(){
   const s=getSession();
@@ -1523,6 +1704,9 @@ function buildSessionExport(){
      so the review step never sees a missing field. See docs/data-contracts.md. */
   const tracking={painLabel:(SETTINGS.painLabel||"").trim()};
   FIELD_DEFS.forEach(f=>tracking[f.key]=!!SETTINGS[f.key]);
+  /* Per-set logging is no longer a switch — it is how every exercise is logged now — but
+     the key stays so a reader built against tp-session-3's contract still gets it. */
+  tracking.perSetLogging=true;
   return {
     schema:"tp-session-3",
     block:PROGRAM.meta.block,athlete:PROGRAM.meta.athlete,athleteId:athleteId(),
@@ -1537,15 +1721,11 @@ function buildSessionExport(){
        still export every key, or the coach has to probe for missing ones. */
     session:{...BLANK_SESSION,...(s.session||{})},
     entries:exs.map(ex=>{
-      const e={...BLANK_ENTRY,...(s.entries[ex.id]||{})};
-      /* The flat load/reps/RPE are the athlete's own summary and are exported as
-         logged — never recomputed from `sets`. When they disagree (flat 80, sets
-         100/80/80) that difference is information, not drift. */
-      const {sets,...flat}=e;
+      const e={...blankEntry(),...(s.entries[ex.id]||{})};
       return {exercise:ex.name,
         ...(ex.category?{category:ex.category}:{}),
         prescribed:{sets:ex.sets,reps:ex.reps,load:ex.load,rpe:ex.rpe},
-        ...flat,
+        ...exportEntry(e),
         sets:exportSets(e)};
     })
   };
@@ -1586,8 +1766,8 @@ $("#menuBtn").onclick=toggleDrawer;
 $("#ctxBtn").onclick=openDrawer;
 $("#drawerClose").onclick=closeDrawer;
 $("#drawerBg").onclick=closeDrawer;
-$("#viewAll").onclick=()=>setView("list");
-$("#viewOne").onclick=()=>setView("focus");
+$("#viewOverview").onclick=()=>setView("list");
+$("#viewLog").onclick=()=>setView("focus");
 $("#prevBtn").onclick=()=>stepFocus(-1);
 $("#nextBtn").onclick=()=>stepFocus(1);
 $("#fileInp").onchange=async e=>{
@@ -1596,11 +1776,13 @@ $("#fileInp").onchange=async e=>{
   catch(err){toast("Import failed: "+err.message);}
   e.target.value="";
 };
-/* Escape closes the drawer; arrow keys step through the focus view. Both are desktop
-   conveniences — guarded, because the headless test harness has no event target. */
+/* Escape closes the drawer; arrow keys step through Log view. Both are desktop
+   conveniences — guarded, because the headless test harness has no event target.
+   Suppressed while editing a set: an arrow key while STATE.setEdit is set would jump
+   exercises with a chip (not an INPUT) focused mid-edit. */
 if(document.addEventListener)document.addEventListener("keydown",e=>{
   if(e.key==="Escape"&&drawerOpen()){closeDrawer();return;}
-  if(drawerOpen()||viewMode()!=="focus")return;
+  if(drawerOpen()||viewMode()!=="focus"||STATE.setEdit!=null)return;
   const t=e.target&&e.target.tagName;
   if(t==="INPUT"||t==="TEXTAREA"||t==="SELECT")return;
   if(e.key==="ArrowLeft")stepFocus(-1);

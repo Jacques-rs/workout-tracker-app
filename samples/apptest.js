@@ -10,12 +10,17 @@
  *
  *   - a tp-program-2 programme filters by day AND week
  *   - a tp-program-1 programme still filters by day only, and keeps its banner
- *   - per-set rows round-trip into a tp-session-3 export
- *   - the flat summary fields are exported as logged, never recomputed
+ *   - a session is logged one set at a time: commit, edit, delete, finish, un-finish
+ *   - a legacy (pre-set-at-a-time) session migrates without inventing phantom sets
+ *   - the flat summary auto-fills from sets[] and stops once the athlete overrides it
+ *   - `draft` and other app-local keys never reach an export
  *   - athleteId survives, including the v1 fallback
  *   - the programme revision is displayed and stamped on the export
  *   - the check-in renders into the drawer, not the training view
- *   - the focus view shows exactly one exercise, and paging it never loses data
+ *   - Overview is read-only (no inputs); Log shows one exercise and pages without
+ *     losing data; tapping an Overview card opens that exercise in Log
+ *   - an input's oninput never replaces the input node it fires from (the old
+ *     focus-loss bug)
  *
  * Run it after any change to filtering, logging or export. Rendering, layout and
  * offline behaviour still need a real phone.
@@ -41,7 +46,8 @@ class El {
     this.children = []; this.attributes = {}; this.dataset = {};
     this.classList = new ClassList(); this.nodeType = 1;
     this.style = { setProperty(){}, removeProperty(){} };
-    this._text = ""; this.value = "";
+    this._text = ""; this.value = ""; this.disabled = false;
+    this._focused = false;
   }
   set className(v){ this.classList = new ClassList(); String(v).split(/\s+/).filter(Boolean).forEach(c => this.classList.add(c)); this._cn = v; }
   get className(){ return this._cn || ""; }
@@ -53,7 +59,8 @@ class El {
   append(...kids){ kids.forEach(k => { if(k == null) return; this.children.push(k.nodeType ? k : textNode(String(k))); }); }
   setAttribute(k, v){ this.attributes[k] = String(v); }
   getAttribute(k){ return this.attributes[k]; }
-  /* Only selectors the app actually uses on an element: "details" and ".chips". */
+  focus(){ this._focused = true; ACTIVE_ELEMENT = this; }
+  /* Only selectors the app actually uses on an element: "details", "input", ".chips". */
   querySelectorAll(sel){
     const out = [];
     const want = sel.startsWith(".") ? n => n.classList.contains(sel.slice(1))
@@ -71,6 +78,7 @@ class El {
 }
 function textNode(t){ return { nodeType: 3, textContent: t, children: [], find(){ return null; }, findAll(_, o = []){ return o; } }; }
 
+let ACTIVE_ELEMENT = null;
 const STUBS = {};
 function stubFor(sel){ return STUBS[sel] || (STUBS[sel] = new El("div")); }
 
@@ -83,7 +91,9 @@ const sandbox = {
     querySelector: stubFor,
     documentElement: { dataset: {} },
     body: new El("body"),
-    execCommand(){}
+    execCommand(){},
+    get activeElement(){ return ACTIVE_ELEMENT; },
+    addEventListener(){}
   },
   localStorage: {
     getItem: k => (store.has(k) ? store.get(k) : null),
@@ -116,7 +126,8 @@ Object.defineProperties(globalThis, {
   PROGRAM:      {get:()=>PROGRAM,      set:v=>{PROGRAM=v}},
   SETTINGS:     {get:()=>SETTINGS,     set:v=>{SETTINGS=v}},
   SET_DEFAULTS: {get:()=>SET_DEFAULTS},
-  FIELD_DEFS:   {get:()=>FIELD_DEFS}
+  FIELD_DEFS:   {get:()=>FIELD_DEFS},
+  NAV_AT:       {get:()=>NAV_AT}
 });`;
 vm.runInContext(blocks[1] + EPILOGUE, sandbox, { filename: "index.html<script>" });
 
@@ -133,12 +144,13 @@ function assert(cond, msg){ cond ? ok(msg) : fail(msg); }
 const app = sandbox;
 function loadFixture(name){
   store.clear();
+  ACTIVE_ELEMENT = null;
   app.SETTINGS = { ...app.SET_DEFAULTS };
   const prog = JSON.parse(fs.readFileSync(path.join(ROOT, "samples", name), "utf8"));
   app.loadProgram(prog);
   return prog;
 }
-/* Render one day's cards without asserting anything about layout. */
+/* Render the current view without asserting anything about layout. */
 function cards(){ const m = stubFor("#main"); m.children = []; app.renderMain(); return m.children.filter(n => n.nodeType === 1); }
 /* Only the exercise cards — banners are element children of #main too. */
 function exCards(){ return cards().filter(c => c.classList.contains("card")); }
@@ -147,6 +159,15 @@ function exCards(){ return cards().filter(c => c.classList.contains("card")); }
 function checkinCard(){ app.renderCheckin(); return stubFor("#checkinHost").children.find(c => c.nodeType === 1); }
 function labelsIn(node){ return node ? node.findAll(n => n.classList.contains("lbl")).map(n => n.text) : []; }
 function pips(){ return stubFor("#pips").children.filter(n => n.nodeType === 1); }
+/* Log view helpers: the set editor's chips / grid inputs / action buttons live inside
+   whichever card is on screen (there is exactly one in focus view). */
+function logCardNode(){ app.setView("focus"); return exCards()[0]; }
+function setInputs(c){ return c.findAll(n => n.classList.contains("setgrid")).flatMap(g => g.findAll(n => n.tagName === "INPUT")); }
+function chipsOf(c){ return c.findAll(n => n.classList.contains("setchip")); }
+function actionBtn(c, re){ return c.findAll(n => n.classList.contains("setactions")).flatMap(a => a.children).find(b => re.test(b.text)); }
+/* Type into a field WITHOUT re-finding the node afterwards — this is what would catch
+   the old bug where oninput rebuilt the container and destroyed the input mid-keystroke. */
+function type(inp, v){ inp.value = v; inp.oninput(); }
 
 /* ---------- tests ---------- */
 console.log("\ntp-program-2 — week-aware filtering");
@@ -168,6 +189,7 @@ console.log("\ntp-program-2 — week-aware filtering");
      "no exercises", never the v1 "apply the progression rule" banner. Running the SAME
      data as v1 must show the progression banner — otherwise this assertion would pass
      with isV2() hard-wired to either value. */
+  app.setView("list");
   app.PROGRAM.meta.weeks = 6;                       // selector can reach past the rows
   app.STATE.week = 6;
   const v2banners = cards().filter(c => c.classList.contains("banner")).map(b => b.text);
@@ -195,6 +217,7 @@ console.log("\ntp-program-2 — week-aware filtering");
 console.log("\ntp-program-1 — unchanged day-only behaviour");
 {
   loadFixture("program.sample.json");
+  app.setView("list");
   assert(!app.isV2(), "isV2() false for tp-program-1");
   const byDay = app.PROGRAM.exercises.filter(e => e.day === app.STATE.day);
   app.STATE.week = 1;
@@ -205,14 +228,312 @@ console.log("\ntp-program-1 — unchanged day-only behaviour");
   assert(!!banner && /Week-1 template/.test(banner.text), "progression banner shown past the authored week");
 }
 
-console.log("\nper-set logging round-trip");
+console.log("\nprescribedSets — plain integers, ranges, and prose");
+{
+  is(app.prescribedSets({ sets: "4" }), 4, "a plain integer is used as-is");
+  is(app.prescribedSets({ sets: "99" }), 12, "absurd counts are capped at 12");
+  is(app.prescribedSets({ sets: "3-4" }), 3, "a numeric range uses its lower bound");
+  is(app.prescribedSets({ sets: "3–4" }), 3, "an en dash range parses the same way");
+  is(app.prescribedSets({ sets: "0-4" }), 1, "a lower bound of 0 clamps up to 1");
+  is(app.prescribedSets({ sets: "8-10 min" }), 1, "a decorated range is prose, not a range — one set");
+  is(app.prescribedSets({ sets: "2 rounds" }), 1, "prose falls back to one set");
+  is(app.prescribedSets({ sets: "1 + 3" }), 1, "arithmetic prose falls back to one set");
+  is(app.prescribedSets({ sets: "AMRAP" }), 1, "AMRAP falls back to one set");
+  is(app.prescribedSets({}), 1, "missing sets falls back to one set");
+}
+
+console.log("\nderiving the flat summary from sets[]");
+{
+  const rows = (...loads) => loads.map(load => ({ load, reps: "", rpe: "", painDuring: "", note: "" }));
+  is(app.deriveSummary(rows("100", "80", "80")).load, "80", "the more common load wins");
+  is(app.deriveSummary(rows("100", "80")).load, "100", "a tie prefers the heavier value, not the later one");
+  is(app.deriveSummary(rows("100", "", "")).load, "100", "blank rows are ignored, not counted as ties");
+  is(app.deriveSummary([]).load, "", "no sets logged — empty, not fabricated");
+  is(app.deriveSummary([]).rpe, "", "…and never a fabricated RPE of 0");
+
+  const repsRows = reps => reps.map(r => ({ load: "", reps: r, rpe: "", painDuring: "", note: "" }));
+  is(app.deriveReps(repsRows(["4", "4", "4"])), "3x4", "uniform reps collapse to N x reps");
+  is(app.deriveReps(repsRows(["4"])), "4", "a single set is never prefixed 1x");
+  is(app.deriveReps(repsRows(["4", "4", "3"])), "4/4/3", "differing reps are joined, not collapsed");
+  is(app.deriveReps(repsRows(["4", "4", ""])), "4/4/-", "a hole is shown as a dash, never dropped silently");
+  is(app.deriveReps(repsRows(["", "", ""])), "", "nothing logged — empty");
+
+  const rpeRows = vals => vals.map(rpe => ({ load: "", reps: "", rpe, painDuring: "", note: "" }));
+  is(app.deriveSummary(rpeRows(["7", "7.5"])).rpe, "7.5", "the higher RPE wins, and a half point survives");
+  is(app.deriveSummary(rpeRows(["7-8"])).rpe, "7-8", "prose RPE that fails to parse is kept as-is, never NaN");
+
+  const painRows = vals => vals.map(painDuring => ({ load: "", reps: "", rpe: "", painDuring, note: "" }));
+  is(app.deriveSummary(painRows(["1", "3", "2"])).painDuring, "3", "the highest pain score wins");
+  is(app.deriveSummary(painRows(["", "", ""])).painDuring, "", "no pain logged — empty, not zero");
+}
+
+console.log("\nlogging one set at a time — the commit flow");
+{
+  loadFixture("program.v2.sample.json");
+  app.STATE.week = 1;
+  const ex = app.dayExercises().slice().sort((a, b) => app.prescribedSets(b) - app.prescribedSets(a))[0];
+  const n = app.prescribedSets(ex);
+  assert(n >= 3, `chose "${ex.name}" with ${n} prescribed sets`);
+  app.STATE.focus = app.dayExercises().indexOf(ex);
+  app.STATE.setEdit = null;
+
+  const card = () => logCardNode();
+  let C = card();
+  is(chipsOf(C).length, n, `${n} set chips shown before anything is logged`);
+  assert(/Log set 1/.test(actionBtn(C, /Log set|Log another/).text), "the primary button reads Log set 1");
+
+  /* Rendering a never-touched exercise creates its entry in memory only (exactly like
+     the old exerciseCard did) — nothing is persisted until a save happens, so read
+     tolerantly here rather than assuming the key already exists in storage. */
+  const stored = () => { const e = app.getSession().entries[ex.id]; return e || app.blankEntry(); };
+  is(stored().sets.length, 0, "nothing committed yet");
+
+  /* Type into set 1's fields and hold the same node — this is exactly the old bug: a
+     keystroke that rebuilds its own container destroys the input being typed into. */
+  let inputs = setInputs(C);
+  const loadInp = inputs[0];
+  type(loadInp, "100");
+  assert(setInputs(C)[0] === loadInp, "typing a character does not replace the input node");
+  type(inputs[1], "4");
+  type(inputs[2], "9");
+  actionBtn(C, /Log set 1/).onclick();
+
+  is(stored().sets.length, 1, "committing appends one row");
+  is(stored().sets[0], { set: 1, load: "100", reps: "4", rpe: "9", painDuring: "", note: "" },
+     "the committed row carries what was typed");
+  C = card();
+  is(stored().draft.load, "100", "the next draft seeds from the set just committed");
+  assert(/Log set 2/.test(actionBtn(C, /Log set|Log another/).text), "the button now reads Log set 2");
+  assert(!!actionBtn(C, /Finish exercise/), "Finish is offered even before every set is logged");
+
+  /* Commit the rest without changing anything — a confirmed set that matches the one
+     before it is still a set that was performed, and must still be exported. */
+  while(stored().sets.length < n){
+    actionBtn(card(), /Log set|Log another/).onclick();
+  }
+  is(stored().sets.length, n, `all ${n} prescribed sets committed`);
+  is(stored().sets[n - 1].load, "100", "an unedited commit keeps following the seed — it is still a real set");
+  assert(/Finish exercise ›/.test(actionBtn(card(), /Finish/).text), "once all sets are logged the Finish label drops the count");
+
+  /* Every new draft seeds forward from the set just committed — that is the whole
+     point, so "Log another set" past the prescribed count costs one tap, not four. */
+  const before2 = stored().sets.length;
+  const c2 = card();
+  is(setInputs(c2).map(i => i.value).some(Boolean), true, "the new draft is seeded from the last commit, not blank");
+  actionBtn(c2, /Log another/).onclick();
+  is(stored().sets.length, before2 + 1, "logging another set after the prescribed count still works");
+
+  /* Committing an entirely empty draft must be a no-op, not a phantom set. The only way
+     to get an empty draft is if the athlete clears every field by hand — simulate that
+     directly rather than through the UI, since a fresh draft is never blank on its own. */
+  const s3 = app.getSession();
+  s3.entries[ex.id].draft = app.blankDraft();
+  app.saveSession(s3);
+  const beforeEmpty = stored().sets.length;
+  actionBtn(card(), /Log another/).onclick();
+  is(stored().sets.length, beforeEmpty, "committing a wholly empty draft does nothing");
+}
+
+console.log("\nediting and deleting a committed set");
+{
+  loadFixture("program.v2.sample.json");
+  app.STATE.week = 1;
+  const ex = app.dayExercises()[1];
+  app.STATE.focus = 1;
+  const s = app.getSession();
+  const e = (s.entries[ex.id] = { done: false, load: "", reps: "", rpe: "", painDuring: "", notes: "",
+    sets: [
+      { set: 1, load: "100", reps: "4", rpe: "9", painDuring: "", note: "too heavy" },
+      { set: 2, load: "80",  reps: "4", rpe: "7", painDuring: "", note: "" },
+      { set: 3, load: "80",  reps: "4", rpe: "7", painDuring: "", note: "" }
+    ],
+    draft: { load: "80", reps: "4", rpe: "7", painDuring: "", note: "" }, summaryAuto: true });
+  app.applyDerivedSummary(e);
+  app.saveSession(s);
+
+  let C = logCardNode();
+  is(chipsOf(C).map(c => c.getAttribute("data-state")), ["done", "done", "done", "current"],
+     "three committed chips, the fourth (draft) is current");
+
+  /* Tap chip 1 to edit it. */
+  chipsOf(C)[0].onclick();
+  C = logCardNode();
+  is(app.STATE.setEdit, 0, "tapping a committed chip opens it for editing");
+  let inputs = setInputs(C);
+  const rpeInp = inputs[2];
+  type(rpeInp, "8.5");
+  assert(setInputs(C)[2] === rpeInp, "editing a committed set's field does not rebuild it either");
+  is(app.getSession().entries[ex.id].sets[0].rpe, "8.5", "the edit writes into the committed row, not the draft");
+  is(app.getSession().entries[ex.id].draft.rpe, "7", "…and the draft is untouched while editing");
+
+  actionBtn(C, /Save set 1/).onclick();
+  is(app.STATE.setEdit, null, "saving returns to the draft");
+  is(app.getSession().entries[ex.id].load, "80", "the flat summary follows the edit (80 is now the mode of 80,80,80)");
+
+  /* Re-open, then Cancel must leave the edit exactly where it was. */
+  C = logCardNode();
+  chipsOf(C)[0].onclick();
+  C = logCardNode();
+  actionBtn(C, /Cancel/).onclick();
+  is(app.STATE.setEdit, null, "Cancel also returns to the draft");
+  is(app.getSession().entries[ex.id].sets[0].rpe, "8.5", "…without discarding what was already saved");
+
+  /* Delete requires two taps. */
+  C = logCardNode();
+  chipsOf(C)[1].onclick();
+  C = logCardNode();
+  const del = actionBtn(C, /Delete set/);
+  del.onclick();
+  is(app.getSession().entries[ex.id].sets.length, 3, "one tap on Delete destroys nothing");
+  assert(/Tap again/.test(del.text), "it arms and says so");
+  del.onclick();
+  is(app.getSession().entries[ex.id].sets.length, 2, "the second tap deletes");
+  is(app.getSession().entries[ex.id].sets.map(r => r.set), [1, 2], "the remaining sets renumber from 1");
+  is(app.STATE.setEdit, null, "deleting returns to the draft rather than an edit for a row that moved");
+}
+
+console.log("\nupcoming (todo) chips are unlocked — tap one to skip a set");
+{
+  loadFixture("program.v2.sample.json");
+  app.STATE.week = 1;
+  const ex = app.dayExercises().slice().sort((a, b) => app.prescribedSets(b) - app.prescribedSets(a))[0];
+  const n = app.prescribedSets(ex);
+  assert(n >= 4, `chose "${ex.name}" with ${n} prescribed sets`);
+  app.STATE.focus = app.dayExercises().indexOf(ex);
+  app.STATE.setEdit = null;
+
+  let C = logCardNode();
+  type(setInputs(C)[0], "60");
+  actionBtn(C, /Log set 1/).onclick();
+  C = logCardNode();
+  type(setInputs(C)[0], "60");
+  actionBtn(C, /Log set 2/).onclick();
+
+  C = logCardNode();
+  const before = chipsOf(C);
+  is(before.length, n, `all ${n} chips show before anything is skipped`);
+  const todoChips = before.filter(c => c.getAttribute("data-state") === "todo");
+  assert(todoChips.length === n - 3, "everything past the current slot (set 3) is todo");
+  assert(todoChips.every(c => !c.disabled), "and none of them are disabled — this is the reported lock");
+  assert(!!todoChips[0].onclick, "a todo chip has a real handler, not just a look");
+
+  todoChips[0].onclick();
+  C = logCardNode();
+  is(chipsOf(C).length, n - 1, "tapping a todo chip removes exactly one upcoming slot");
+  is(app.getSession().entries[ex.id].sets.length, 2, "…without touching anything already committed");
+  is(app.getSession().entries[ex.id].setTarget, n - 1, "the reduced target is what's stored");
+
+  /* Keep tapping away every upcoming slot; it must stop at the current one, never eat
+     into the sets already logged or vanish the draft itself. */
+  while(chipsOf(C).some(c => c.getAttribute("data-state") === "todo")){
+    chipsOf(C).find(c => c.getAttribute("data-state") === "todo").onclick();
+    C = logCardNode();
+  }
+  is(chipsOf(C).length, 3, "shrinks all the way down to the two logged sets plus the current draft, no further");
+  const label = C.findAll(n => n.classList.contains("setlabel"))[0];
+  is(label.text, "Set 3 of 3", "the label reflects the reduced target");
+  assert(/Finish exercise \(2 logged\)/.test(actionBtn(C, /Finish/).text),
+     "Finish still counts up, since the reduced target's own last set hasn't been logged yet");
+
+  /* Logging that last set must still work — a shrunk target is a ceiling on the display,
+     never a hard cap on what can actually be logged. */
+  type(setInputs(C)[0], "60");
+  actionBtn(C, /Log set 3/).onclick();
+  C = logCardNode();
+  is(app.getSession().entries[ex.id].sets.length, 3, "the set really was recorded");
+  assert(/Finish exercise ›/.test(actionBtn(C, /Finish/).text),
+     "…and Finish now reads as complete, since the reduced target has actually been met");
+
+  /* Logging past a reduced target must still work too. */
+  actionBtn(C, /Log another set/).onclick();
+  C = logCardNode();
+  is(chipsOf(C).length, 5, "logging beyond the reduced target grows the strip again");
+  is(app.getSession().entries[ex.id].sets.length, 4, "…and that set is recorded as well");
+
+  assert(!("setTarget" in app.buildSessionExport().entries.find(x => x.exercise === ex.name)),
+     "setTarget is app-local bookkeeping and never reaches the export");
+}
+
+console.log("\nfinish, un-finish, and early stopping");
+{
+  loadFixture("program.v2.sample.json");
+  app.STATE.week = 1;
+  const ex = app.dayExercises().slice().sort((a, b) => app.prescribedSets(b) - app.prescribedSets(a))[0];
+  const n = app.prescribedSets(ex);
+  assert(n >= 3, `chose "${ex.name}" with ${n} prescribed sets for the early-stop case`);
+  app.STATE.focus = app.dayExercises().indexOf(ex);
+
+  /* Finishing with fewer sets than prescribed is legitimate — cutting a set short for
+     pain is exactly the signal the coach wants, not something the UI should block. */
+  let C = logCardNode();
+  type(setInputs(C)[0], "60");
+  actionBtn(C, /Log set 1/).onclick();
+  const entry = () => app.getSession().entries[ex.id];
+  const exIdx = app.STATE.focus;
+  is(entry().sets.length, 1, "one set committed");
+  actionBtn(logCardNode(), /Finish exercise/).onclick();
+  is(entry().done, true, "finishing early marks the exercise done");
+  is(entry().sets.length, 1, "…without inventing the sets that were never logged");
+  is(app.STATE.focus, exIdx + 1, "and — like the old Mark done — finishing advances to the next exercise");
+
+  app.goFocus(exIdx);              /* Un-finish only makes sense back on the card itself */
+  const undo = actionBtn(logCardNode(), /Un-finish/);
+  assert(!!undo, "an un-finish action is offered on a done exercise");
+  undo.onclick();
+  is(entry().done, false, "un-finishing clears done");
+  is(entry().sets.length, 1, "…and does not touch what was already logged");
+
+  /* A warm-up with zero sets can still be finished. */
+  loadFixture("program.v2.sample.json");
+  const warm = app.dayExercises().find(e => app.prescribedSets(e) === 1) || app.dayExercises()[0];
+  app.STATE.focus = app.dayExercises().indexOf(warm);
+  const wCard = logCardNode();
+  const finishNoSets = actionBtn(wCard, /Finish exercise/);
+  assert(!!finishNoSets, "Finish is offered with nothing logged yet");
+  finishNoSets.onclick();
+  is(app.getSession().entries[warm.id].done, true, "and it finishes with an empty sets[]");
+  is(app.getSession().entries[warm.id].sets.length, 0, "…exactly zero, not a fabricated set");
+}
+
+console.log("\nthe typed summary — auto-follows sets until overridden");
+{
+  loadFixture("program.v2.sample.json");
+  app.STATE.week = 1;
+  const ex = app.dayExercises()[1];
+  app.STATE.focus = 1;
+  let C = logCardNode();
+  type(setInputs(C)[0], "60");
+  type(setInputs(C)[1], "5");
+  type(setInputs(C)[2], "7");
+  actionBtn(C, /Log set 1/).onclick();
+
+  let e = app.getSession().entries[ex.id];
+  is([e.load, e.reps, e.rpe], ["60", "5", "7"], "the summary auto-fills from the one set logged");
+  is(e.summaryAuto, true, "and is still following");
+
+  /* Open "Summary & notes" and edit the load directly — a deliberate override. */
+  const summary = C.findAll(n => n.tagName === "DETAILS").find(d => /Summary/.test(d.text));
+  const loadField = summary.findAll(n => n.tagName === "INPUT")[0];
+  type(loadField, "65");
+  e = app.getSession().entries[ex.id];
+  is(e.load, "65", "editing the summary directly overrides the derived value");
+  is(e.summaryAuto, false, "…and turns off auto-follow for this entry");
+
+  /* Committing another set must not clobber the manual override. */
+  C = logCardNode();
+  actionBtn(C, /Log set 2/).onclick();
+  is(app.getSession().entries[ex.id].load, "65", "a later commit does not overwrite the manual summary");
+}
+
+console.log("\nexport — whitelist, never a leaked app-local key");
 {
   loadFixture("program.v2.sample.json");
   app.STATE.week = 1;
   const ex = app.dayExercises().find(e => /front squat/i.test(e.name)) || app.dayExercises()[1];
   const s = app.getSession();
   const e = (s.entries[ex.id] = { done: true, load: "80", reps: "3x4", rpe: "7",
-                                  painDuring: "3", notes: "dropped after set 1", sets: [] });
+    painDuring: "3", notes: "dropped after set 1", sets: [], draft: { load: "80", reps: "4", rpe: "7", painDuring: "", note: "" },
+    summaryAuto: false });
   e.sets.push({ set: 1, load: "100", reps: "4", rpe: "9", painDuring: "3", note: "too heavy" });
   e.sets.push({ set: 2, load: "80",  reps: "4", rpe: "7", painDuring: "3", note: "" });
   e.sets.push({ set: 3, load: "80",  reps: "4", rpe: "7", painDuring: "2", note: "" });
@@ -220,7 +541,7 @@ console.log("\nper-set logging round-trip");
   app.saveSession(s);
 
   const out = app.buildSessionExport();
-  is(out.schema, "tp-session-3", "schema is tp-session-3");
+  is(out.schema, "tp-session-3", "schema stays tp-session-3 — the summary contract did not change shape");
   is(out.athleteId, "fixture-slug", "athleteId taken from meta, not re-slugged from the name");
   const entry = out.entries.find(x => x.exercise === ex.name);
   is(entry.sets.length, 3, "the blank 4th row is dropped from the export");
@@ -228,14 +549,17 @@ console.log("\nper-set logging round-trip");
   is(entry.sets[0], { set: 1, load: "100", reps: "4", rpe: "9", painDuring: "3", note: "too heavy" },
      "set 1 keeps every field");
   is([entry.load, entry.reps, entry.rpe], ["80", "3x4", "7"],
-     "flat summary exported as logged, not recomputed from sets");
+     "a manually-overridden summary is exported as typed, not recomputed from sets");
+  is(Object.keys(entry).sort(),
+     ["done", "exercise", "load", "notes", "painDuring", "prescribed", "reps", "rpe", "sets"].sort(),
+     "no app-local key (draft, summaryAuto, …) reaches the export — this fixture declares no category");
+  assert(!("draft" in entry) && !("summaryAuto" in entry), "draft and summaryAuto specifically are absent");
   assert(out.entries.every(x => Array.isArray(x.sets)), "every entry has a sets array");
   assert(out.entries.every(x => x.prescribed && "load" in x.prescribed), "prescribed denormalised into every entry");
   assert(out.entries.length === app.dayExercises().length, "untouched exercises are still exported");
-  is(out.tracking.perSetLogging, true, "tracking records that per-set logging was available");
+  is(out.tracking.perSetLogging, true, "tracking always records per-set logging as available now");
   const untouched = out.entries.find(x => x.exercise !== ex.name);
   is(untouched.sets, [], "an untouched exercise exports sets: []");
-  is(app.summaryText(e), "100 → 80 → 80 · 3x4 · RPE 7 · knee pain 3/10", "summary shows the set shape");
 }
 
 console.log("\nexport respects the selected week");
@@ -296,6 +620,7 @@ console.log("\npain on waking — a pre-session field, not a next-morning one");
      drawer rather than the first card of the training view. */
   const checkin = checkinCard();
   assert(!!checkin && checkin.classList.contains("sessioncard"), "the check-in card renders in the drawer");
+  app.setView("list");
   assert(!cards().some(c => c.classList.contains("sessioncard")),
          "and no longer sits at the top of the training view");
   const labels = labelsIn(checkin);
@@ -329,19 +654,26 @@ console.log("\npain on waking — a pre-session field, not a next-morning one");
   is(app.checkinFilled({ session: {} }), false, "…which is what puts the dot on the menu button");
 }
 
-console.log("\nview modes — all exercises vs one at a time");
+console.log("\nview modes — Overview (read-only) vs Log (one exercise)");
 {
   loadFixture("program.v2.sample.json");
   app.STATE.week = 1;
   const exs = app.dayExercises();
   assert(exs.length >= 3, `the day has ${exs.length} exercises to page through`);
 
-  is(app.SETTINGS.view, "list", "all-exercises is the default — an existing install is unchanged");
-  is(exCards().length, exs.length, "list view renders every exercise");
+  is(app.SETTINGS.view, "focus", "Log is the default view now — an existing install migrates to it (see below)");
+
+  app.setView("list");
+  const overviewCards = exCards();
+  is(overviewCards.length, exs.length, "Overview renders every exercise");
+  overviewCards.forEach(c => {
+    is(c.findAll(n => n.tagName === "INPUT" || n.tagName === "TEXTAREA" || n.tagName === "SELECT").length, 0,
+       `Overview card for "${c.find(n=>n.classList.contains("ex-name")).text}" has zero inputs`);
+  });
   is(pips().length, 0, "and no pips");
 
   app.setView("focus");
-  is(exCards().length, 1, "focus view renders exactly one card");
+  is(exCards().length, 1, "Log view renders exactly one card");
   is(exCards()[0].find(n => n.classList.contains("ex-name")).text, exs[0].name, "…the first one");
   is(pips().length, exs.length, "one pip per exercise");
   is(stubFor("#navCount").text, `1 / ${exs.length}`, "the counter says where you are");
@@ -359,26 +691,21 @@ console.log("\nview modes — all exercises vs one at a time");
   is(app.STATE.focus, exs.length - 1, "jumping past the end clamps to the last exercise");
   is(stubFor("#nextBtn").disabled, true, "where Next is dead instead");
 
-  /* Marking done is the one thing that moves you without being asked, so it is the one
+  /* Finishing is the one thing that moves you without being asked, so it is the one
      most worth pinning down. */
-  const doneBtn = () => exCards()[0].find(n => n.classList.contains("donebtn"));
+  const finishBtn = c => actionBtn(c, /Finish exercise/);
   const isDone = i => !!(app.getSession().entries[exs[i].id] || {}).done;
   app.goFocus(0);
-  if(isDone(0)) doneBtn().onclick();                     // start from a known state
-  doneBtn().onclick();
-  is(app.STATE.focus, 1, "marking done moves on to the next exercise");
-  is(isDone(0), true, "and the one behind you stays logged");
-
-  /* Un-marking is a correction, not progress. */
+  if(isDone(0)){ finishBtn(logCardNode()).onclick(); }             // start from a known state
   app.goFocus(0);
-  doneBtn().onclick();
-  is(app.STATE.focus, 0, "un-marking never moves you — only completing does");
-  is(isDone(0), false, "…and it really did un-mark");
+  finishBtn(logCardNode()).onclick();
+  is(app.STATE.focus, 1, "finishing moves on to the next exercise");
+  is(isDone(0), true, "and the one behind you stays logged");
 
   const lastIdx = exs.length - 1;
   app.goFocus(lastIdx);
-  if(isDone(lastIdx)) doneBtn().onclick();
-  doneBtn().onclick();
+  if(isDone(lastIdx)){ finishBtn(logCardNode()).onclick(); app.goFocus(lastIdx); }
+  finishBtn(logCardNode()).onclick();
   is(app.STATE.focus, lastIdx, "and the last exercise has nowhere to advance to");
   is(isDone(lastIdx), true, "…but is still marked done");
 
@@ -395,6 +722,7 @@ console.log("\nview modes — all exercises vs one at a time");
   app.selectDay(other);
   is(app.STATE.focus, 0, "switching day lands on the first exercise not yet done");
   assert(app.STATE.focus < app.dayExercises().length, "and never past the end of the new day");
+  is(app.STATE.setEdit, null, "…and any in-progress set edit is cleared");
 
   /* The view is a per-device preference, and cosmetic — it must not reach a log file. */
   is(JSON.parse(store.get("tp_settings_v1")).view, "focus", "the choice is remembered");
@@ -403,145 +731,148 @@ console.log("\nview modes — all exercises vs one at a time");
   is(exCards().length, app.dayExercises().length, "and switching back shows everything again");
 }
 
-console.log("\nper-set UI — the buttons an athlete actually taps");
+console.log("\ntapping an Overview card opens it in Log");
 {
   loadFixture("program.v2.sample.json");
   app.STATE.week = 1;
-  /* Prefer an exercise with several prescribed sets, so the multi-row path is real. */
-  const ex = app.dayExercises()
-    .filter(e => /^\s*\d+\s*$/.test(String(e.sets ?? "")))
-    .sort((a, b) => app.prescribedSets(b) - app.prescribedSets(a))[0] || app.dayExercises()[1];
-  const n = app.prescribedSets(ex);
-  assert(n >= 3, `chose "${ex.name}" with ${n} prescribed sets`);
-
-  /* Render ONCE and hold the card, the way a browser does. Re-rendering between taps
-     would reset per-card UI state (the Clear-sets arming, for one) and quietly hide
-     any bug that depends on state surviving across interactions. */
-  const card = () => cards().find(c => c.find(x => x.text === ex.name));
-  const setBtns = c => c.findAll(x => x.classList.contains("setbtn"));
-  const rowsIn = c => c.findAll(x => x.classList.contains("setrow") && !x.classList.contains("head"));
-
-  const C = card();
-  const rows = () => rowsIn(C);
-  const btns = () => setBtns(C);
-
-  is(rows().length, 0, "no set rows before the athlete asks for them");
-  const open = btns()[0];
-  assert(/Log each set/.test(open.text), `the affordance reads "${open.text}"`);
-
-  open.onclick();
-  is(rows().length, n, `opening materialises the ${n} prescribed rows`);
-  const stored = () => app.getSession().entries[ex.id].sets;
-  is(stored().length, n, "rows are persisted immediately, not just rendered");
-
-  /* THE "one tap" PROMISE. Type the load into set 1 only; every untouched row below
-     must follow it, or opening a 7-set exercise costs seven loads of typing. */
-  const inputs = r => r.findAll(x => x.tagName === "INPUT");
-  const typeInto = (rowIdx, col, value) => {
-    const inp = inputs(rows()[rowIdx])[col];
-    inp.value = value; inp.oninput();
-  };
-  typeInto(0, 0, "100");
-  is(stored().map(r => r.load), Array(n).fill("100"), "set 1's load flows into every untouched set");
-  typeInto(0, 1, "5");
-  is(stored().map(r => r.reps), Array(n).fill("5"), "so does reps — one tap per field, not per set");
-
-  /* Now correct set 3 downwards, the actual drop-set case. Sets 1–2 must not move. */
-  typeInto(2, 0, "80");
-  is(stored().map(r => r.load), ["100", "100", ...Array(n - 2).fill("80")],
-     "editing set 3 flows down but never back up");
-  /* A row the athlete has touched stops following. */
-  typeInto(4, 0, "70");
-  typeInto(0, 0, "110");
-  is(stored()[4].load, "70", "a set that was typed into is never overwritten by propagation");
-  is(stored()[1].load, "110", "…while the rows above it that were untouched still follow");
-
-  const add = btns().find(b => /Add set/.test(b.text));
-  assert(!!add, "the button becomes “+ Add set” once rows exist");
-  add.onclick();
-  is(stored().length, n + 1, "adding appends one row");
-  is(stored()[n].load, stored()[n - 1].load, "a new set copies the previous set's load");
-
-  /* Remove set 1; the rest must renumber so the log never claims a set 1 was skipped. */
-  const firstLoad = stored()[1].load;
-  rows()[0].findAll(x => x.classList.contains("del"))[0].onclick();
-  is(stored().length, n, "removing drops exactly one row");
-  is(stored().map(r => r.set), Array.from({ length: n }, (_, i) => i + 1), "remaining sets renumber from 1");
-  is(stored()[0].load, firstLoad, "removing set 1 does not disturb the values below it");
-
-  /* Clearing is destructive, so it must take two taps — a mis-tap next to "+ Add set"
-     cannot be allowed to wipe a logged exercise. */
-  const clearBtn = () => btns().find(b => /[Cc]lear/.test(b.text));
-  clearBtn().onclick();
-  assert(stored().length === n, "one tap on Clear sets destroys nothing");
-  assert(/Tap again/.test(clearBtn().text), "it arms and says so");
-  clearBtn().onclick();
-  is(stored().length, 0, "the second tap clears");
-  is(app.buildSessionExport().entries.find(x => x.exercise === ex.name).sets, [],
-     "and the export goes back to sets: []");
-
-  /* Turning the feature off must hide the affordance without touching stored data. */
-  app.SETTINGS.perSetLogging = false;
-  assert(setBtns(card()).length === 0, "no per-set affordance when the setting is off");
-  is(app.buildSessionExport().tracking.perSetLogging, false, "tracking records that it was off");
+  app.setView("list");
+  const exs = app.dayExercises();
+  const idx = exs.length > 1 ? 1 : 0;
+  const targetCard = exCards()[idx];
+  targetCard.onclick();
+  is(app.SETTINGS.view, "focus", "tapping a card switches to Log view");
+  is(app.STATE.focus, idx, "…on the exercise that was tapped");
+  app.setView("list");
 }
 
-console.log("\nper-set helpers");
+console.log("\ndrawer — week navigation has a dropdown, not just arrows");
 {
-  is(app.prescribedSets({ sets: "4" }), 4, "numeric prescribed sets are used");
-  is(app.prescribedSets({ sets: "3-4" }), 1, "a range falls back to one row");
-  is(app.prescribedSets({ sets: "AMRAP" }), 1, "prose falls back to one row");
-  is(app.prescribedSets({ sets: "99" }), 12, "absurd counts are capped");
-  is(app.prescribedSets({}), 1, "missing sets falls back to one row");
-  const e = { load: "100", rpe: "8", painDuring: "2", sets: [] };
-  is(app.newSet(e, 0), { set: 1, load: "100", reps: "", rpe: "8", painDuring: "2", note: "", auto: true },
-     "first set seeds from the flat fields and is marked auto");
-  e.sets.push(app.newSet(e, 0));
-  e.sets[0].load = "90";
-  is(app.newSet(e, 1).load, "90", "a later set copies the previous one");
+  loadFixture("program.v2.sample.json");
+  app.STATE.week = 1;
+  const host = stubFor("#drawerBody");
+  host.children = [];
+  app.renderDrawer();
+  const stepper = host.findAll(n => n.classList.contains("stepper"))[0];
+  assert(!!stepper, "the week stepper renders in the drawer");
+  const select = stepper.findAll(n => n.tagName === "SELECT")[0];
+  assert(!!select, "…and it contains a dropdown — jumping from week 1 to week 6 no longer costs five taps of the arrow");
+  is(select.children.filter(c => c.nodeType === 1).length, app.PROGRAM.meta.weeks, "one option per week");
+  const arrows = stepper.findAll(n => n.classList.contains("stepbtn"));
+  is(arrows.length, 2, "the arrows stay too, for the one-tap case");
 
-  /* `auto` is local bookkeeping and must never reach a log file. */
-  is(app.exportSets({ sets: [{ set: 1, load: "90", reps: "", rpe: "", painDuring: "", note: "", auto: true }] }),
-     [{ set: 1, load: "90", reps: "", rpe: "", painDuring: "", note: "" }],
-     "the auto flag is stripped from the export");
+  select.value = "4";
+  select.onchange();
+  is(app.STATE.week, 4, "picking a week from the dropdown jumps straight there");
 }
 
-console.log("\nrobustness — bad or legacy stored data must not break the gym");
+console.log("\nStateEdit is cleared by every navigation entry point");
+{
+  loadFixture("program.v2.sample.json");
+  app.STATE.week = 1;
+  const ex = app.dayExercises()[0];
+  app.STATE.focus = 0;
+  const s = app.getSession();
+  s.entries[ex.id] = { done: false, load: "", reps: "", rpe: "", painDuring: "", notes: "",
+    sets: [{ set: 1, load: "60", reps: "5", rpe: "7", painDuring: "", note: "" }],
+    draft: { load: "60", reps: "5", rpe: "7", painDuring: "", note: "" }, summaryAuto: true };
+  app.saveSession(s);
+
+  const setEditing = () => { app.STATE.setEdit = 0; };
+  setEditing(); app.goFocus(1); is(app.STATE.setEdit, null, "goFocus clears it");
+  setEditing(); app.selectDay(app.PROGRAM.meta.days[1]); is(app.STATE.setEdit, null, "selectDay clears it");
+  app.selectDay(app.PROGRAM.meta.days[0]);
+  setEditing(); app.selectDate("2020-02-02"); is(app.STATE.setEdit, null, "selectDate clears it");
+  setEditing(); app.selectWeek(2); is(app.STATE.setEdit, null, "selectWeek clears it");
+  setEditing(); app.loadProgram(JSON.parse(fs.readFileSync(path.join(ROOT, "samples", "program.v2.sample.json"), "utf8")));
+  is(app.STATE.setEdit, null, "loadProgram clears it");
+}
+
+console.log("\nmigrating a legacy (pre-set-at-a-time) session on read");
 {
   loadFixture("program.v2.sample.json");
   app.STATE.week = 1;
   const ex = app.dayExercises()[1];
 
-  /* A session written by an older build: no `sets`, no `tracking`, missing session keys. */
+  /* The old "Log each set" table: the athlete typed into set 1 only, and propagate()
+     copied that load into every row below it with `auto:true` — the exact shape that
+     used to export as N sets performed when only one ever was. */
   store.set(app.sessionKey(), JSON.stringify({
     block: "old", athlete: "old", week: 1, day: app.STATE.day, date: app.STATE.date,
     session: { overall: "written by an older build" },
-    entries: { [ex.id]: { done: true, load: "60", reps: "3x5", rpe: "7", notes: "" } }
+    entries: { [ex.id]: { done: false, load: "", reps: "", rpe: "", painDuring: "", notes: "",
+      sets: [
+        { set: 1, load: "100", reps: "4", rpe: "9", painDuring: "", note: "", auto: false },
+        { set: 2, load: "100", reps: "",  rpe: "",  painDuring: "", note: "", auto: true },
+        { set: 3, load: "100", reps: "",  rpe: "",  painDuring: "", note: "", auto: true },
+        { set: 4, load: "100", reps: "",  rpe: "",  painDuring: "", note: "", auto: true }
+      ] } }
   }));
-  const s = app.getSession();
-  is(s.session.readiness, "", "a missing check-in key is normalised to \"\" on read");
-  assert(cards().length > 0, "the day still renders");
+  let s = app.getSession();
+  is(s.entries[ex.id].sets.length, 1, "auto-seeded rows the athlete never typed into are dropped, not exported as sets");
+  is(s.entries[ex.id].sets[0].load, "100", "the one real set survives");
+  is(s.entries[ex.id].load, "100", "the flat summary derives from the surviving set");
+  assert(!("auto" in s.entries[ex.id].sets[0]), "the auto flag itself is gone after migration");
+  assert(!!s.entries[ex.id].draft, "a draft object exists after migration");
+
   const out = app.buildSessionExport();
-  is(Object.keys(out.session).sort(),
-     ["amPainOnWaking", "bodyweightKg", "hrvNote", "overall", "readiness", "sleep"],
-     "the export still carries every session key");
-  is(out.entries.find(x => x.exercise === ex.name).sets, [], "a legacy entry exports sets: []");
-  is(out.entries.find(x => x.exercise === ex.name).load, "60", "and keeps what was logged");
+  is(out.entries.find(x => x.exercise === ex.name).sets.length, 1,
+     "and the export reflects exactly one set performed, not four");
+
+  /* Migration must be idempotent: reading twice must not change anything further, and
+     must not write to storage the second time. */
+  const raw1 = store.get(app.sessionKey());
+  app.getSession();
+  const raw2 = store.get(app.sessionKey());
+  is(raw1, raw2, "a second read is a no-op — migration does not re-run every time");
+
+  /* A pre-existing flat-only entry (per-set logging used to be opt-in) must be promoted
+     into one committed set, not silently blanked by derivation. */
+  store.set(app.sessionKey(), JSON.stringify({
+    block: "old", athlete: "old", week: 1, day: app.STATE.day, date: app.STATE.date,
+    session: {},
+    entries: { [ex.id]: { done: true, load: "60", reps: "3x5", rpe: "7", painDuring: "", notes: "" } }
+  }));
+  s = app.getSession();
+  is(s.entries[ex.id].sets.length, 1, "a flat-only legacy entry is promoted to one set");
+  is(s.entries[ex.id].sets[0], { set: 1, load: "60", reps: "3x5", rpe: "7", painDuring: "", note: "" },
+     "carrying the original values");
+  is([s.entries[ex.id].load, s.entries[ex.id].reps, s.entries[ex.id].rpe], ["60", "3x5", "7"],
+     "and deriving right back to the same flat summary — promotion is a fixpoint");
+
+  /* A ticked box with nothing logged must not gain an invented set. */
+  store.set(app.sessionKey(), JSON.stringify({
+    block: "old", athlete: "old", week: 1, day: app.STATE.day, date: app.STATE.date,
+    session: {},
+    entries: { [ex.id]: { done: true, load: "", reps: "", rpe: "", painDuring: "", notes: "" } }
+  }));
+  s = app.getSession();
+  is(s.entries[ex.id].sets.length, 0, "a done exercise with nothing logged stays sets: []");
 
   /* A session missing `session`/`entries` entirely must not blank the app. */
   store.set(app.sessionKey(), JSON.stringify({ week: 1, day: app.STATE.day }));
+  app.setView("list");
   assert(cards().length > 0, "a session with no session/entries keys still renders");
 
   /* Non-string values in a set row must not make Export do nothing. */
   const s2 = app.getSession();
   s2.entries[ex.id] = { done: true, load: "", reps: "", rpe: "", painDuring: "", notes: "",
-                        sets: [{ set: 1, load: 100, reps: 4, rpe: null, painDuring: undefined, note: "" }] };
+                        sets: [{ set: 1, load: 100, reps: 4, rpe: null, painDuring: undefined, note: "" }],
+                        draft: app.blankDraft(), summaryAuto: false };
   app.saveSession(s2);
   is(app.buildSessionExport().entries.find(x => x.exercise === ex.name).sets,
      [{ set: 1, load: "100", reps: "4", rpe: "", painDuring: "", note: "" }],
      "numbers and nulls in a set row are coerced, not thrown on");
-  is(app.summaryText(s2.entries[ex.id]), "100 · 4",
-     "and an exercise logged only per-set never reads as “nothing logged”");
+}
+
+console.log("\nsettings migration — an existing install lands on Log, not a blank Overview");
+{
+  store.clear();
+  store.set("tp_settings_v1", JSON.stringify({ view: "list", palette: "b" }));
+  app.loadSettings();
+  is(app.SETTINGS.view, "focus", "a pre-existing install with no `sv` marker is moved to Log");
+  is(app.SETTINGS.palette, "b", "…without disturbing an unrelated preference");
+  is(JSON.parse(store.get("tp_settings_v1")).sv, 1, "and the migration is persisted");
+  app.SETTINGS = { ...app.SET_DEFAULTS };
 }
 
 console.log("\nwhere you are in the block survives a refresh");
@@ -550,7 +881,7 @@ console.log("\nwhere you are in the block survives a refresh");
      Date is carried over rather than re-derived so the test doesn't depend on the clock —
      boot() starts it at today on purpose, which is tested separately below. */
   const refresh = () => {
-    app.STATE = { week: 1, day: null, date: app.STATE.date, focus: 0 };
+    app.STATE = { week: 1, day: null, date: app.STATE.date, focus: 0, setEdit: null };
     app.restorePos();
   };
 

@@ -94,8 +94,9 @@ gets **one tab per week** ("Week 1", "Week 2", …), split automatically from th
 - Day label format: `Day N (Weekday) - Theme`, identical across weeks so the app's day
   filter and the workbook's colour bands line up.
 - Leave **Completed** blank.
-- Populate **Completed Notes** only for important lifts, conditioning, and recovery-sensitive work — with the specific data that will guide later decisions (actual load, reps, RPE-1, pain during + next morning, technical quality, HR/erg response, or reason for modification). Warm-ups/mobility can be blank.
+- Populate **Completed Notes** only for important lifts, conditioning, and recovery-sensitive work — with the specific data that will guide later decisions (actual load, reps, RPE-1, pain during + pain on waking (captured at the *next* session's check-in), technical quality, HR/erg response, or reason for modification). Warm-ups/mobility can be blank.
 - **Focus / Notes** carries coaching cues + any footprint note. **Progression Rule** carries the *rationale* for this week's prescription plus the hold/stop gate — not instructions for future weeks, which are now authored as their own rows.
+- **Sets: prefer a plain integer** ("4", not "3-4" or "AMRAP") when the exercise really is that many even sets. The tracker logs one set at a time and materialises exactly that many chips from a plain integer; a range falls back to its lower bound and prose collapses to a single set — both are the right behaviour for AMRAP/interval work, but a plain count is what makes an even-sets lift log itself with the fewest taps.
 - **No tabs or line breaks inside any cell.** Use `;` or `|` inside notes.
 - Every row must align with the phase map and include a clear progression or hold/stop rule.
 

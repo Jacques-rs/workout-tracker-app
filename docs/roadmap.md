@@ -11,9 +11,11 @@ undone, and worth knowing:
 - **The `sets[]` prescription stays one load per exercise.** Ramping sets are still expressed
   in the `load` string ("60/70/80 kg"). Only add a prescribed per-set array if that stops
   being expressive enough — it doubles the generator's surface.
-- **Per-set rows are opt-in, not shown by default.** The plan floated pre-rendering the
-  prescribed rows on every card; that trades the common case (all sets identical, one tap)
-  for the rare one. Revisit only if the athlete finds themselves opening it most sessions.
+- ~~**Per-set rows are opt-in, not shown by default.**~~ **Superseded — see "Set-at-a-time
+  logging" below.** Opt-in per-set rows turned out to be the wrong shape entirely, not just
+  the wrong default: rendering every prescribed row at once was what caused the
+  focus-loss-while-typing bug, and an opened-but-unfilled row exported as a set that was
+  never performed. Logging is now one set at a time for every exercise, with no opt-in.
 - **No cross-week comparison in-app yet.** See "Session history / trend view" below — now
   more useful than it was, because week-over-week prescriptions are real data rather than
   prose.
@@ -54,9 +56,15 @@ on three surfaces: a two-row header (context line, date, progress), `<main>` for
 only, and a drawer for week / day / date / check-in / import-export / settings.
 
 `<main>` also gained a second view: **focus**, one exercise at a time, with `‹ Prev / n / N /
-Next ›` in the footer and a numbered pip per exercise in the header. Both views render the same
-`exerciseCard()`. The choice is remembered per device (`tp_settings_v1.view`), and defaults to
-the original all-exercises view, so an existing install opens unchanged.
+Next ›` in the footer and a numbered pip per exercise in the header. Both views rendered the
+same `exerciseCard()`, and the choice was remembered per device (`tp_settings_v1.view`),
+defaulting to the original all-exercises view.
+
+*(Superseded — see "Done — set-at-a-time logging" above. The all-exercises view became the
+read-only Overview and the focus view became the Log editor; they no longer share one card
+builder, since one is read-only and one is an editor. The default flipped to Log, with a
+one-shot migration so an existing install follows rather than opening on a screen with no
+inputs.)*
 
 Decisions worth knowing, and where to push back if they turn out wrong in the gym:
 
@@ -113,11 +121,39 @@ Old `tp_sess_v1::*` keys accumulate forever. Harmless at this volume, but a "cle
 
 ## Lower value / speculative
 
-**8. Set-by-set logging.** — **done** as `tp-session-2`. The earlier "probably not worth it" call was wrong in one specific case: when the first set lands at the wrong RPE and the rest are dropped (100 → 80 → 80), flattening to one load loses the shape of the session, which is exactly what the coach reasons about. The added-taps objection was answered by making it opt-in per exercise and seeding each new row from the previous one, so the normal case is unchanged.
+**8. Set-by-set logging.** — **done** as `tp-session-2`, reshaped into the default logging flow — see "Done — set-at-a-time logging" above. The earlier "probably not worth it" call was wrong in one specific case: when the first set lands at the wrong RPE and the rest are dropped (100 → 80 → 80), flattening to one load loses the shape of the session, which is exactly what the coach reasons about. The original opt-in-per-exercise shape traded that for a focus-loss bug and a UI that looked unfinished on the screen that should scan fastest; every exercise now logs one set at a time by default instead.
 
 **9. Plate calculator.** Nice-to-have; the athlete is advanced and does this arithmetic automatically.
 
 **10. Multiple programmes side by side.** Only one programme is stored (`tp_program_v1`). Fine for a linear block structure; would only matter if running two blocks at once.
+
+## Done — set-at-a-time logging, a read-only Overview, and three fixed defects
+
+The all-in-one card put a full logging form on every exercise, which made the one screen
+that should let you scan the session the most crowded one in the app — and the opt-in
+per-set table (above) rendered every prescribed row at once, which was the direct cause of
+the reported "RPE field escapes after one character" bug: a keystroke's redraw destroyed
+the input being typed into. Both are gone. `<main>` is now Overview (read-only — tap a card
+to open it) and Log (one exercise, one set at a time, with a row of chips for the sets
+already logged). Two more reported defects were fixed in the same pass: the screen jumping
+while typing (`paintNav()` was scrolling the pip strip on every keystroke in the whole app,
+not just on navigation) and a refresh landing back on Week 1 (the fix for this already
+existed but had shipped without a `sw.js` cache bump, so it never reached an installed
+phone).
+
+Decisions worth knowing:
+
+- **The flat load/reps/RPE/pain fields are auto-filled from the sets and stay editable** —
+  no schema bump, because `tp-session-3` already defined them as "the athlete's own summary,
+  never recomputed", and that stayed literally true. A disagreement with `sets[]` now more
+  often means a deliberate correction than an independent judgement call.
+- **Finish is always offered**, even with zero sets logged or fewer than prescribed — cutting
+  a set short for pain is exactly the signal the coach wants, not something the UI should
+  withhold until a count is met.
+- **RPE moved off `type="number"`** to `type="text" inputmode="decimal"`, so it can hold a
+  half point ("7.5") without the value blanking mid-type on the decimal point.
+- **Per-set logging is no longer switchable.** The `Tracked fields` toggle for it is gone;
+  `tracking.perSetLogging` is stamped `true` unconditionally for reader compatibility.
 
 ## Explicitly not doing
 

@@ -237,6 +237,17 @@ def _check_exercises(rep, exercises, days, v2):
         if not str(e.get("load", "")).strip() and not str(e.get("reps", "")).strip():
             rep.warn(f"{where}: neither 'load' nor 'reps' is set")
 
+        sets_val = e.get("sets")
+        if isinstance(sets_val, str) and sets_val.strip() and not re.search(r"\d", sets_val):
+            # The tracker logs one set at a time and reads `sets` to decide how many
+            # chips to pre-materialise. A plain integer or a plain numeric range gets
+            # that count; anything else - including this - collapses to a single
+            # "Set 1 of 1", which is correct for AMRAP/interval work but usually an
+            # authoring slip for an ordinary lift.
+            rep.warn(f"{where}: 'sets' is {sets_val!r} with no digit in it; the "
+                     "set-at-a-time logger will show a single set for it. Fine for "
+                     "AMRAP/interval work, an authoring slip otherwise")
+
     if not any(str(e.get("logHint", "")).strip()
                for e in exercises if isinstance(e, dict)):
         rep.warn("no exercise has a 'logHint'; the blue 'Log:' line is what "

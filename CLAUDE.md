@@ -33,7 +33,7 @@ This repo is **step 3** of a four-step loop. Steps 1, 2 and 4 are done by a Clau
 The two sides version independently. Current: **`tp-program-2` in, `tp-session-3` out.**
 
 - `tp-program-2` materialises every week as real rows, instead of Week 1 plus a prose progression rule. This fixed the live bug where the app showed Week 1 prescriptions no matter which week was selected. It also carries an optional `meta.version` — the revision number, bumped when a week is revised mid-block.
-- `tp-session-2` added a per-set `sets[]` array alongside the flat summary fields, which stay authoritative for the summary and are never recomputed from `sets`.
+- `tp-session-2` added a per-set `sets[]` array alongside the flat summary fields. The shape hasn't changed since, but per-set logging is no longer opt-in: the app now logs **one set at a time** by default (see "Where a thing goes on screen" below), so `sets[]` is normally populated for anything actually trained. The flat fields are auto-filled from `sets[]` as each set is confirmed and stay editable — never recomputed once the athlete overrides them.
 - `tp-session-3` moved next-morning pain to a **pre-session** reading: `amPainOnWaking` (with `tracking.painOnWaking`) replaces `amPainNextDay`, and is captured at check-in. **It describes the response to the *previous* session, not this one** — that attribution flip is the thing to get right in any reader. It also adds `programVersion`, the revision the athlete actually trained off.
 
 **Every reader must accept every version indefinitely.** A v1 programme can be sitting in `localStorage` on a phone mid-block, and v1/v2 log files are already on disk. In the app the whole programme-version difference is decided by `isV2()`, and every consumer asks `dayExercises()` — v2 filters by day **and** week, v1 by day only and keeps the "apply your progression rule" banner. Do not scatter `meta.schema` checks beyond those two functions. The session schema has no such branch: the app only ever *writes* the newest version, and reading old logs is the coaching side's job.
@@ -48,11 +48,18 @@ The two sides version independently. Current: **`tp-program-2` in, `tp-session-3
 
 There are three surfaces, and putting something on the wrong one is the mistake that made the old layout cluttered:
 
-- **Header** — a two-row strip: ≡, a tappable context line (`Week 3 · Tue` over the day's theme), the view toggle, then the date and progress. **No inputs.**
+- **Header** — a two-row strip: ≡ and a tappable context line (`Week 3 · Tue 5 Aug` over the day's theme — the date lives here, not in its own row) on row 1; a worded Overview/Log toggle and the done count on row 2, with the progress bar (or, in Log, the exercise pips) beneath. **No inputs.**
 - **`<main>`** — exercise cards, and nothing else.
-- **Drawer** — week, day, date, the session check-in, import/export, settings. Everything entered once per session and then only read.
+- **Drawer** — week (a stepper, not a `<select>`), day, date, the session check-in, import/export, settings. Everything entered once per session and then only read.
 
-`<main>` also has two views, chosen by the header toggle and remembered per device: **all exercises** (the original screen) and **focus**, one card at a time with prev/next in the footer and a numbered pip per exercise in the header. Both render the *same* `exerciseCard()` — the focus view changes how many are on screen, and must never become a second rendering path that can drift from the first. Marking done in the focus view advances to the next exercise; nothing else in the app navigates on its own.
+`<main>` has two views, chosen by the header toggle and remembered per device:
+
+- **Overview** — every exercise for the day, **read-only, zero inputs.** Category tag, name, prescription, and — once something is logged — a status line ("2 of 4 sets logged" or, once finished, the full summary). Tap a card to open it in Log.
+- **Log** — one exercise, worked **one set at a time**: a row of chips for the sets already logged, fields for the set in progress, and a primary button that commits it and seeds the next set from it. A "Finish exercise" action is always available alongside — even with nothing logged yet (a warm-up) or with fewer sets than prescribed (stopping early for pain is data, not something the UI should block) — and marks the exercise done. Un-finish is offered once it is. Finishing advances to the next exercise, exactly like the old "Mark done"; nothing else in the app navigates on its own.
+
+The two views do **not** render the same card builder any more — one is read-only, one is an editor, and forcing them through one branchy function invites more drift than it prevents. What they must still share, and do, is `exerciseHead()`: the rail colour, name and prescription line. If you touch how an exercise's identity is displayed, change it there so Overview and Log cannot show two different prescriptions for the same row.
+
+Every keystroke inside the Log editor writes into the row/draft and autosaves; only a deliberate tap (commit / save / cancel / delete / finish) may rebuild the set-editor DOM — see "Repaint, don't rebuild" below. This is what fixed the reported bug where typing in a set field lost focus after one character.
 
 ## Repo layout
 
@@ -103,9 +110,10 @@ Both are git worktrees of the same clone, so `athlete/` exists only in the workt
 - Plain ES5/ES6-compatible vanilla JS. Small helpers (`$`, `el`) already exist at the top of the script — use them rather than adding a library.
 - Mobile-first, single 720px-max column. Touch targets ≥26px; inputs must be reachable one-handed with a chalked-up thumb.
 - **Themed via CSS variables — never hardcode a colour.** Two palettes (Amber / Mint) × light/dark are declared as four `html[data-theme]` blocks at the top of the `<style>`; the Appearance section of the drawer picks palette + mode (Auto follows the device). Every colour in a rule below those blocks must be a `var(--…)`, or it will survive a theme switch and look broken in one of the four. The only exceptions are two neutral greys (a `color-mix` fallback and a swatch hairline). Category rail colours live in `--cat-*`, so `CATS` in the JS holds `var()` references, not hex.
-- `type="number"` for numeric fields so phones show the number pad.
+- `type="number"` for **integer** fields with no partial-invalid state (pain scores, 0–10). For a field that can hold a decimal mid-type (RPE: `"7.5"`) or non-numeric prose (Load: `"BW+20"`), use `type="text" inputmode="decimal|numeric"` instead — a real `type="number"` input reports `.value === ""` while the text isn't yet a valid number (typing the `.` in `7.5`), so the autosaved value would flicker blank. Text + `inputmode` still gets the right keyboard and keeps the value exactly as typed, which is also what the export contract requires (every prescription and logged value is a string).
 - Keep the JS organised in the existing sections: settings → theme → drawer → categories → program loading → session persistence → rendering → view mode → export → events.
-- **Repaint, don't rebuild, on autosave.** `saveSession()` runs on every keystroke and calls `updateProgress()`. Anything reached from there must set attributes and text on nodes that already exist (`paintNav()` is the model). Rebuilding a strip or a card that often fights the scroll position and can steal focus mid-word.
+- **Repaint, don't rebuild, on autosave.** `saveSession()` runs on every keystroke and calls `updateProgress()`. Anything reached from there must set attributes and text on nodes that already exist (`paintNav()` is the model). Rebuilding a strip or a card that often fights the scroll position and can steal focus mid-word. The set editor in Log view follows the same rule: an input's `oninput` writes into the row/draft and saves, never rebuilds its own container — that rebuild-on-keystroke was the cause of the old "RPE field escapes after one character" bug. Only a button tap may call the redraw that rebuilds it, and since that follows a tap rather than a keystroke it is free to call `.focus()` on the new field afterwards.
+- `paintNav()` scrolls the pip strip into view **only when `STATE.focus` changes**, and never while an input has focus — doing it on every autosave (which used to run on every keystroke, anywhere in the app) was the other half of the reported screen-jumping bug.
 - Bump the `CACHE` constant in `sw.js` whenever shell files change, or returning users get a stale app.
 
 ## Verifying changes
@@ -150,16 +158,20 @@ filtering, logging or export; extend `validatortest.py` when you add a rule to
 false confidence.
 
 Then manually, **against both fixture versions** (`samples/program.sample.json` and
-`samples/program.v2.sample.json`): import it, tick items, reload the page (state must
-survive), toggle airplane mode (app must still open), and export a session. Check the layout
-on a narrow screen — the per-set row is five columns wide and 320px is the real floor. A v1
-programme must keep working; that's the whole point of keeping both fixtures.
+`samples/program.v2.sample.json`): import it, log some sets, reload the page (state must
+survive — including the week and day, not just the log itself), toggle airplane mode (app
+must still open), and export a session. Check the layout on a narrow screen — 320px is the
+real floor. A v1 programme must keep working; that's the whole point of keeping both
+fixtures.
 
-Since the UI is now three surfaces, also: open the drawer and change week, day and date
-(the check-in must reload with the session, and the day list's pressed state must follow);
-switch to the focus view and page through with Prev/Next, the pips and Mark done; then
-switch back. Do it in at least one light theme — a rule that hardcodes a colour looks fine
-in the palette you wrote it in.
+Since the UI is Overview/Log plus a drawer, also: open the drawer and change week (the
+stepper), day and date (the check-in must reload with the session, and the day list's
+pressed state must follow); in Log, page through with Prev/Next and the pips, log a few sets
+one at a time — type a full RPE like `7.5` and confirm focus never leaves the field and the
+page never jumps — edit a past set from its chip, and Finish an exercise both with and
+without every prescribed set logged; then switch back to Overview and confirm it shows the
+right status with no inputs anywhere on it. Do it in at least one light theme — a rule that
+hardcodes a colour looks fine in the palette you wrote it in.
 
 Before committing anything under `athlete/`, also run `git status` and
 `git check-ignore -v athlete/<slug>/personal-profile.md athlete/<slug>/logs/`.

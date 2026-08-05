@@ -167,7 +167,7 @@ flag; the key stays and its value is `""`. That is what lets a reader tell *not 
 | `exercises[].id` | Unique per exercise **across the whole file**. v2 convention `w<week>d<daySlot>e<exerciseIndex>`, where `daySlot` is the number in the `Day N` label (`Day 3` → `d3`), falling back to position in `meta.days` if the labels aren't distinctly numbered. v1 was `d<dayIndex>e<exerciseIndex>`. **This is the key the app stores logged data under** — the v1→v2 id change means logs recorded against a v1 programme do not line up with the v2 one. Expected and accepted at the version boundary; exported session files are unaffected because they denormalise `prescribed` and are keyed by exercise name. |
 | `exercises[].week` | **v2: load-bearing.** The app renders only the exercises whose `week` matches the selected week. In v1 it was ignored. |
 | `exercises[].day` | Must match a string in `meta.days` **exactly** — the app filters by string equality. Day labels must be byte-identical across weeks, or a day will look empty in some weeks. |
-| `sets`/`reps`/`load`/`rpe`/`tempo`/`rest` | **All strings, not numbers.** They hold ranges and prose ("1 + 3", "8-10 min", "~115-135 kg", "RPE 6-6.5"). Never assume they parse as numeric. |
+| `sets`/`reps`/`load`/`rpe`/`tempo`/`rest` | **All strings, not numbers.** They hold ranges and prose ("1 + 3", "8-10 min", "~115-135 kg", "RPE 6-6.5"). Never assume they parse as numeric. **`sets` also drives the set-at-a-time logger**: a plain integer or a plain numeric range (`"3-4"`, lower bound used) materialises that many set chips; anything else — prose, a decorated range like `"8-10 min"` — collapses to a single "Set 1 of 1", which is the correct shape for AMRAP/interval work. Prefer a plain integer when the exercise really is N even sets. |
 | `logHint` | Comes from the spreadsheet's "Completed Notes" column. Rendered as the blue "Log:" line — it tells the athlete which data actually matters for this movement. Empty string for warm-ups. |
 | `focus` | Coaching cues (spreadsheet "Focus / Notes"). Collapsed by default. |
 | `progression` | Spreadsheet "Progression Rule". **Meaning changed in v2:** it is now *rationale* — why this week's prescription differs from last week's, plus the hold/stop gate. In v1 it was an instruction the athlete had to execute. Collapsed by default either way. |
@@ -230,7 +230,7 @@ python3 samples/validatortest.py     # 32 checks: fixtures pass, 23 breakages re
 | | |
 |---|---|
 | **ERROR** (exit 1, blocks the write) | The app will visibly do the wrong thing: a missing required field, a wrong type, a `day` not in `meta.days`, duplicate ids, a v2 week with no rows. |
-| **WARNING** (printed, never fatal) | Plausibly deliberate but usually an authoring slip: a week missing one day, no `logHint` anywhere, no `category` declared, a v1 file. |
+| **WARNING** (printed, never fatal) | Plausibly deliberate but usually an authoring slip: a week missing one day, no `logHint` anywhere, no `category` declared, a v1 file, an `exercises[].sets` with no digit in it. |
 
 Note the division of labour with `rows_common.load_rows`, which validates the builder's
 **input**. They answer different questions, and the second cannot be folded into the first: a
@@ -388,6 +388,28 @@ per device in the drawer's Tracked fields section, which shows up as `tracking.p
 **Reading rule for the coach:** use `sets` when it is non-empty — it is strictly more
 information. Fall back to the flat fields when `sets` is `[]` or absent (any v1 file). Do not
 average `sets` into a single load; the shape of a session (100 → 80 → 80) *is* the signal.
+
+**Since the app moved to logging one set at a time (no schema change, just how the app fills
+these fields):**
+
+- `sets` is now normally non-empty for any exercise that was actually trained — the app
+  logs a real set as soon as one is confirmed, rather than per-set logging being an opt-in
+  extra. `[]` means *nothing was logged*, full stop; it no longer also covers "the athlete
+  used the summary instead of the per-set table", because there is no separate per-set
+  table to opt into.
+- The flat `load`/`reps`/`rpe`/`painDuring` are **auto-filled from `sets` as each one is
+  confirmed, and stay editable.** They are still the athlete's own headline number, and a
+  reader must still not recompute them — but a disagreement with `sets` is now more likely
+  to be a *deliberate override* (the athlete corrected the headline by hand) than the
+  independent judgement call it used to be. Worth a line in the review rather than skipped.
+- `sets.length` is the number of sets **actually performed.** A set the app pre-fills while
+  the athlete is mid-entry (seeded from the set before it) never reaches a log file unless
+  it was actually confirmed — the export only ever contains committed sets.
+- RPE may carry a half point (`"7.5"`) — the field is free text for exactly this reason.
+  Still a string; parse as a float if you parse it at all, never as an integer.
+- `tracking.perSetLogging` is unconditionally `true` from this build on — it is no longer a
+  switch, it is how every exercise is logged. `false` still appears in older files and keeps
+  its old meaning there.
 
 Programme-side prescriptions stay one-load-per-exercise: `tp-program-2` has no per-set array.
 Ramping sets are expressed in the `load` string as they always were ("60/70/80 kg"). Add a

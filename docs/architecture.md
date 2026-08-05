@@ -15,11 +15,11 @@
 
 Three surfaces, and which one a thing belongs on is the main design rule here:
 
-- **Header** (sticky, two rows) — the ≡ button, a tappable context line (`Week 3 · Tue` over the day's theme), the view toggle, then the date + `n/m done` and either the progress bar (all-exercises view) or the pip strip (focus view). Nothing here is an input.
-- **`<main>`** — exercise cards, and nothing else. In the all-exercises view, every card for the day; in the focus view, exactly one.
-- **Drawer** — week, day, date, the session check-in, import/export, and settings. Everything that is decided once per session and then read rarely.
+- **Header** (sticky, two rows) — the ≡ button and a tappable context line (`Week 3 · Tue 5 Aug` over the day's theme — the date lives on this line, not its own row) on row 1; a worded Overview/Log toggle and `n/m done` on row 2, with either the progress bar (Overview) or the pip strip (Log) beneath. Nothing here is an input.
+- **`<main>`** — exercise cards, and nothing else. In Overview, every card for the day, read-only; in Log, exactly one, with a set editor.
+- **Drawer** — week (a `‹ Week N ›` stepper), day, date, the session check-in, import/export, and settings. Everything that is decided once per session and then read rarely.
 
-The footer bar swaps by view: export actions in the all-exercises view, `‹ Prev / n / N / Next ›` in the focus view. Export and Copy JSON are *also* always in the drawer, so the swap never strands them.
+The footer bar swaps by view: export actions in Overview, `‹ Prev / n / N / Next ›` in Log. Export and Copy JSON are *also* always in the drawer, so the swap never strands them.
 
 ## JS layout inside `index.html`
 
@@ -31,40 +31,58 @@ The script is organised in labelled sections, in this order. Keep additions in t
 2c. **Drawer** — `renderDrawer()` builds the whole panel: the week/date/day controls (and wires them, because they only exist once it has rendered), the check-in accordion, the data buttons, and the two settings accordions. `renderCheckin()` rebuilds *only* the check-in — day and date changes switch which session is open, and a full rebuild would throw away the scroll position and open/closed state of the sections below it. `accordion(key, title, build, statId)` remembers open/closed in the in-memory `ACC`. `checkinSummary()`/`checkinFilled()` drive the closed-state summary and the dot on the ≡. `openDrawer()`/`closeDrawer()`/`toggleDrawer()`/`drawerOpen()`.
 3. **Categories** — `CATS`, `CAT_ALIASES`, `CAT_RULES`, `catOf(ex)`. Resolves an exercise's rail colour + tag; see `docs/data-contracts.md` for the fallback ladder.
 4. **Program loading** — `isV2()` and `dayExercises()` (the schema fork; see quirks), `athleteId()`, `loadProgram(obj)` validates and persists; `boot()` loads settings, then restores the programme from `localStorage`, else fetches `./program.json`.
-5. **Session persistence** — `sessionKey()`, `getSession()`, `saveSession()`.
-6. **Rendering** — `renderAll()` = `renderHeader()` + `renderDrawer()` + `renderMain()`. Also `dayParts()`, `dayTheme()`, `fmtDate()`, `sessionCard()` (the check-in, rendered into the drawer), `exerciseCard(ex, s, idx)`, `heroEl()`, `chipsEl()`, `summaryText()`, `collapse()`, `updateProgress()`. Per-set logging lives here too: `entrySets()`, `renumber()`, `prescribedSets()`, `newSet()`, `setsEl()`.
-6b. **View mode** — `viewMode()`, `setView()`, `syncView()` (toggle state, which footer group and which header strip is visible), `firstUndone()`, `resetFocus()`, `clampFocus()`, `goFocus(i)`, `stepFocus(d)`, `renderNav()` (rebuilds the pips) and `paintNav()` (repaints their state, the counter and the prev/next disabled flags on every save, without touching structure).
-7. **Export** — `exportSets()`, `buildSessionExport()`, `exportSession()`, `copyJSON()`.
+5. **Session persistence** — `sessionKey()`, `getSession()` (also runs `normalizeEntry()` over every entry — see "Migrating a stored entry" below), `saveSession()`; the set model itself: `blankEntry()`, `blankDraft()`/`seedDraft()`/`draftEmpty()`, `renumber()`, `deriveSummary()`/`deriveReps()`/`pickMode()`/`pickMax()`/`applyDerivedSummary()`, `normalizeEntry()`, `commitSet()`, `deleteSet()`.
+6. **Rendering** — `renderAll()` = `renderHeader()` + `renderDrawer()` + `renderMain()`. Also `dayParts()`, `dayTheme()`, `fmtDate()`/`fmtDateShort()`, `sessionCard()` (the check-in, rendered into the drawer), `field()`, `updateProgress()`, `prescribedSets()`, and the card builders: `exerciseHead(ex)` (shared), `overviewCard(ex, s, idx)`, `logCard(ex, s, idx)`, `buildSetEditor()` (the set chips + fields + actions), `buildSummaryPanel()` (the collapsed, editable flat fields), `summaryText()`, `collapse()`.
+6b. **View mode** — `viewMode()`, `setView()`, `syncView()` (toggle state, which footer group and which header strip is visible), `firstUndone()`, `resetFocus()`, `clampFocus()`, `goFocus(i)`, `stepFocus(d)`, `renderNav()` (rebuilds the pips) and `paintNav()` (repaints their state, the counter and the prev/next disabled flags on every save, without touching structure — and scrolls the pip strip only when `STATE.focus` actually changed).
+7. **Export** — `exportSets()`, `exportEntry()` (a named whitelist, not a rest-spread — see "State model" below), `buildSessionExport()`, `exportSession()`, `copyJSON()`.
 8. **Events** — wiring for the markup that exists for the whole life of the page, a guarded `keydown` listener (Escape closes the drawer, arrows page the focus view), service-worker registration, `boot()` call. The week/date/day controls are wired in `renderDrawer()` instead, because they are built there.
 
 ## State model
 
 ```js
-STATE = { week: 1, day: "Day 1 (Mon) - ...", date: "2026-07-27", focus: 0 }
+STATE = { week: 1, day: "Day 1 (Mon) - ...", date: "2026-07-27", focus: 0, setEdit: null }
 ```
 
-`STATE` is just the current view selection. `focus` is the index of the exercise shown in the focus view and is deliberately **not** persisted: on a cold start, and whenever the week, day or date changes, it is re-derived by `firstUndone()`, which lands on the first exercise not yet ticked off. Everything durable lives in `localStorage`:
+`STATE` is just the current view selection. `focus` is the index of the exercise shown in Log view and is deliberately **not** persisted: on a cold start, and whenever the week, day or date changes, it is re-derived by `firstUndone()`, which lands on the first exercise not yet ticked off. `setEdit` is the index of a committed set being re-edited from its chip, or `null` while the athlete is typing the next new one (the "draft"); it lives in memory only and is cleared by every navigation function (`goFocus`, `resetFocus`, and therefore `selectDay`/`selectDate`/`selectWeek`/`loadProgram`, which all call it) — an edit target that survived a navigation would silently write into the wrong exercise's set. Everything durable lives in `localStorage`:
 
 | Key | Contents |
 |---|---|
 | `tp_program_v1` | The imported programme. One at a time. Holds **either** `tp-program-1` or `tp-program-2` — the storage key is not versioned, `meta.schema` inside it is. |
 | `tp_sess_v1::<date>::<day>` | One session's logged data. |
-| `tp_settings_v1` | Which optional fields are shown, plus `painLabel`, plus appearance (`palette`: `a`\|`b`, `mode`: `auto`\|`light`\|`dark`) and `view` (`list`\|`focus`). Defaults are all-on / `a` / `auto` / `list`, so a fresh install behaves like the original app apart from following the phone's light-dark setting. Appearance and view are cosmetic and deliberately **not** part of the session export — `tracking` is built from `FIELD_DEFS` alone, so nothing added here can leak into a log file. |
+| `tp_settings_v1` | Which optional fields are shown, plus `painLabel`, plus appearance (`palette`: `a`\|`b`, `mode`: `auto`\|`light`\|`dark`), `view` (`list`\|`focus`, meaning Overview\|Log) and `sv`, a one-shot settings-migration marker (see below). Defaults are all-on / `a` / `auto` / `focus`. Appearance and view are cosmetic and deliberately **not** part of the session export — `tracking` is built from `FIELD_DEFS` alone, so nothing added here can leak into a log file. |
 
 A stored session looks like:
 
 ```js
 { block, athlete, week, day, date,
   session: { bodyweightKg, sleep, readiness, hrvNote, amPainOnWaking, overall },
-  entries: { "<exercise.id>": { done, load, reps, rpe, painDuring, notes,
-                                sets: [ { set, load, reps, rpe, painDuring, note } ] } } }
+  entries: { "<exercise.id>": { done, load, reps, rpe, painDuring, notes, summaryAuto,
+                                sets: [ { set, load, reps, rpe, painDuring, note } ],
+                                draft: { load, reps, rpe, painDuring, note } } } }
 ```
+
+`sets` holds only **committed** rows — a set the athlete actually confirmed with "Log set N". `draft` is the set currently being typed (seeded from the row before it) and is never in `sets` and never exported; `exportEntry()` is a named whitelist of exactly the six flat keys the contract defines, not a rest-spread over the entry, specifically so `draft` (and `summaryAuto`, below) can never leak into a log file by accident as the entry shape grows. `summaryAuto` says whether `load`/`reps`/`rpe`/`painDuring` are still being derived from `sets` (`applyDerivedSummary()`, called on every commit/edit/delete) or have been overridden by editing them directly in "Summary & notes" — once overridden it stays off for that entry, the same idiom the old per-set rows used for their `auto` flag.
 
 Note `entries` is an **object keyed by exercise id** in storage, but is flattened to an **array** on export (see `buildSessionExport()`).
 
-`sets` is absent from sessions saved before v2, so every read goes through `entrySets()`, which creates it lazily. `renumber()` renormalises `set` numbers **in the array before saving** — renumbering during render instead leaves stale numbers in storage after a removal, which is a bug that only shows up in an exported file.
+`renumber()` renormalises `set` numbers **in the array before saving** — renumbering during render instead leaves stale numbers in storage after a removal, which is a bug that only shows up in an exported file.
 
 Under v2 the same stored session can hold entries from more than one week (the key is date + day, not week), because the athlete can flip the week selector on the same date. That is harmless: exercise ids are week-scoped, and the export only emits the currently selected week's exercises.
+
+### Migrating a stored entry
+
+`getSession()` runs `normalizeEntry()` over every entry on every read, and persists the result if anything changed, so every consumer — rendering, export, the progress bar — sees the current shape regardless of which build wrote the file to disk:
+
+1. Any row still carrying an `auto` key predates this build (the old "Log each set" table used it to mark a row it had seeded but the athlete never actually typed into) — drop those rows and rebuild the survivors without the key, then renumber. Without this, a 7-set exercise where only set 1 was ever typed into would export as 7 sets performed.
+2. A pre-existing **flat-only** entry (per-set logging used to be opt-in, so most older logs are flat-only) is promoted into one committed set, so derivation below doesn't silently blank out data the athlete already logged. Not for a box ticked with nothing logged at all — a warm-up needs no invented set.
+3. Ensure `draft` and `summaryAuto` exist.
+4. If anything changed, re-derive the flat summary from `sets`.
+
+Idempotent by construction: run it twice and the second pass changes nothing, which matters because it runs on every read, including every autosave.
+
+### Settings migration
+
+An install from before Log became the default view has a stored `view: "list"` and no `sv` key. `loadSettings()` checks for `sv` once on boot; if absent, it forces `view` to `"focus"` and stamps `sv: 1`, then saves. Without this, an existing install would open straight onto the read-only Overview and look like logging had vanished.
 
 ### Autosave
 
@@ -75,10 +93,13 @@ Every input has an `oninput`/`onchange` handler that mutates the session object 
 - **Session key is `date` + `day`, not week.** Changing the week selector does not switch sessions; it overwrites `week` on the current one. Harmless in practice (a given date has one session), but don't rely on week for keying.
 - **Changing the date switches sessions.** By design — it's how a session gets corrected or completed after the fact. It used to be load-bearing: `amPainNextDay` could *only* be filled by re-opening yesterday's session the next morning, which is exactly why it kept arriving empty and why `tp-session-3` replaced it with the pre-session `amPainOnWaking`. The date picker stays, but nothing in the normal flow depends on it now.
 - **Exercises are filtered by `day` and `week` — but only for `tp-program-2`.** A v1 programme is a Week-1 template, so filtering it by week would empty the list; it keeps the day-only filter and the "apply your progression rule" banner. `isV2()` is the only place that decides, and `dayExercises()` is the only filter — rendering, the progress bar and the export all call it. See `docs/data-contracts.md`.
-- **Per-set logging is opt-in per exercise.** The flat load / sets×reps / RPE row is the fast path and stays the summary; tapping "Log each set" materialises the prescribed number of rows. Each row carries an `auto` flag while the app owns it, so typing into set 1 flows down into every row the athlete has not touched — that is what keeps "all sets the same" at one tap per field rather than one per set. Typing into a row clears its flag and it stops following, so propagation can never overwrite entered data. `auto` is local only; `exportSets()` picks its keys explicitly, so it never reaches a log file. The flat fields are exported as logged and never recomputed from `sets`.
-- **The check-in is not in the training view.** It renders into the drawer, and the drawer's closed summary line (plus a dot on the ≡ while nothing is filled) is how the athlete knows whether it is done. It is still the *same* `sessionCard()`, still autosaves on every input, and still tints itself by readiness — only its host moved. Anything that reads the check-in should call `renderCheckin()`, never `renderMain()`.
-- **Marking done in the focus view advances to the next exercise.** Only forward, only on the card being looked at, and never on un-marking, so a mis-tap costs one tap of Prev. In the all-exercises view it does nothing of the sort. This is the only automatic navigation in the app.
-- **`renderNav()` and `paintNav()` are split on purpose.** `saveSession()` runs on every keystroke; rebuilding a pip per exercise that often would fight the scroll position of the strip. `renderNav()` rebuilds structure when the exercise list changes, `paintNav()` only repaints attributes.
+- **Logging is one set at a time, and it is the only way to log now.** There is no flat-row fast path any more and no per-exercise opt-in — every exercise goes through the same set editor, and an exercise whose prescribed `sets` isn't a plain integer or range (`"AMRAP"`, `"8-10 min"`) collapses to a single "Set 1 of 1", which behaves like the old flat row. `tracking.perSetLogging` is stamped `true` unconditionally now, purely for reader compatibility with the older contract that made it a switch.
+- **A new draft always seeds from the set before it**, load/reps/rpe/pain carried forward and the note cleared — the point being that logging N identical sets costs one tap each, and correcting one downward costs one more. The only way to get a genuinely blank draft is for the athlete to clear every field by hand; `commitSet()` refuses to commit one either way, so that can never produce a phantom set.
+- **The flat summary follows `sets` until it doesn't.** `applyDerivedSummary()` recomputes it on every commit/edit/delete while `summaryAuto` is true; editing a flat field directly in "Summary & notes" sets `summaryAuto` to `false` for that entry and it stops following, permanently, for that exercise. Never partially — there's one flag for the whole group, not one per field.
+- **Deriving the summary must fail safe on empty or partial data**: no fabricated `"0"` RPE from nothing logged, no `"NaN"` from RPE prose that doesn't parse (fall back to the last raw string), no reps string that asserts more sets than were actually committed. See `deriveReps()`/`pickMode()`/`pickMax()` for the exact rules, and `samples/apptest.js`'s "deriving the flat summary" block for the table they're tested against.
+- **The check-in is not in the training view.** It renders into the drawer, and the drawer's closed summary line (plus a dot on the ≡ while nothing is filled) is how the athlete knows whether it is done. It is still the *same* `sessionCard()`, still autosaves on every input, and still tints itself by readiness — only its host moved. Anything that reads the check-in should call `renderCheckin()`, never `renderMain()`. `closeDrawer()` also calls `renderMain()` — Overview/Log cards built before the drawer was opened hold an older session object, and without this fix, the next keystroke in one would autosave that stale copy over whatever was just typed in the check-in.
+- **Finishing an exercise in Log view advances to the next one**, exactly like the old "Mark done" did. Only forward, only on the card being looked at, and never on un-finishing, so a mis-tap costs one tap of Prev. Finish is offered even with zero sets logged (a warm-up needs no invented set) and with fewer than prescribed (stopping early for pain is data the coach wants, not something the UI should withhold). In Overview it does nothing of the sort — there is no button to tap.
+- **`renderNav()` and `paintNav()` are split on purpose.** `saveSession()` runs on every keystroke; rebuilding a pip per exercise that often would fight the scroll position of the strip. `renderNav()` rebuilds structure when the exercise list changes, `paintNav()` only repaints attributes — and scrolls the strip into view only when `STATE.focus` actually changed, and never while an input has focus, which is the fix for the reported screen-jump-while-typing bug.
 - **Old session keys are never cleaned up.** They accumulate in `localStorage`. Not a practical problem at this data volume; see roadmap.
 
 ## Service worker strategy
@@ -103,12 +124,12 @@ Inline `<style>` in the head. Dark palette via CSS custom properties on `:root` 
 
 Layout rules that are load-bearing on a phone, and easy to undo by accident:
 
-- **`minmax(0, 1fr)`, never plain `1fr`,** in the log grids. An input's intrinsic width is wider than a phone column and `1fr` refuses to shrink below it.
-- **Header buttons are `flex: 0 0 auto` + `nowrap`, except `.ctx`.** Otherwise they absorb the squeeze and render one character per line. The context line is the one thing allowed to shrink, and it ellipses rather than wraps. The rule is written `header .row>button:not(.ctx)` so `.ctx`'s own `flex: 1 1 auto` isn't outgunned.
-- **The hero is capped at `max-width: 45%`, and `.hero small` wraps.** The RPE line is prose as often as a number ("RPE 7 (use RPE-1 to set load)") and inherits the hero's `nowrap`; without both rules a long one takes the whole row and wraps the exercise name to one word per line.
-- **`.sets` spans the log grid (`grid-column: 1 / -1`).** It is a child of `.log`, so without it the per-set block lands in one ~90px column.
+- **`minmax(0, 1fr)`, never plain `1fr`,** in the log/set grids. An input's intrinsic width is wider than a phone column and `1fr` refuses to shrink below it.
+- **Header row 1 buttons are `flex: 0 0 auto` + `nowrap`, except `.ctx`.** Otherwise they absorb the squeeze and render one character per line. The context line is the one thing allowed to shrink, and it ellipses rather than wraps.
+- **The prescription is one or two plain lines under the name (`.rx` / `.rx.meta`), not a separate hero number or a row of pill chips.** Both `exerciseHead()` bodies build the same two lines: sets×reps + load + RPE, then tempo/rest if either is present. Because it's a normal wrapping line rather than a `nowrap` hero, prose RPE ("RPE 7 (use RPE-1 to set load)") no longer needs a special case to avoid wrapping the exercise name to one word per line.
+- **The set editor (`.setgrid`) is four columns — Load / Reps / RPE / Pain — collapsing to two at `min-width: 360px`'s absence, with `.nopain` dropping to three.** Because only one set's fields are ever on screen, this grid never had the old per-set table's width problem; it can afford `min-height: 46px` inputs.
 - **Number spinners are hidden.** They're unusable with chalked hands and cost ~15px of field width — enough to clip a pain score of `10`.
-- The four-across log grid is gated on `min-width: 360px` and falls back to 2×2 below that.
+- The four-across log/set grids are gated on `min-width: 360px` and fall back to 2×2 below that.
 - **The drawer opens and closes with `visibility`, not `[hidden]`** — a delayed `visibility` transition keeps the panel present until it has slid out, with no JS timers. The reduced-motion block has to zero that *delay* as well as the durations, or an invisible scrim keeps eating taps for 240ms.
 
 ## Deliberate non-goals
