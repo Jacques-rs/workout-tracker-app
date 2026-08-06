@@ -214,16 +214,28 @@ Static hosting with HTTPS — required for install + service worker. No build st
 
 ```bash
 gh api repos/Jacques-rs/workout-tracker-app/pages --jq '.source.branch, .status'
-gh api repos/Jacques-rs/workout-tracker-app/pages/builds/latest --jq '.status, .commit, .duration, .error.message'
-curl -s https://jacques-rs.github.io/workout-tracker-app/sw.js | grep CACHE   # which build is live
+curl -s https://jacques-rs.github.io/workout-tracker-app/sw.js | grep CACHE   # which build is LIVE
+gh run list -R Jacques-rs/workout-tracker-app --limit 5                       # the real build record
+gh run view <id> -R Jacques-rs/workout-tracker-app --log-failed               # why it failed
 curl -s https://www.githubstatus.com/api/v2/summary.json | grep -o '"name":"Pages","status":"[a-z_]*"'
 ```
 
-A build with `duration: 0` never started — that is GitHub's side, not the content. A build that
-took 30–50s and errored is the content. **Only once the live `sw.js` shows the new `CACHE`
-value** is a stale phone the service worker's fault, and the fix for that is a reload (the
-worker calls `skipWaiting()` + `clients.claim()`, so one is usually enough; an installed iOS
-PWA sometimes wants the app closed and reopened).
+**Read the workflow run, not the `pages/builds` API.** Pages deploys via the
+`pages-build-deployment` workflow, whose run has two jobs, and which one failed is the whole
+answer:
+
+| | |
+|---|---|
+| `build` failed | **Our content.** A Jekyll/Liquid error, a bad file. Read the log and fix the repo. |
+| `build` passed, `deploy` failed | **Not our content** — the site was built fine and only publishing failed. Usually GitHub's side (on 2026-08-06 it was `Invalid actions OIDC token`, during an Actions+Pages major outage); otherwise a Pages config or permission problem. Check the status page before touching the repo, and **re-run the failed job** once it clears rather than inventing a commit. |
+
+Do not trust `pages/builds/latest.duration` to tell you whether a build ran — during that
+outage it reported `0` for a run that had spent four minutes building successfully.
+
+**Only once the live `sw.js` shows the new `CACHE` value** is a stale phone the service
+worker's fault, and the fix for that is a reload (the worker calls `skipWaiting()` +
+`clients.claim()`, so one is usually enough; an installed iOS PWA sometimes wants the app
+closed and reopened).
 
 Alternatives if the repo ever needs to go private: **Cloudflare Pages** (private repos on the free tier, and the site can be gated behind Cloudflare Access) or **Netlify Drop** (drag the folder in, no repo; URL is unlisted but public).
 
