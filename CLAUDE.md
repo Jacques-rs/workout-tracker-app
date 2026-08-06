@@ -87,14 +87,21 @@ A **block folder** is whichever directory holds that block's `program.json`; rev
 changelog sit beside it. New blocks get their own subfolder under `programs/`; older flat ones
 are left where they are rather than migrated.
 
-The PWA must stay at the **repo root** — GitHub Pages serves `/` from `main`, and moving it breaks the deployed URL and every installed home-screen icon.
+The PWA must stay at the **repo root** — GitHub Pages serves `/`, and moving it breaks the deployed URL and every installed home-screen icon.
 
 `Fitness/training-prog-project/` remains the backup for everything gitignored under `athlete/` — gitignored files can be lost by a branch switch or `git clean`. The skills themselves are now canonical in `athlete/skills/`; see `athlete/README.md`.
 
 ### Two worktrees
 
-- `Fitness/workout-tracker-app/` — branch `main`. This is what GitHub Pages serves. Don't develop here.
-- `Fitness/workout-tracker-app-dev/` — branch `dev`. Do the work here; merge `dev` → `main` to deploy.
+- `Fitness/workout-tracker-app/` — branch `main`.
+- `Fitness/workout-tracker-app-dev/` — branch `dev`. Do the work here.
+
+**`dev` is currently the branch GitHub Pages serves**, so pushing `dev` deploys. It used to be
+`main`, and the docs went stale when it changed — so **check, don't assume**:
+
+```bash
+gh api repos/Jacques-rs/workout-tracker-app/pages --jq '.source, .status'
+```
 
 Both are git worktrees of the same clone, so `athlete/` exists only in the worktree it was created in.
 
@@ -201,7 +208,22 @@ Before committing anything under `athlete/`, also run `git status` and
 
 Static hosting with HTTPS — required for install + service worker. No build step, output directory `/`.
 
-**Current setup: GitHub Pages**, serving `/` from the `main` branch of the **public** repo `Jacques-rs/workout-tracker-app`, live at <https://jacques-rs.github.io/workout-tracker-app/>. Pushing to `main` deploys. The repo is public because that is the free way to get HTTPS hosting from GitHub Pages — which is exactly why the `athlete/` rules above are non-negotiable.
+**Current setup: GitHub Pages**, serving `/` from the **`dev`** branch of the **public** repo `Jacques-rs/workout-tracker-app`, live at <https://jacques-rs.github.io/workout-tracker-app/>. Pushing `dev` deploys. It is the `legacy` (Jekyll) builder, not a workflow. The repo is public because that is the free way to get HTTPS hosting from GitHub Pages — which is exactly why the `athlete/` rules above are non-negotiable.
+
+**When a push doesn't show up on the phone, check in this order** — the first two are free and rule out the expensive third:
+
+```bash
+gh api repos/Jacques-rs/workout-tracker-app/pages --jq '.source.branch, .status'
+gh api repos/Jacques-rs/workout-tracker-app/pages/builds/latest --jq '.status, .commit, .duration, .error.message'
+curl -s https://jacques-rs.github.io/workout-tracker-app/sw.js | grep CACHE   # which build is live
+curl -s https://www.githubstatus.com/api/v2/summary.json | grep -o '"name":"Pages","status":"[a-z_]*"'
+```
+
+A build with `duration: 0` never started — that is GitHub's side, not the content. A build that
+took 30–50s and errored is the content. **Only once the live `sw.js` shows the new `CACHE`
+value** is a stale phone the service worker's fault, and the fix for that is a reload (the
+worker calls `skipWaiting()` + `clients.claim()`, so one is usually enough; an installed iOS
+PWA sometimes wants the app closed and reopened).
 
 Alternatives if the repo ever needs to go private: **Cloudflare Pages** (private repos on the free tier, and the site can be gated behind Cloudflare Access) or **Netlify Drop** (drag the folder in, no repo; URL is unlisted but public).
 
