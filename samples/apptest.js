@@ -164,7 +164,12 @@ function pips(){ return stubFor("#pips").children.filter(n => n.nodeType === 1);
 function logCardNode(){ app.setView("focus"); return exCards()[0]; }
 function setInputs(c){ return c.findAll(n => n.classList.contains("setgrid")).flatMap(g => g.findAll(n => n.tagName === "INPUT")); }
 function chipsOf(c){ return c.findAll(n => n.classList.contains("setchip")); }
+/* Both action rows carry the .setactions class, so this keeps finding every button one
+   level deep even though the primary and the quieter actions are now separate rows. */
 function actionBtn(c, re){ return c.findAll(n => n.classList.contains("setactions")).flatMap(a => a.children).find(b => re.test(b.text)); }
+function countBtn(c, glyph){ return c.findAll(n => n.classList.contains("cntbtn")).find(b => b.text === glyph); }
+function setLabel(c){ const n = c.findAll(x => x.classList.contains("setlabel"))[0]; return n && n.text; }
+function countValue(c){ const n = c.findAll(x => x.classList.contains("cntval"))[0]; return n && n.text; }
 /* Type into a field WITHOUT re-finding the node afterwards — this is what would catch
    the old bug where oninput rebuilt the container and destroyed the input mid-keystroke. */
 function type(inp, v){ inp.value = v; inp.oninput(); }
@@ -236,10 +241,58 @@ console.log("\nprescribedSets — plain integers, ranges, and prose");
   is(app.prescribedSets({ sets: "3–4" }), 3, "an en dash range parses the same way");
   is(app.prescribedSets({ sets: "0-4" }), 1, "a lower bound of 0 clamps up to 1");
   is(app.prescribedSets({ sets: "8-10 min" }), 1, "a decorated range is prose, not a range — one set");
-  is(app.prescribedSets({ sets: "2 rounds" }), 1, "prose falls back to one set");
+  /* "4 rounds" IS four sets, and used to collapse to one. The rule is deliberately tight:
+     an integer, whitespace, then a word — which "8-10 min" and "1 + 3" are not. */
+  is(app.prescribedSets({ sets: "4 rounds" }), 4, "an integer followed by a word is that many sets");
+  is(app.prescribedSets({ sets: "2 rounds" }), 2, "…so a 2-round couplet shows two set slots");
   is(app.prescribedSets({ sets: "1 + 3" }), 1, "arithmetic prose falls back to one set");
   is(app.prescribedSets({ sets: "AMRAP" }), 1, "AMRAP falls back to one set");
+  is(app.prescribedSets({ sets: "8 x 2" }), 8, "…but a leading count still wins when there is one");
   is(app.prescribedSets({}), 1, "missing sets falls back to one set");
+}
+
+console.log("\nmetricOf — the reps field is whatever the exercise measures");
+{
+  /* The reported bug: the field was inputmode="numeric", a digits-only keypad on iOS, so
+     a 45-second hold could not be typed at all. Two prescriptions in five in the real
+     programme are a duration, a distance or prose. */
+  const m = reps => app.metricOf({ reps });
+  const shape = reps => { const x = m(reps); return [x.label, x.unit, x.inputmode]; };
+  is(shape("45 sec"), ["Hold", "s", "decimal"], "seconds become a Hold in s");
+  is(shape("45s"), ["Hold", "s", "decimal"], "…with or without the space");
+  is(shape("8-10 min"), ["Time", "min", "decimal"], "minutes become Time in min, not metres");
+  is(shape("20 m"), ["Dist", "m", "decimal"], "a bare m is metres");
+  is(shape("15/12 cal"), ["Work", "cal", "decimal"], "calories are their own metric");
+  is(shape("4"), ["Reps", "", "numeric"], "a plain count keeps the fast numeric keypad");
+  is(shape("4-6"), ["Reps", "", "numeric"], "…and so does a range");
+  is(shape("6/side"), ["Reps", "", "numeric"], "per-side work is still a rep count");
+  is(shape("20-30 sec/side"), ["Hold", "s", "decimal"], "…and a per-side hold is still a hold");
+  /* The unit lives in the label, not as an overlay inside the field: "min" plus "8-10"
+     does not fit a 68px column, and it clipped the value. */
+  is(m("8-10 min").fieldLabel, "Time (min)", "the field label carries the unit");
+  is(m("4").fieldLabel, "Reps", "…and says nothing extra when there is no unit");
+  assert(m("15/12 cal").fieldLabel.length <= 10,
+     `every field label stays short enough not to wrap a 68px column (got ${JSON.stringify(m("15/12 cal").fieldLabel)})`);
+  /* Composite prose is tested FIRST, or this reads as a 45-second hold. */
+  is(shape("45 sec hard / 75 sec easy"), ["Result", "", "text"],
+     "an interval prescription is prose, and gets the full keyboard");
+  is(shape("5 TnG power cleans + 15/12 cal bike"), ["Result", "", "text"],
+     "…as does anything with arithmetic in it");
+  is(shape(""), ["Reps", "", "text"],
+     "no prescription at all never gets a digits-only keypad — that is the whole bug");
+  is(m("45 sec").placeholder, "45", "the placeholder is the prescription, minus the unit");
+  is(m("8-10 min").placeholder, "8-10", "…range and all");
+  is(m("5 TnG power cleans + 15/12 cal bike").placeholder, "result",
+     "…but prose gets a generic word, not a prescription clipped mid-syllable");
+  is(m("45 sec hard / 75 sec easy").autocap, "sentences", "free text keeps capitalisation");
+  is(m("4").autocap, "off", "…and a number never does");
+
+  /* The value carries its unit into the derived summary, so "3x45" can't be read as
+     45 reps. Still a plain string, still exactly what was typed plus a suffix. */
+  const rows = n => Array.from({ length: n }, () => ({ load: "", reps: "45", rpe: "", painDuring: "", note: "" }));
+  is(app.deriveReps(rows(3), "s"), "3x45s", "three 45-second holds derive as 3x45s");
+  is(app.deriveReps(rows(3)), "3x45", "…and with no unit, exactly as before");
+  is(app.deriveReps(rows(1), "s"), "45s", "a single hold is never prefixed 1x");
 }
 
 console.log("\nderiving the flat summary from sets[]");
@@ -304,7 +357,7 @@ console.log("\nlogging one set at a time — the commit flow");
   C = card();
   is(stored().draft.load, "100", "the next draft seeds from the set just committed");
   assert(/Log set 2/.test(actionBtn(C, /Log set|Log another/).text), "the button now reads Log set 2");
-  assert(!!actionBtn(C, /Finish exercise/), "Finish is offered even before every set is logged");
+  assert(!!actionBtn(C, /Finish early/), "Finish is offered even before every set is logged");
 
   /* Commit the rest without changing anything — a confirmed set that matches the one
      before it is still a set that was performed, and must still be exported. */
@@ -392,8 +445,11 @@ console.log("\nediting and deleting a committed set");
   is(app.STATE.setEdit, null, "deleting returns to the draft rather than an edit for a row that moved");
 }
 
-console.log("\nupcoming (todo) chips are unlocked — tap one to skip a set");
+console.log("\nupcoming chips are inert; the planned count has its own control");
 {
+  /* The reported bug: tapping an upcoming set number deleted planned sets. It reads as
+     "jump to set 4" and was destructive with no confirmation. Upcoming chips are plain
+     placeholders now, and the count moved to an explicit ⊖ N ⊕ control. */
   loadFixture("program.v2.sample.json");
   app.STATE.week = 1;
   const ex = app.dayExercises().slice().sort((a, b) => app.prescribedSets(b) - app.prescribedSets(a))[0];
@@ -411,29 +467,37 @@ console.log("\nupcoming (todo) chips are unlocked — tap one to skip a set");
 
   C = logCardNode();
   const before = chipsOf(C);
-  is(before.length, n, `all ${n} chips show before anything is skipped`);
+  is(before.length, n, `all ${n} chips show`);
   const todoChips = before.filter(c => c.getAttribute("data-state") === "todo");
   assert(todoChips.length === n - 3, "everything past the current slot (set 3) is todo");
-  assert(todoChips.every(c => !c.disabled), "and none of them are disabled — this is the reported lock");
-  assert(!!todoChips[0].onclick, "a todo chip has a real handler, not just a look");
+  assert(todoChips.every(c => !c.onclick), "a todo chip has no handler at all — nothing to mis-tap");
+  assert(todoChips.every(c => c.tagName === "SPAN"), "…and is not even a button, so it does not invite one");
+  const doneChips = before.filter(c => c.getAttribute("data-state") === "done");
+  assert(doneChips.every(c => typeof c.onclick === "function"),
+     "a logged set is still tappable, because there is something there to edit");
 
-  todoChips[0].onclick();
+  const dec = () => countBtn(C, "−"), inc = () => countBtn(C, "+");
+  assert(!!dec() && !!inc(), "the set-count control renders in draft mode");
+  dec().onclick();
   C = logCardNode();
-  is(chipsOf(C).length, n - 1, "tapping a todo chip removes exactly one upcoming slot");
+  is(chipsOf(C).length, n - 1, "⊖ drops exactly one planned set");
   is(app.getSession().entries[ex.id].sets.length, 2, "…without touching anything already committed");
   is(app.getSession().entries[ex.id].setTarget, n - 1, "the reduced target is what's stored");
 
-  /* Keep tapping away every upcoming slot; it must stop at the current one, never eat
-     into the sets already logged or vanish the draft itself. */
-  while(chipsOf(C).some(c => c.getAttribute("data-state") === "todo")){
-    chipsOf(C).find(c => c.getAttribute("data-state") === "todo").onclick();
-    C = logCardNode();
-  }
-  is(chipsOf(C).length, 3, "shrinks all the way down to the two logged sets plus the current draft, no further");
-  const label = C.findAll(n => n.classList.contains("setlabel"))[0];
-  is(label.text, "Set 3 of 3", "the label reflects the reduced target");
-  assert(/Finish exercise \(2 logged\)/.test(actionBtn(C, /Finish/).text),
-     "Finish still counts up, since the reduced target's own last set hasn't been logged yet");
+  /* Keep going; it must stop at the set in progress, never eat into what is logged. */
+  while(!dec().disabled){ dec().onclick(); C = logCardNode(); }
+  is(chipsOf(C).length, 3, "shrinks to the two logged sets plus the one in progress, no further");
+  is(setLabel(C), "Set 3 of 3", "the label reflects the reduced target");
+  is(countValue(C), "3 sets", "and so does the control");
+  assert(/Finish early/.test(actionBtn(C, /Finish/).text),
+     "Finish still reads as early, since the reduced target's own last set isn't logged yet");
+
+  inc().onclick();
+  C = logCardNode();
+  is(chipsOf(C).length, 4, "⊕ plans another set");
+  is(setLabel(C), "Set 3 of 4", "…and the label follows");
+  dec().onclick();
+  C = logCardNode();
 
   /* Logging that last set must still work — a shrunk target is a ceiling on the display,
      never a hard cap on what can actually be logged. */
@@ -452,6 +516,191 @@ console.log("\nupcoming (todo) chips are unlocked — tap one to skip a set");
 
   assert(!("setTarget" in app.buildSessionExport().entries.find(x => x.exercise === ex.name)),
      "setTarget is app-local bookkeeping and never reaches the export");
+
+  /* Editing a committed set is not the moment to be re-planning the session. */
+  chipsOf(C)[0].onclick();
+  C = logCardNode();
+  assert(!countBtn(C, "−"), "the count control is absent while editing a committed set");
+  actionBtn(C, /Cancel/).onclick();
+}
+
+console.log("\na typed set is never lost — flushed on Finish, navigation and export");
+{
+  /* The defect: Finish marked the exercise done and left the typed set sitting in the
+     draft, which nothing but the editor reads. It exported as if the set never happened,
+     and Overview said "nothing logged" for an exercise that had just been trained. */
+  const setup = () => {
+    loadFixture("program.v2.sample.json");
+    app.STATE.week = 1;
+    const ex = app.dayExercises()[1];
+    app.STATE.focus = 1;
+    app.STATE.setEdit = null;
+    return ex;
+  };
+  const entry = ex => app.getSession().entries[ex.id] || app.blankEntry();
+
+  let ex = setup();
+  let C = logCardNode();
+  type(setInputs(C)[0], "72.5");
+  type(setInputs(C)[1], "5");
+  is(entry(ex).sets.length, 0, "typing alone commits nothing — the draft is still a draft");
+  assert(app.draftDirty(entry(ex)), "…but it is flagged as typed, not as a seeded copy");
+  actionBtn(C, /Finish/).onclick();
+  is(entry(ex).sets.length, 1, "Finish commits the typed set instead of discarding it");
+  is(entry(ex).sets[0].load, "72.5", "…carrying exactly what was typed");
+  is(entry(ex).done, true, "and the exercise is still marked done");
+
+  /* The same on the way past: Next, a pip, a day change, a week change. */
+  ex = setup();
+  C = logCardNode();
+  type(setInputs(C)[0], "80");
+  app.stepFocus(1);
+  is(entry(ex).sets.length, 1, "paging to the next exercise commits it");
+
+  ex = setup();
+  C = logCardNode();
+  type(setInputs(C)[0], "80");
+  app.selectWeek(2);
+  app.selectWeek(1);
+  is(entry(ex).sets.length, 1, "changing week commits it");
+
+  ex = setup();
+  C = logCardNode();
+  type(setInputs(C)[0], "80");
+  app.setView("list");
+  is(entry(ex).sets.length, 1, "so does leaving the editor for Overview");
+  app.setView("focus");
+
+  ex = setup();
+  C = logCardNode();
+  type(setInputs(C)[0], "80");
+  app.flushDraft();
+  is(app.buildSessionExport().entries.find(x => x.exercise === ex.name).sets.length, 1,
+     "and the flush before an export puts it in the file");
+
+  /* A draft that is only a seeded copy of the last set is NOT a set that happened. */
+  ex = setup();
+  C = logCardNode();
+  type(setInputs(C)[0], "60");
+  actionBtn(C, /Log set 1/).onclick();
+  is(entry(ex).sets.length, 1, "one set committed");
+  assert(!app.draftDirty(entry(ex)), "the next draft is seeded, not dirty");
+  actionBtn(logCardNode(), /Finish/).onclick();
+  is(entry(ex).sets.length, 1, "so Finish does not invent a second set from the seed");
+
+  /* Neither is an empty draft, and the bookkeeping never reaches a log file. */
+  ex = setup();
+  const s = app.getSession();
+  s.entries[ex.id] = { ...app.blankEntry(), draft: { ...app.blankDraft(), dirty: true } };
+  app.saveSession(s);
+  is(app.flushDraft(), false, "a dirty but empty draft commits nothing");
+  ex = setup();
+  C = logCardNode();
+  type(setInputs(C)[0], "90");
+  actionBtn(C, /Log set 1/).onclick();
+  const exported = app.buildSessionExport().entries.find(x => x.exercise === ex.name);
+  assert(!("dirty" in exported.sets[0]), "the dirty flag never reaches an exported set row");
+}
+
+console.log("\nOverview always says where an exercise stands");
+{
+  loadFixture("program.v2.sample.json");
+  app.STATE.week = 1;
+  const exs = app.dayExercises();
+  const ex = exs[1];
+  app.STATE.focus = 1;
+  /* Read Overview WITHOUT going through setView(): switching views deliberately commits a
+     dirty draft, so an in-progress draft has to be set up in storage and read directly.
+     That is also the only way it reaches the athlete for real — a reload (or a crash)
+     with a set still typed and unconfirmed. */
+  const ovOf = i => {
+    app.SETTINGS.view = "list";
+    const c = exCards()[i];
+    app.SETTINGS.view = "focus";
+    return { line: (c.find(n => n.classList.contains("ov-status")) || {}).text,
+             badge: (c.find(n => n.classList.contains("ov-badge")) || {}).text };
+  };
+  is(ovOf(1).line, "Not started", "an untouched exercise says so, instead of rendering no line at all");
+  is(ovOf(1).badge, "○", "…with the untouched badge");
+
+  /* The reported symptom: a set typed but not confirmed was invisible here. */
+  let s = app.getSession();
+  s.entries[ex.id] = { ...app.blankEntry(),
+    draft: { load: "60", reps: "", rpe: "", painDuring: "", note: "", dirty: true } };
+  app.saveSession(s);
+  is(ovOf(1).line, "Set 1 typed — not logged yet", "a typed-but-unlogged set is visible, not silent");
+  is(ovOf(1).badge, "◐", "…and reads as in progress");
+
+  actionBtn(logCardNode(), /Log set 1/).onclick();
+  const target = app.targetSets(ex, app.getSession().entries[ex.id]);
+  is(ovOf(1).line, `1 of ${target} sets logged`, "a committed set is counted");
+  type(setInputs(logCardNode())[1], "4");
+  is(ovOf(1).line, `1 of ${target} sets logged · set 2 in progress`,
+     "…and a set in progress on top of it is spelled out");
+
+  actionBtn(logCardNode(), /Finish/).onclick();
+  /* The badge carries "done"; the line is spent on what was logged, not on a second tick. */
+  is(ovOf(1).badge, "✓", "a finished exercise gets the done badge");
+  assert(!/✓/.test(ovOf(1).line) && ovOf(1).line.length > 0,
+     `…and its line summarises the work instead (got ${JSON.stringify(ovOf(1).line)})`);
+
+  /* Finishing a warm-up with nothing logged is legitimate, and must read as deliberate
+     rather than as an error. */
+  const warm = app.dayExercises().find(e => app.prescribedSets(e) === 1) || exs[0];
+  const wi = app.dayExercises().indexOf(warm);
+  app.goFocus(wi);
+  actionBtn(logCardNode(), /Finish/).onclick();
+  is(ovOf(wi).line, "Finished — nothing logged", "a deliberate empty finish says exactly that");
+
+  is(app.summaryText(app.blankEntry()), "", "summaryText itself reports nothing as empty, not as prose");
+}
+
+console.log("\nthe programme's own logHint drives what gets flagged");
+{
+  loadFixture("program.v2.sample.json");
+  app.STATE.week = 1;
+  const asked = ex => !!app.painAsked(ex);
+  const site = ex => (app.painAsked(ex) || {}).site;
+
+  const iso = { name: "Spanish squat isometric", logHint: "Pain 0-10 during + next-AM stiffness" };
+  assert(asked(iso), "an exercise whose logHint mentions pain is flagged");
+  is(site(iso), "", "…with no site when the hint names none");
+  const sled = { name: "Backward sled drag", logHint: "Total load; knee response during + next AM" };
+  assert(asked(sled), "so is 'knee response'");
+  is(site(sled), "knee", "…and the site is picked up");
+  const ham = { name: "Nordic hamstring eccentric", logHint: "Reps; hamstring soreness next AM" };
+  is(site(ham), "hamstring", "a different site is read as itself, not as knee");
+  assert(!asked({ name: "Bench press - back-off", logHint: "Load" }), "a plain load hint is not flagged");
+  assert(!asked({ name: "Warm-up: bike", logHint: "" }), "and neither is an empty one");
+  /* Declared tendon work counts even with no logHint — the category says it. */
+  assert(asked({ name: "Something", logHint: "", category: "prehab" }),
+     "declared tendon/prehab work is flagged on the category alone");
+  /* The keyword guess reaches the same conclusion when nothing is declared. */
+  assert(asked({ name: "Copenhagen plank", logHint: "" }),
+     "…as does a name the category rules resolve to tendon work");
+
+  is(app.parseHints({ logHint: "Top load; RPE-1; depth owned Y/N; knee pain during + next AM" }),
+     ["Top load", "RPE-1", "depth owned Y/N", "knee pain during + next AM"],
+     "hints split on semicolons only — a '+' clause is one instruction, not two");
+  is(app.parseHints({ logHint: "" }), [], "no hint, no chips");
+  is(app.parseHints({ logHint: "a; b; c; d; e" }).length, 4, "and at most four, so the row stays one line-ish");
+
+  /* The pain field is accented where it is asked for, and present either way. */
+  const labelsOf = ex => { app.STATE.focus = app.dayExercises().indexOf(ex); return logCardNode(); };
+  const real = app.dayExercises().find(e => app.painAsked(e));
+  const plain = app.dayExercises().find(e => !app.painAsked(e));
+  assert(!!real && !!plain, "the fixture has one of each");
+  const askedLbl = c => c.findAll(n => n.classList.contains("lbl") && n.classList.contains("asked")).length;
+  const painLbls = c => c.findAll(n => n.classList.contains("lbl") && /pain/i.test(n.text)).length;
+  assert(askedLbl(labelsOf(real)) >= 1, "the pain label is accented where the programme asks");
+  is(askedLbl(labelsOf(plain)), 0, "…and plain where it does not");
+  assert(painLbls(labelsOf(plain)) >= 1,
+     "but the field is still there — hiding it would make an empty value unreadable");
+
+  /* The drawer offers the site the programme talks about, rather than expecting the
+     athlete to know that "Knee" is a setting. */
+  assert(["knee", "hamstring", ""].includes(app.programPainSite()),
+     `programPainSite reads a site off the fixture (got ${JSON.stringify(app.programPainSite())})`);
 }
 
 console.log("\nfinish, un-finish, and early stopping");
@@ -471,7 +720,7 @@ console.log("\nfinish, un-finish, and early stopping");
   const entry = () => app.getSession().entries[ex.id];
   const exIdx = app.STATE.focus;
   is(entry().sets.length, 1, "one set committed");
-  actionBtn(logCardNode(), /Finish exercise/).onclick();
+  actionBtn(logCardNode(), /Finish/).onclick();
   is(entry().done, true, "finishing early marks the exercise done");
   is(entry().sets.length, 1, "…without inventing the sets that were never logged");
   is(app.STATE.focus, exIdx + 1, "and — like the old Mark done — finishing advances to the next exercise");
@@ -488,7 +737,7 @@ console.log("\nfinish, un-finish, and early stopping");
   const warm = app.dayExercises().find(e => app.prescribedSets(e) === 1) || app.dayExercises()[0];
   app.STATE.focus = app.dayExercises().indexOf(warm);
   const wCard = logCardNode();
-  const finishNoSets = actionBtn(wCard, /Finish exercise/);
+  const finishNoSets = actionBtn(wCard, /Finish/);
   assert(!!finishNoSets, "Finish is offered with nothing logged yet");
   finishNoSets.onclick();
   is(app.getSession().entries[warm.id].done, true, "and it finishes with an empty sets[]");
@@ -508,7 +757,11 @@ console.log("\nthe typed summary — auto-follows sets until overridden");
   actionBtn(C, /Log set 1/).onclick();
 
   let e = app.getSession().entries[ex.id];
-  is([e.load, e.reps, e.rpe], ["60", "5", "7"], "the summary auto-fills from the one set logged");
+  /* This fixture row is a timed hold, so the derived value carries the metric's unit —
+     "5s", never a bare "5" that reads as five reps. */
+  const unit = app.metricOf(ex).unit;
+  is([e.load, e.reps, e.rpe], ["60", "5" + unit, "7"],
+     "the summary auto-fills from the one set logged, unit and all");
   is(e.summaryAuto, true, "and is still following");
 
   /* Open "Summary & notes" and edit the load directly — a deliberate override. */
@@ -693,7 +946,7 @@ console.log("\nview modes — Overview (read-only) vs Log (one exercise)");
 
   /* Finishing is the one thing that moves you without being asked, so it is the one
      most worth pinning down. */
-  const finishBtn = c => actionBtn(c, /Finish exercise/);
+  const finishBtn = c => actionBtn(c, /Finish/);
   const isDone = i => !!(app.getSession().entries[exs[i].id] || {}).done;
   app.goFocus(0);
   if(isDone(0)){ finishBtn(logCardNode()).onclick(); }             // start from a known state

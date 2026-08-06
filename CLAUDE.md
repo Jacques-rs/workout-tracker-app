@@ -54,8 +54,11 @@ There are three surfaces, and putting something on the wrong one is the mistake 
 
 `<main>` has two views, chosen by the header toggle and remembered per device:
 
-- **Overview** — every exercise for the day, **read-only, zero inputs.** Category tag, name, prescription, and — once something is logged — a status line ("2 of 4 sets logged" or, once finished, the full summary). Tap a card to open it in Log.
-- **Log** — one exercise, worked **one set at a time**: a row of chips for the sets already logged, fields for the set in progress, and a primary button that commits it and seeds the next set from it. A "Finish exercise" action is always available alongside — even with nothing logged yet (a warm-up) or with fewer sets than prescribed (stopping early for pain is data, not something the UI should block) — and marks the exercise done. Un-finish is offered once it is. Finishing advances to the next exercise, exactly like the old "Mark done"; nothing else in the app navigates on its own.
+- **Overview** — every exercise for the day, **read-only, zero inputs.** Name, prescription, and **always** a status line plus a `○ / ◐ / ✓` badge: "Not started", "2 of 4 sets logged", "Set 3 typed — not logged yet", or the full summary once finished. Always, because an absent line used to mean "untouched" and was indistinguishable from a status that failed to render. Tap a card to open it in Log.
+- **Log** — one exercise, worked **one set at a time**: a recap of what has gone in, a row of chips for the sets already logged, fields for the set in progress, and one full-width primary button that commits it and seeds the next set from it. Order within the card matters — name, `Capture` chips, **editor**, then coach notes / progression / summary — so the primary action is reachable without scrolling. A quieter "Finish exercise" sits on its own row below and is always available — even with nothing logged yet (a warm-up) or with fewer sets than prescribed (stopping early for pain is data, not something the UI should block). Un-finish is offered once it is. Finishing advances to the next exercise, exactly like the old "Mark done"; nothing else in the app navigates on its own.
+  - The **reps field is whatever the exercise measures** — `metricOf()` reads the prescription and gives it a label, unit, keyboard and placeholder (`Hold (s)`, `Time (min)`, `Dist (m)`, `Work (cal)`, `Reps`, `Result`). Never re-hardcode `inputmode="numeric"` there: two prescriptions in five are a duration, a distance or prose, and a digits-only keypad made a 45-second hold untypeable.
+  - **Upcoming set chips are inert.** They are a plan, not a destination and not a delete button. The planned count is changed by the `⊖ N sets ⊕` control, which can never go below what is already logged.
+  - **A typed set is never lost.** `flushDraft()` commits a draft the athlete has typed into when they Finish, page away, change day/week/view, export, or background the app. Only a *dirty* draft — a seeded copy of the last set is not a set that happened. **Anything that flushes must re-render**, or a card holding the older session object autosaves over the commit.
 
 The two views do **not** render the same card builder any more — one is read-only, one is an editor, and forcing them through one branchy function invites more drift than it prevents. What they must still share, and do, is `exerciseHead()`: the rail colour, name and prescription line. If you touch how an exercise's identity is displayed, change it there so Overview and Log cannot show two different prescriptions for the same row.
 
@@ -111,6 +114,9 @@ Both are git worktrees of the same clone, so `athlete/` exists only in the workt
 - Mobile-first, single 720px-max column. Touch targets ≥26px; inputs must be reachable one-handed with a chalked-up thumb.
 - **Themed via CSS variables — never hardcode a colour.** Two palettes (Amber / Mint) × light/dark are declared as four `html[data-theme]` blocks at the top of the `<style>`; the Appearance section of the drawer picks palette + mode (Auto follows the device). Every colour in a rule below those blocks must be a `var(--…)`, or it will survive a theme switch and look broken in one of the four. The only exceptions are two neutral greys (a `color-mix` fallback and a swatch hairline). Category rail colours live in `--cat-*`, so `CATS` in the JS holds `var()` references, not hex.
 - `type="number"` for **integer** fields with no partial-invalid state (pain scores, 0–10). For a field that can hold a decimal mid-type (RPE: `"7.5"`) or non-numeric prose (Load: `"BW+20"`), use `type="text" inputmode="decimal|numeric"` instead — a real `type="number"` input reports `.value === ""` while the text isn't yet a valid number (typing the `.` in `7.5`), so the autosaved value would flicker blank. Text + `inputmode` still gets the right keyboard and keeps the value exactly as typed, which is also what the export contract requires (every prescription and logged value is a string).
+- **`inputmode="numeric"` is a digits-only keypad on iOS** — there is no way to type a letter or a decimal point. Use it only where the value genuinely cannot be anything but whole digits, and never as a *default*: the fallback for a field whose content you can't predict is a full keyboard. This is what `metricOf()` decides for the reps field.
+- **Field labels are `nowrap` + ellipsis, so keep them short.** A label that wraps to two lines drops its own input below the others in the same grid row. The metric column is ~68px at 360px, which is why the metric labels are `Dist` and `Work` rather than `Distance` and `Calories`.
+- **Put a unit in the label, not as an overlay inside a narrow field.** `.fld .unit` is fine for `/10` and `kg`; a 3-character suffix like `min` alongside a 4-character value clips the value in a 68px column.
 - Keep the JS organised in the existing sections: settings → theme → drawer → categories → program loading → session persistence → rendering → view mode → export → events.
 - **Repaint, don't rebuild, on autosave.** `saveSession()` runs on every keystroke and calls `updateProgress()`. Anything reached from there must set attributes and text on nodes that already exist (`paintNav()` is the model). Rebuilding a strip or a card that often fights the scroll position and can steal focus mid-word. The set editor in Log view follows the same rule: an input's `oninput` writes into the row/draft and saves, never rebuilds its own container — that rebuild-on-keystroke was the cause of the old "RPE field escapes after one character" bug. Only a button tap may call the redraw that rebuilds it, and since that follows a tap rather than a keystroke it is free to call `.focus()` on the new field afterwards.
 - `paintNav()` scrolls the pip strip into view **only when `STATE.focus` changes**, and never while an input has focus — doing it on every autosave (which used to run on every keystroke, anywhere in the app) was the other half of the reported screen-jumping bug.
@@ -172,6 +178,21 @@ page never jumps — edit a past set from its chip, and Finish an exercise both 
 without every prescribed set logged; then switch back to Overview and confirm it shows the
 right status with no inputs anywhere on it. Do it in at least one light theme — a rule that
 hardcodes a colour looks fine in the palette you wrote it in.
+
+Four more, all of them things that have actually been reported:
+
+1. **The metric field.** `Spanish squat isometric` (`3 × 45 sec`) must read `Hold (s)` with
+   placeholder `45`; the warm-up (`8-10 min`) `Time (min)`; `Backward sled drag` (`20 m`)
+   `Dist (m)`; the MetCon (`4 rounds`, prose reps) four set slots and a free-text `Result`.
+   No field may open a digits-only keypad unless the value can only be whole digits.
+2. **Nothing destructive under an innocent tap.** Tapping an upcoming set number must do
+   *nothing*. `⊖` must refuse to go below what is already logged.
+3. **Type a set and Finish without logging it**, then export: `sets[]` must contain it.
+   Repeat with Next, a day change, a week change and a switch to Overview.
+4. **Check 320px as well as 390px, and check for horizontal overflow, not just for looks.**
+   Chrome clamps its window width, so a `--window-size=320` screenshot is a *crop* of a wider
+   layout and will hide the very thing you are looking for. Load the app in a 320-wide
+   `<iframe>` and compare `documentElement.scrollWidth` against `clientWidth`.
 
 Before committing anything under `athlete/`, also run `git status` and
 `git check-ignore -v athlete/<slug>/personal-profile.md athlete/<slug>/logs/`.

@@ -87,10 +87,64 @@ of the log grid with no `grid-column`, so it rendered in one ~90px column; a lon
 one word per line; and the check-in's three-column grid was gated on viewport width, which is
 meaningless now it lives in a 400px drawer.
 
+## Done — honest set state, metric-aware fields, and a control pass
+
+Five things reported from actual gym use, and what they turned out to be:
+
+- **"The reps field only takes numbers."** It was `inputmode="numeric"` — a digits-only keypad
+  on iOS — while **72 of the 180 rows** in the real programme prescribe a duration, a distance
+  or prose. `metricOf()` now reads the prescription and the one field becomes `Hold (s)` /
+  `Time (min)` / `Dist (m)` / `Work (cal)` / `Reps` / `Result`, with the matching keyboard and
+  the prescription as its placeholder. No schema change: the unit is inferred from a string the
+  generator already writes, and `deriveReps()` appends it so a hold reads `"3x45s"`.
+- **"Clicking a future set number removes those sets."** It did, with no confirmation, on a
+  chip that reads as "jump to set 4". Upcoming chips are inert placeholders now and the planned
+  count has an explicit `⊖ N sets ⊕` control, floored at what is already logged.
+- **"No clear indication a set has been logged; sometimes Overview shows none."** Two causes.
+  A commit changed almost nothing on screen (the next draft is seeded from the set just
+  logged) — so there is now a `LOGGED 60×4 · 60×4` recap line, a toast, a chip pulse and a
+  haptic. And **Finish discarded a typed-but-unconfirmed set entirely**: it set `done` without
+  committing the draft, so the export, the pips and the Overview status all said the set never
+  happened. `flushDraft()` closes that on Finish, navigation, view change, export and
+  backgrounding. Overview now always renders one of six status lines plus a `○ / ◐ / ✓` badge.
+- **"The app should infer from the programme whether knee pain needs logging."** It reads
+  `logHint`: split into a row of `Capture` chips, and scanned for pain cues to accent the pain
+  field and nudge once on Finish. The drawer offers the site the block actually monitors.
+  Deliberately **prompting, not hiding** — see below.
+- **"The buttons don't feel premium."** One height scale, one full-width primary with the
+  cards' own light-from-above treatment, the quieter actions at equal width on their own
+  non-wrapping row, tabular numerals, and the set editor moved above the collapsibles so the
+  primary action is reachable without scrolling on a 390px screen.
+
+Decisions worth knowing, and where to push back:
+
+- **The pain field is never hidden per exercise.** Accenting it where the programme asks is
+  free; rendering it on some exercises and not others would make an empty `painDuring`
+  ambiguous — `tracking.painPerExercise` promises the coach that empty means *not logged*.
+  Hiding it would need a per-entry flag in the export, which is a schema change for a
+  cosmetic win.
+- **`flushDraft()` is not auto-logging.** Only a draft the athlete has actually typed into
+  (`draft.dirty`) is committed; a seeded copy of the previous set is never one. `sets.length`
+  still means sets performed.
+- **Every flush must be followed by a re-render** — it writes through a session object read
+  fresh from storage, and a stale card on screen would autosave over it. See
+  `docs/architecture.md`.
+- **320px still needs a scroll to reach the primary action** on an exercise with a long prose
+  prescription. 390px (every current iPhone) fits without one. Fixing 320 properly would mean
+  truncating prescription text, which is worse.
+- **No hold timer and no rest countdown**, though both were designed and costed — see below.
+
 ## High value
 
-**1. Interval / EMOM timer.**
+**1. Interval / EMOM timer — including the hold and rest cases deliberately left out above.**
 The programme leans on EMOM and interval formats ("EMOM every 90s", "45 sec hard / 75 sec easy", "2 min hard / 1 min easy"). Right now the athlete uses a separate timer app, which means leaving the tracker mid-session. An in-app timer that reads the `rest`/`reps` strings (or is set manually) would remove the one reason to switch apps. Must keep running with the screen locked or backgrounded if possible — verify behaviour before promising it.
+
+Two smaller pieces of this were specified during the metric-field work and **deferred on
+purpose**, because they share that verification problem and it is the whole risk: (a) a
+stopwatch on a `Hold (s)`/`Time (min)` field, where stopping writes the elapsed seconds into
+the field, and (b) a rest countdown seeded from `rest` that starts when a set is logged. Both
+are cheap to draw and worthless if they stop counting when the screen locks, so they belong
+with this item rather than ahead of it.
 
 **2. "Prefill from last time" per exercise.**
 Most logged values barely change week to week. Showing last session's actual load/reps/RPE as placeholder text (or a one-tap "same as last week") would cut logging time significantly. The data is already in `localStorage` — this is mostly a lookup across session keys.

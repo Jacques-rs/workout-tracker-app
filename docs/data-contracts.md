@@ -18,6 +18,14 @@ must accept every version it has ever emitted**. What changed:
 Version detection is `meta.schema` / `schema`. Neither reader should infer version from the
 presence of a field.
 
+**No schema change since `tp-session-3`.** The app has since learned to read the prescription
+more closely — what the reps field measures, how many set slots a `"4 rounds"` couplet needs,
+which exercises want a pain reading — but every one of those is **inference from strings the
+generator already writes**. No field was added, removed or retyped on either side, and
+`program-builder` needs no matching change. Where that inference changes how a value should be
+*read*, it is written down below: see `reps` and `logHint` in the programme table, and
+"Reading a logged `reps` value" on the session side.
+
 ---
 
 # The contract
@@ -167,8 +175,9 @@ flag; the key stays and its value is `""`. That is what lets a reader tell *not 
 | `exercises[].id` | Unique per exercise **across the whole file**. v2 convention `w<week>d<daySlot>e<exerciseIndex>`, where `daySlot` is the number in the `Day N` label (`Day 3` → `d3`), falling back to position in `meta.days` if the labels aren't distinctly numbered. v1 was `d<dayIndex>e<exerciseIndex>`. **This is the key the app stores logged data under** — the v1→v2 id change means logs recorded against a v1 programme do not line up with the v2 one. Expected and accepted at the version boundary; exported session files are unaffected because they denormalise `prescribed` and are keyed by exercise name. |
 | `exercises[].week` | **v2: load-bearing.** The app renders only the exercises whose `week` matches the selected week. In v1 it was ignored. |
 | `exercises[].day` | Must match a string in `meta.days` **exactly** — the app filters by string equality. Day labels must be byte-identical across weeks, or a day will look empty in some weeks. |
-| `sets`/`reps`/`load`/`rpe`/`tempo`/`rest` | **All strings, not numbers.** They hold ranges and prose ("1 + 3", "8-10 min", "~115-135 kg", "RPE 6-6.5"). Never assume they parse as numeric. **`sets` also drives the set-at-a-time logger**: a plain integer or a plain numeric range (`"3-4"`, lower bound used) materialises that many set chips; anything else — prose, a decorated range like `"8-10 min"` — collapses to a single "Set 1 of 1", which is the correct shape for AMRAP/interval work. Prefer a plain integer when the exercise really is N even sets. |
-| `logHint` | Comes from the spreadsheet's "Completed Notes" column. Rendered as the blue "Log:" line — it tells the athlete which data actually matters for this movement. Empty string for warm-ups. |
+| `sets`/`reps`/`load`/`rpe`/`tempo`/`rest` | **All strings, not numbers.** They hold ranges and prose ("1 + 3", "8-10 min", "~115-135 kg", "RPE 6-6.5"). Never assume they parse as numeric. **`sets` also drives the set-at-a-time logger**: a plain integer, a plain numeric range (`"3-4"`, lower bound used), or an integer followed by a word (`"4 rounds"` → 4) materialises that many set chips; anything else — `"AMRAP"`, `"1 + 3"`, a decorated range like `"8-10 min"` — collapses to a single "Set 1 of 1", which is the correct shape for open-ended work. Prefer a plain integer when the exercise really is N even sets. |
+| `reps` | **Also decides what the logging field asks for**, via the app's `metricOf()`: seconds → `Hold (s)`, minutes → `Time (min)`, metres → `Dist (m)`, calories → `Work (cal)`, a plain count or range → `Reps`, and anything composite (`"45 sec hard / 75 sec easy"`, `"5 TnG power cleans + 15/12 cal bike"`) → a free-text `Result`. This is **inference from the string the generator already writes** — no new field, and nothing to change upstream. It only affects the label, the placeholder, the on-screen keyboard, and the unit appended to the logged summary; see the session-side note below. Writing `"45 sec"` rather than `"45s"` or `"0:45"` is the safest form, but all three resolve. |
+| `logHint` | Comes from the spreadsheet's "Completed Notes" column. It tells the athlete which data actually matters for this movement, and the app now **parses it** rather than just printing it: split on semicolons into a row of `Capture` chips (four at most), and scanned for pain cues (`pain`, `sore`, `stiff`, `response`, a named joint…) to decide which exercises get an accented pain field and a one-off nudge on Finish. Nothing is ever *hidden* on the strength of it. Semicolons are therefore load-bearing punctuation — `"Top load; RPE-1; knee pain during + next AM"` reads as three instructions, and a `+` inside one stays part of it. Empty string for warm-ups. |
 | `focus` | Coaching cues (spreadsheet "Focus / Notes"). Collapsed by default. |
 | `progression` | Spreadsheet "Progression Rule". **Meaning changed in v2:** it is now *rationale* — why this week's prescription differs from last week's, plus the hold/stop gate. In v1 it was an instruction the athlete had to execute. Collapsed by default either way. |
 | `category` | **Optional.** Drives the coloured left rail and the tag on each exercise card. Not currently emitted by `program-builder` — see below. |
@@ -410,6 +419,33 @@ these fields):**
 - `tracking.perSetLogging` is unconditionally `true` from this build on — it is no longer a
   switch, it is how every exercise is logged. `false` still appears in older files and keeps
   its old meaning there.
+- **A set the athlete typed but never confirmed is now committed rather than dropped.** The
+  app commits a typed-into draft when the athlete finishes the exercise, pages away, changes
+  day or week, leaves for Overview, exports, or backgrounds the app. Before this it was
+  possible to train a set, tap Finish, and have the log say the set never happened. The rule
+  in the line above still holds exactly: a draft the app merely *seeded* from the previous
+  set is not a set that happened and is never committed. **`sets.length` is still the number
+  of sets actually performed.**
+
+### Reading a logged `reps` value
+
+Unchanged in shape — a string, whatever the athlete typed — but worth knowing how the app now
+labels the field, because it changes what the string means without changing its type:
+
+| `prescribed.reps` | The field the athlete saw | A logged `reps` of `"45"` means | Summary shape |
+|---|---|---|---|
+| `"2"`, `"4-6"`, `"6/side"` | `Reps` | 45 reps | `"7x2"` |
+| `"45 sec"`, `"20-30 sec/side"` | `Hold (s)` | 45 **seconds** | `"3x45s"` |
+| `"8-10 min"` | `Time (min)` | 45 **minutes** | `"9min"` |
+| `"20 m"` | `Dist (m)` | 45 **metres** | `"6x20m"` |
+| `"15/12 cal"` | `Work (cal)` | 45 **calories** | `"15cal"` |
+| anything composite | `Result` (free text) | whatever it says | as typed |
+
+So **read the unit off `prescribed.reps`**, exactly as before — that is what makes the log
+self-contained. The only difference is that the app's own derived summary now appends the unit
+(`"3x45s"` rather than `"3x45"`), so a duration is no longer mistakable for a rep count at a
+glance. Per-set `sets[].reps` values stay bare, as typed. Still never assume either parses
+numerically, and note that a `Result` field is prose by design.
 
 Programme-side prescriptions stay one-load-per-exercise: `tp-program-2` has no per-set array.
 Ramping sets are expressed in the `load` string as they always were ("60/70/80 kg"). Add a
@@ -433,7 +469,7 @@ prescribed per-set array only if that stops being expressive enough.
 - `session.readiness` — one of `""`, `"Green"`, `"Amber"`, `"Red"`.
 - `session.sleep` — 1–5 subjective scale (string).
 - `session.amPainOnWaking` — **v3**, replacing `amPainNextDay`. Pain 0–10 on waking *this* morning, i.e. the response to the **previous** session. Switchable via `tracking.painOnWaking`, on by default. See the dedicated section below before reading one.
-- `painDuring` — per-exercise knee pain 0–10 during the movement. Switchable via `tracking.painPerExercise`.
+- `painDuring` — per-exercise knee pain 0–10 during the movement. Switchable via `tracking.painPerExercise`, and **only** via that: the app accents the field's label on exercises whose `logHint` asks for a reading, and nudges once if one is finished without it, but it never renders the field on some exercises and not others. An empty `painDuring` therefore means the same thing on every entry in the file — *not logged* — which is exactly what `tracking` is for. Do not read an accented-vs-plain distinction out of a log; it does not exist there.
 - `athleteId` — **v2.** Slug from `program.json`'s `meta.athleteId`, naming the `athlete/<slug>/logs/` folder this file belongs in. Two athletes exporting into the same Drive folder is otherwise only distinguishable by the human-readable `athlete` name. Absent in v1 files.
 - Everything the athlete typed is a **string** (straight from inputs); unfilled fields are `""`, never `null`. The numbers in these files are only the ones the app computes: top-level `week`, `programVersion`, and `sets[].set`. On the programme side, `meta.weeks` and `exercises[].week` are likewise numbers. Never assume a prescription string parses numerically.
 - `prescribed` is denormalised into each entry on purpose, so a session file is self-contained and reviewable without the original programme.
