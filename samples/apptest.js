@@ -105,7 +105,15 @@ const sandbox = {
   },
   matchMedia: () => ({ matches: false, addEventListener(){}, addListener(){} }),
   getComputedStyle: () => ({ getPropertyValue: () => "" }),
-  navigator: { clipboard: { writeText: async () => {} } },
+  navigator: { onLine: true, clipboard: { writeText: async () => {} } },
+  TPAuth: {
+    init(){}, subscribe(){ return () => {}; }, canImport(){ return true; },
+    getState(){ return { status: "authenticated", user: { email: "test@example.invalid", verified: true } }; }
+  },
+  TPAuthUI: {
+    init(){}, open(){}, renderAccount(host){ host.append(textNode("Test account")); },
+    handleKeydown(){ return false; }
+  },
   window: {
     scrollY: 0, pageYOffset: 0,
     addEventListener(){},
@@ -121,9 +129,12 @@ const sandbox = {
 sandbox.window = Object.assign(sandbox.window, sandbox);
 vm.createContext(sandbox);
 
-/* Load the app's main <script> block (index 1; index 0 is the head theme script). */
+/* Load the last inline <script> block. External browser dependencies are tested
+   separately and must not make this harness execute a vendored bundle. */
 const html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
-const blocks = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+const blocks = [...html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)]
+  .filter(m => !/\bsrc\s*=/.test(m[1]))
+  .map(m => m[2]);
 if(blocks.length < 2){ console.error("expected two <script> blocks in index.html, found " + blocks.length); process.exit(1); }
 /* `function` declarations land on the sandbox global by themselves, but the module
    state is `let`/`const`, which does not. Bind it explicitly rather than loosening
@@ -138,7 +149,7 @@ Object.defineProperties(globalThis, {
   NAV_AT:       {get:()=>NAV_AT},
   OVERVIEW_SCROLL: {get:()=>OVERVIEW_SCROLL, set:v=>{OVERVIEW_SCROLL=v}}
 });`;
-vm.runInContext(blocks[1] + EPILOGUE, sandbox, { filename: "index.html<script>" });
+vm.runInContext(blocks[blocks.length - 1] + EPILOGUE, sandbox, { filename: "index.html<script>" });
 
 /* ---------- harness ---------- */
 let failures = 0;
@@ -209,6 +220,17 @@ function setLabel(c){ const n = c.findAll(x => x.classList.contains("setlabel"))
 function type(inp, v){ inp.value = v; inp.oninput(); }
 
 /* ---------- tests ---------- */
+console.log("\nauthenticated programme import boundary");
+{
+  const auth = sandbox.TPAuth;
+  assert(app.authCanImport(), "an authenticated account may import a personal programme");
+  sandbox.TPAuth = undefined; sandbox.window.TPAuth = undefined;
+  assert(!app.authCanImport(), "a missing auth client fails closed instead of bypassing the account gate");
+  sandbox.TPAuth = { canImport(){ return false; } }; sandbox.window.TPAuth = sandbox.TPAuth;
+  assert(!app.authCanImport(), "a signed-out account may not import a personal programme");
+  sandbox.TPAuth = auth; sandbox.window.TPAuth = auth;
+}
+
 console.log("\ntp-program-2 — week-aware filtering");
 {
   const prog = loadFixture("program.v2.sample.json");

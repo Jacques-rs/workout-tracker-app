@@ -22,8 +22,15 @@ if [[ "$(supabase --version)" != "$SUPABASE_VERSION" ]]; then
   exit 1
 fi
 
-echo "==> Starting local Supabase database"
-supabase db start
+echo "==> Starting local Supabase Auth and database"
+# Verification already rebuilds the local database below. Starting from a clean minimal
+# stack makes Auth/Mailpit available even when a previous `supabase db start` left only
+# Postgres running. Suppress `supabase start` stdout because it includes generated local
+# secret/service-role values that never belong in CI logs.
+supabase stop --no-backup >/dev/null 2>&1 || true
+supabase start \
+  --exclude realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor \
+  >/dev/null
 
 echo "==> Rebuilding database from migrations and seed"
 supabase db reset --local
@@ -34,7 +41,10 @@ supabase test db
 echo "==> Linting database schemas"
 supabase --agent no db lint --local --schema public,private --level warning --fail-on error
 
-echo "==> Checking inline JavaScript"
+echo "==> Running local authentication integration tests"
+node supabase/tests/auth/auth_flow.test.js
+
+echo "==> Checking browser JavaScript"
 python3 scripts/check_inline_js.py
 
 echo "==> Checking JSON fixtures"
@@ -49,6 +59,12 @@ python3 athlete/skills/program-builder/scripts/validate_program.py \
 
 echo "==> Running app logic smoke tests"
 node samples/apptest.js
+
+echo "==> Running authentication state tests"
+node samples/authtest.js
+
+echo "==> Running service-worker boundary tests"
+node samples/swtest.js
 
 echo "==> Running programme-validator tests"
 python3 samples/validatortest.py

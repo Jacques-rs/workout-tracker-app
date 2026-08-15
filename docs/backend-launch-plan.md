@@ -1,6 +1,6 @@
 # Backend launch plan
 
-**Status:** foundation complete — hosted schema and auth configuration deployed; authentication is next
+**Status:** authentication implemented and locally verified; hosted private-beta smoke test is next
 **Last updated:** 2026-08-15
 **Owner:** Jacques makes the product calls below; implementation choices default to established
 engineering conventions.
@@ -131,8 +131,11 @@ Postgres JSON queries or derived views before the storage model is normalized.
 1. **Foundation — complete:** confirmed the blocking decisions; added the Supabase project layout,
    migration, sanitized seed data, row-level-security tests and CI; and deployed the reviewed
    migration and auth configuration to the hosted beta project.
-2. **Authentication:** add invite acceptance, verification, sign-in, recovery, sign-out and
-   offline-safe auth state without changing workout persistence. Public sign-up remains deferred.
+2. **Authentication — implemented, hosted smoke pending:** invite acceptance, verified email/password
+   setup, sign-in, recovery, device-local sign-out and offline-safe auth state are integrated without
+   changing workout persistence. A first successful account binds the installation; a different
+   account is rejected without deleting local data. Personal programme import requires that account,
+   while the bundled sample and cached workouts remain usable. Public sign-up remains deferred.
 3. **Programme library:** save, list, activate and remove user-owned programmes while retaining a
    local copy for offline use.
 4. **Session synchronization:** keep local autosave, add a dirty queue and retryable remote upserts,

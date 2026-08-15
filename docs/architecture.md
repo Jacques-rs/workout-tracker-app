@@ -4,13 +4,16 @@
 
 | File | Role |
 |---|---|
-| `index.html` | The entire app: markup + inline `<style>` + inline `<script>`. No build step. |
+| `index.html` | The app shell, workout markup, inline styles and device-first workout logic. No build step. |
+| `js/auth-config.js`, `js/auth-client.js`, `js/auth-ui.js` | Environment selection, Supabase session boundary and account UI. Kept outside the workout script. |
+| `vendor/supabase-js-2.111.0.min.js` | Pinned browser SDK; origin and checksum are recorded in `vendor/README.md`. |
 | `sw.js` | Service worker. Caches the app shell for offline use. |
 | `manifest.webmanifest` | PWA manifest — name, colours, icons, `display: standalone`. |
 | `icon-192.png`, `icon-512.png`, `icon-512-maskable.png` | App icons (barbell glyph on dark background). |
 | `program.json` | Bundled **sample** programme (`tp-program-2`, 6 weeks × 4 days) so the app works on first open. Replaced at runtime by Import. |
 | `samples/apptest.js` | `node samples/apptest.js` — dependency-free smoke test of filtering, per-set logging and export against both schema versions. |
-| `supabase/` | Repo-managed backend config, migrations, fake seed data and pgTAP access-policy tests. No client integration yet. |
+| `samples/authtest.js`, `samples/swtest.js` | Dependency-free tests for auth state/ownership and the service-worker network boundary. |
+| `supabase/` | Repo-managed backend config, migrations, fake seed data, pgTAP access-policy tests and a local Auth/Mailpit integration test. |
 | `scripts/verify.sh` | One local command for the database security suite and all existing contract/app checks. |
 
 ## Screen layout
@@ -25,9 +28,15 @@ Three surfaces, and which one a thing belongs on is the main design rule here:
 
 The footer bar swaps by view: export actions in Overview, `‹ Prev / n / N / Next ›` in Log. Export and Copy JSON are *also* always in the drawer, so the swap never strands them.
 
-## JS layout inside `index.html`
+## Browser JavaScript layout
 
-The script is organised in labelled sections, in this order. Keep additions in the matching section.
+The vendored Supabase SDK loads first, followed by the three small auth modules. `auth-config.js`
+selects the local stack only for localhost/loopback and the hosted project elsewhere.
+`auth-client.js` owns every Supabase call and exposes state/actions to the rest of the app.
+`auth-ui.js` renders sign-in, recovery and password-setup dialogs plus the drawer account summary.
+The workout script makes no direct network call: it only asks whether import is currently allowed.
+
+The inline workout script is organised in labelled sections, in this order. Keep additions in the matching section.
 
 1. **Helpers** — `$(sel)` querySelector shorthand, `el(tag, props, kids)` element factory, `toast()`, `slug()`, `todayISO()`.
 2. **Settings** — `FIELD_DEFS` (the switchable fields), `loadSettings()`, `saveSettings()`, `painLbl()`, `renderFields(host)`.
@@ -56,6 +65,8 @@ STATE = { week: 1, day: "Day 1 (Mon) - ...", date: "2026-07-27", focus: 0, setEd
 | `tp_program_v1` | The imported programme. One at a time. Holds **either** `tp-program-1` or `tp-program-2` — the storage key is not versioned, `meta.schema` inside it is. |
 | `tp_sess_v1::<date>::<day>` | One session's logged data. |
 | `tp_settings_v1` | Which optional fields are shown, plus `painLabel`, plus appearance (`palette`: `a`\|`b`, `mode`: `auto`\|`light`\|`dark`), `view` (`list`\|`focus`, meaning Overview\|Log) and `sv`, a one-shot settings-migration marker (see below). Defaults are all-on / `a` / `auto` / `focus`. Appearance and view are cosmetic and deliberately **not** part of the session export — `tracking` is built from `FIELD_DEFS` alone, so nothing added here can leak into a log file. |
+| `tp_supabase_auth_v1` | Supabase's persisted browser session. Owned only by the SDK; never read by workout persistence or exported. |
+| `tp_auth_owner_v1` | Minimal installation binding: first accepted user id/email, explicit local sign-out and an unfinished invite/recovery marker. It contains no token or workout payload. |
 
 A stored session looks like:
 
@@ -122,7 +133,8 @@ Every input has an `oninput`/`onchange` handler that mutates the session object 
 `CACHE` in `sw.js`. Check the file for the current value rather than trusting this line.
 
 - **`program.json` → network-first, cache fallback.** So a re-deployed sample/programme is picked up when online, but still opens offline.
-- **Everything else → cache-first**, falling back to network, falling back to `./index.html` (so a deep link offline still boots the app).
+- **Same-origin app assets → cache-first**, falling back to network, falling back to `./index.html` (so a deep link offline still boots the app). The pinned Supabase SDK and all three local auth modules are in the pre-cached shell.
+- **Cross-origin requests are never intercepted.** Supabase Auth and future Data API calls must reach the backend directly; a failed request must never be replaced with cached HTML.
 - `install` pre-caches the shell list and calls `skipWaiting()`; `activate` deletes old caches and calls `clients.claim()`.
 
 **When you change any shell file, bump `CACHE`** — increment whatever is there now — or returning users keep the old cached app.
@@ -154,13 +166,23 @@ Layout rules that are load-bearing on a phone, and easy to undo by accident:
 
 ## Current client boundary
 
-No framework, bundler, npm runtime, TypeScript, CDN assets, analytics or in-app profile switching.
-The client still has no auth or remote calls, but accounts and asynchronous cloud backup are now an
-approved staged addition; `docs/backend-launch-plan.md` is authoritative for that work. Offline
-autosave remains the source of truth for in-progress training and must never wait for the backend.
+No framework, bundler, npm runtime, TypeScript, runtime CDN dependency, analytics or in-app profile
+switching. Supabase Auth is the only remote client integration. Programme and session reads/writes
+remain local; asynchronous cloud backup is still a later phase described in
+`docs/backend-launch-plan.md`. Offline autosave remains the source of truth for in-progress training
+and never waits for the backend.
 
-**Today, multi-athlete lives on the coaching side.** `athlete/<slug>/` gives each person their own profile, plans, programmes and logs, and the planner/builder skills take the athlete as an input. Until the account phase ships, a second athlete installs the PWA on her own phone, which gives her separate `localStorage`, settings, programme and logs.
+**One installation belongs to one beta account.** The first accepted or signed-in account writes a
+small owner marker. A later attempt by a different account is signed out locally and rejected without
+deleting the cached programme or sessions; that athlete needs a separate browser profile or app
+installation. A known owner who did not explicitly sign out can continue using cached workouts and
+importing a programme while offline. An explicit sign-out removes only the local Supabase session and
+requires sign-in again for import.
 
-**The Tracked fields section is not multi-user support.** It remains a per-device preference: which optional inputs render, and what the pain field is called. The planned account identity must stay outside this UI preference model; in-app profile switching remains deferred.
+Multi-athlete programme authoring still lives on the coaching side. `athlete/<slug>/` gives each
+person their own profile, plans, programmes and logs, and the planner/builder skills take the athlete
+as an input. Authentication does not add in-app profile switching.
+
+**The Tracked fields section is not multi-user support.** It remains a per-device preference: which optional inputs render, and what the pain field is called. Account identity stays in the dedicated auth module and owner marker, outside this UI preference model; in-app profile switching remains deferred.
 
 `meta.athleteId` is the one place a person's name appears in the data path. The app reads it from the imported programme and writes it back out in the session export, so a log file identifies the `athlete/<slug>/logs/` folder it belongs in. It is never used to select, filter, or key anything.

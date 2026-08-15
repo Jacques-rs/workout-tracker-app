@@ -1,6 +1,6 @@
 # Workout Tracker
 
-An installable, offline-first PWA for reading a training programme and logging each session in the gym. The shipped client is still one athlete per device; a repo-managed Supabase foundation is now deployed for the account and cloud-sync phases without changing that offline path.
+An installable, offline-first PWA for reading a training programme and logging each session in the gym. The shipped client is one invited athlete account per installation. Supabase authentication is integrated without changing the device-first workout path; programme and session cloud sync remain later phases.
 
 Sessions export as JSON, which an AI coach reviews to adjust the next week's training. The coaching side of that loop lives alongside the app in `athlete/`: the planner and builder skills plus shared research are committed, and each athlete's own folder — profile, plans, programmes, logs — is **gitignored**.
 
@@ -16,6 +16,8 @@ python3 -m http.server 8000
 ```
 
 The repo ships a sample `program.json` so the app works immediately. Use **Import** to load a real programme.
+The sample remains available without an account. Importing a personal programme requires an invited
+account; use the **Account** section in the drawer to sign in.
 
 ## Backend development
 
@@ -28,6 +30,14 @@ frontend-and-backend suite with:
 ```
 
 The hosted project is migration-managed. Never apply dashboard schema edits or push seed data to it.
+`verify.sh` rebuilds the local Supabase database from migrations and removes any existing local-only
+Supabase data. It does not contact or modify the hosted project.
+
+Private-beta accounts are created with Supabase administrator invitations, not from the public app.
+The invitation link opens the app, verifies the email address and asks the athlete to choose a
+password. Password recovery returns to the same app URL. Administrator credentials and service-role
+keys must never be entered into the app or committed; the static client contains only Supabase's
+browser-safe publishable key.
 
 ## Deploy
 
@@ -51,9 +61,10 @@ Launch from the home-screen icon — it runs full-screen and works with no signa
 ## Using it
 
 1. Tap **≡** (or the `Week 1 · Mon` line next to it) to open the drawer. Set week, day and date.
-2. Still in the drawer, fill the **session check-in** — pain on waking, readiness, sleep, bodyweight, HRV note. Do it before you start: pain on waking describes how the tissue responded to your *last* session, not this one. The dot on **≡** stays until something is filled in.
-3. Close the drawer and train. Per exercise: read the prescription, expand coach notes or the progression rule if needed, log actual load / sets×reps / RPE / knee pain / notes, and tick it done. The blue "Log:" line says what's worth capturing.
-4. Tap **Export session** and save the file into `athlete/<your-slug>/logs/`. (Or **Copy JSON** and paste it into chat. Both are also in the drawer.)
+2. Open **Account** to accept an invitation or sign in. Signing out removes this browser's session but deliberately leaves its cached programme and workouts in place.
+3. Still in the drawer, fill the **session check-in** — pain on waking, readiness, sleep, bodyweight, HRV note. Do it before you start: pain on waking describes how the tissue responded to your *last* session, not this one. The dot on **≡** stays until something is filled in.
+4. Close the drawer and train. Per exercise: read the prescription, expand coach notes or the progression rule if needed, log actual load / sets×reps / RPE / knee pain / notes, and tick it done. The blue "Log:" line says what's worth capturing.
+5. Tap **Export session** and save the file into `athlete/<your-slug>/logs/`. (Or **Copy JSON** and paste it into chat. Both are also in the drawer.)
 
 Two ways to see the exercises, switched with the toggle at the top right and remembered on the device:
 
@@ -78,7 +89,10 @@ Everything autosaves on device as you go.
 
 **This GitHub repo is public** — it has to be for GitHub Pages on the free plan.
 
-In the currently shipped client, logged data stays in the browser's `localStorage` and only leaves when a file is exported or JSON copied. The Supabase foundation contains invented fixtures only; transmission of athlete data does not begin until the later sync phase ships with its privacy controls.
+Account email, session tokens and authentication requests are handled by Supabase. Workout programmes,
+check-ins and logged exercise data still stay in the browser's `localStorage` and only leave when a
+file is exported or JSON copied. The backend contains invented fixtures only; transmission of
+athlete workout data does not begin until the later sync phase ships with its privacy controls.
 
 Each `athlete/<slug>/` folder holds real health and training data in the working tree. The ignore rules are **deny-by-default**: every folder under `athlete/` is ignored except `skills/` and `sources/`, so a new athlete's folder — and anything dropped into it, including an export the phone share sheet saved one level too high — is covered without editing a file. Never commit a real programme or session log. Check with `git status` and `git check-ignore -v <path>` before committing; once health data is in public history, deleting the file does not remove it.
 

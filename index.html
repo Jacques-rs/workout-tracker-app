@@ -521,6 +521,39 @@
   .dnote{color:var(--muted);font-size:var(--t-sm);margin:var(--s3) 0 0;line-height:1.5}
   body.noscroll{overflow:hidden}
 
+  /* ---------- account dialog ----------
+     Authentication is deliberately outside the workout renderer. It can open from an
+     invite/recovery link or from the drawer without becoming a prerequisite for local
+     autosave, and it has its own keyboard-friendly dialog rather than reusing the
+     finite-choice sheet. */
+  .auth-wrap{position:fixed;inset:0;z-index:110;display:none;align-items:flex-end}
+  .auth-wrap.in{display:flex}
+  .auth-bg{position:absolute;inset:0;background:var(--scrim)}
+  .auth-dialog{position:relative;width:100%;max-width:520px;margin:0 auto;background:var(--panel);
+    border:1px solid var(--line);border-bottom:0;border-radius:20px 20px 0 0;
+    padding:var(--s4) var(--s4) calc(var(--s4) + env(safe-area-inset-bottom));
+    max-height:min(92vh,720px);overflow-y:auto;overscroll-behavior:contain}
+  .auth-head{display:flex;align-items:flex-start;gap:var(--s3);margin-bottom:var(--s4)}
+  .auth-title{font-size:var(--t-lg);font-weight:800;line-height:1.2}
+  .auth-copy{font-size:var(--t-sm);color:var(--muted);line-height:1.45;margin-top:3px}
+  .auth-close{flex:0 0 auto;width:40px;height:40px;padding:0;border-radius:50%}
+  .auth-form{display:flex;flex-direction:column;gap:var(--s3)}
+  .auth-field{display:flex;flex-direction:column;gap:var(--s1);font-size:var(--t-sm);
+    color:var(--muted);font-weight:700}
+  .auth-field input{width:100%;min-height:var(--h-field);font-size:16px;color:var(--ink)}
+  .auth-form>.primary,.auth-message+.primary{width:100%;min-height:var(--h-primary)}
+  .auth-error{padding:var(--s2) var(--s3);border:1px solid var(--bad);
+    border-radius:var(--r-sm);background:color-mix(in srgb,var(--bad) 10%,transparent);
+    color:var(--bad);font-size:var(--t-sm);line-height:1.4}
+  .auth-error[hidden]{display:none}
+  .auth-rule,.auth-message{color:var(--muted);font-size:var(--t-sm);line-height:1.5;
+    margin:0 0 var(--s3)}
+  .auth-status{margin-top:0}
+  @media (min-width:560px){
+    .auth-wrap{align-items:center;padding:var(--s4)}
+    .auth-dialog{border-bottom:1px solid var(--line);border-radius:20px;
+      padding-bottom:var(--s4)}}
+
   /* Accordion sections. `details.acc` deliberately outguns the generic `details` rules
      used for coach notes — same element, different job. */
   details.acc{margin:var(--s3) 0 0;padding:0;background:var(--well);
@@ -689,9 +722,28 @@
   </section>
 </div>
 
+<div class="auth-wrap" id="authWrap" aria-hidden="true">
+  <div class="auth-bg" id="authBg"></div>
+  <section class="auth-dialog" id="authDialog" role="dialog" aria-modal="true"
+           aria-labelledby="authTitle">
+    <div class="auth-head">
+      <div class="grow">
+        <div class="auth-title" id="authTitle"></div>
+        <div class="auth-copy" id="authCopy"></div>
+      </div>
+      <button class="ghost auth-close" id="authClose" aria-label="Close account dialog">×</button>
+    </div>
+    <div id="authBody"></div>
+  </section>
+</div>
+
 <div class="toast" id="toast"></div>
 <input type="file" id="fileInp" accept="application/json,.json" style="display:none" />
 
+<script src="./vendor/supabase-js-2.111.0.min.js"></script>
+<script src="./js/auth-config.js"></script>
+<script src="./js/auth-client.js"></script>
+<script src="./js/auth-ui.js"></script>
 <script>
 "use strict";
 /* ---------- helpers ---------- */
@@ -913,7 +965,7 @@ let DAYBTNS=[];
 /* Which accordions are open. In memory, not storage — it is "where I was a moment ago",
    not a preference, and rebuilding the drawer must not collapse a section under the
    athlete's thumb. */
-const ACC={checkin:true,data:false,appearance:false,fields:false};
+const ACC={checkin:true,account:false,data:false,appearance:false,fields:false};
 /* Whether the date row shows the picker or just the value — also drawer-local state,
    reset every time the drawer opens so a stale open picker doesn't reappear later. */
 let dateEditing=false;
@@ -1024,11 +1076,38 @@ function selectWeek(w){
 function renderDataSection(host){
   host.innerHTML="";
   const imp=el("button",{className:"ghost"},"Import program…");
-  imp.onclick=()=>$("#fileInp").click();
+  imp.onclick=()=>requestProgramImport();
   const copy=el("button",{className:"ghost"},"Copy JSON");copy.onclick=copyJSON;
   const exp=el("button",{className:"primary"},"Export session");exp.onclick=exportSession;
   host.append(el("div",{className:"btnrow"},[imp]));
   host.append(el("div",{className:"btnrow"},[copy,exp]));
+}
+
+function authCanImport(){
+  return !!window.TPAuth&&window.TPAuth.canImport();
+}
+function requestProgramImport(){
+  if(authCanImport()){$("#fileInp").click();return;}
+  ACC.account=true;
+  openDrawer();
+  if(window.TPAuthUI)TPAuthUI.open("sign-in");
+  toast("Sign in to import a personal program");
+}
+function accountSummary(){
+  if(!window.TPAuth)return "Unavailable";
+  const a=TPAuth.getState();
+  if(a.status==="authenticated")return "Signed in";
+  if(a.status==="offline-owner")return "Offline";
+  if(a.status==="setup-required")return "Finish setup";
+  if(a.status==="conflict")return "Account mismatch";
+  if(a.status==="loading")return "Checking…";
+  return "Signed out";
+}
+function renderAccountSection(host){
+  host.innerHTML="";
+  if(window.TPAuthUI)TPAuthUI.renderAccount(host);
+  else host.append(el("p",{className:"dnote"},"Account services are unavailable. Cached workouts still work."));
+  const stat=$("#accountStat");if(stat)stat.textContent=accountSummary();
 }
 
 function renderDrawer(){
@@ -1045,6 +1124,7 @@ function renderDrawer(){
     host.append(el("p",{className:"dnote"},
       "No program loaded. Import a program.json and the week, day and check-in appear here."));
   }
+  host.append(accordion("account","Account",renderAccountSection,"accountStat"));
   host.append(accordion("data","Program & data",renderDataSection));
   host.append(accordion("appearance","Appearance",renderAppearance));
   host.append(accordion("fields","Tracked fields",renderFields));
@@ -1371,6 +1451,11 @@ function loadProgram(obj){
 async function boot(){
   loadSettings();
   applyTheme();          /* head script already painted it; this keeps meta + state in sync */
+  if(window.TPAuthUI)TPAuthUI.init({toast});
+  if(window.TPAuth){
+    TPAuth.subscribe(()=>{if(drawerOpen())renderDrawer();});
+    TPAuth.init();        /* Auth is asynchronous and never delays local workout boot. */
+  }
   const saved=localStorage.getItem(LS.prog);
   if(saved){try{PROGRAM=JSON.parse(saved);}catch(e){}}
   if(!PROGRAM){try{const r=await fetch("./program.json",{cache:"no-store"});if(r.ok)PROGRAM=await r.json();}catch(e){}}
@@ -2635,6 +2720,9 @@ $("#prevBtn").onclick=()=>stepFocus(-1);
 $("#nextBtn").onclick=()=>stepFocus(1);
 $("#fileInp").onchange=async e=>{
   const f=e.target.files[0];if(!f)return;
+  if(!authCanImport()){
+    e.target.value="";requestProgramImport();return;
+  }
   try{const txt=await f.text();loadProgram(JSON.parse(txt));closeDrawer();toast("Program loaded");}
   catch(err){toast("Import failed: "+err.message);}
   e.target.value="";
@@ -2644,6 +2732,7 @@ $("#fileInp").onchange=async e=>{
    Suppressed while editing a set: an arrow key while STATE.setEdit is set would jump
    exercises with a chip (not an INPUT) focused mid-edit. */
 if(document.addEventListener)document.addEventListener("keydown",e=>{
+  if(window.TPAuthUI&&TPAuthUI.handleKeydown(e))return;
   if(e.key==="Escape"&&$("#sheetWrap").classList.contains("in")){sheetClose();return;}
   if(e.key==="Tab"&&$("#sheetWrap").classList.contains("in")){
     const nodes=Array.from($("#sheet").querySelectorAll("button,input,textarea,select"))
