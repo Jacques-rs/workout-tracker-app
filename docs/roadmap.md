@@ -166,7 +166,7 @@ value and degrades to no-tag when it can't tell. See `docs/data-contracts.md`.
 A simple list of past sessions, and per-exercise history (load and RPE over weeks, plus the knee-pain trend). The pain trend is genuinely decision-relevant — "no upward trend week over week" is one of the coaching rules — so surfacing it in-app would let the athlete self-correct before the coach review.
 
 **5. Reduce the export→save friction.**
-Today: export downloads a file, then the athlete saves it into the Drive folder via the share sheet. Options, in increasing effort: (a) a "share" button using the Web Share API so it goes straight to Files/Drive; (b) exporting a whole week in one file; (c) real cloud sync via the Drive API, which would mean credentials and a backend — explicitly rejected so far.
+Today: export downloads a file, then the athlete saves it into the Drive folder via the share sheet. A "share" button using the Web Share API or a whole-week export could shorten that flow before accounts ship. Account-backed programme and log storage is now being planned separately; see `docs/backend-launch-plan.md` rather than extending this roadmap item with backend decisions.
 
 **6. `localStorage` housekeeping.**
 Old `tp_sess_v1::*` keys accumulate forever. Harmless at this volume, but a "clear sessions older than N months" action (after backup) keeps things tidy.
@@ -225,9 +225,12 @@ Decisions worth knowing:
   result mode uses the flat fields. The review skill reads these two circuit representations
   explicitly instead of mistaking `sets: []` for an empty workout.
 
-## Explicitly not doing
+## Tracked separately
 
-Accounts, multi-user, a backend, analytics, a framework rewrite, an app-store native build. All rejected: they add maintenance and failure modes to a tool whose main virtue is that it opens instantly and works with no signal.
+Accounts, private programme storage and cloud-backed logs are approved as an offline-first staged
+release in `docs/backend-launch-plan.md`; keep its product and security decisions out of this feature
+backlog. Analytics, a framework rewrite, an app-store native build, coach roles and public sharing
+remain deferred.
 
 ## Housekeeping reminders
 

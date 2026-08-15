@@ -10,6 +10,8 @@
 | `icon-192.png`, `icon-512.png`, `icon-512-maskable.png` | App icons (barbell glyph on dark background). |
 | `program.json` | Bundled **sample** programme (`tp-program-2`, 6 weeks × 4 days) so the app works on first open. Replaced at runtime by Import. |
 | `samples/apptest.js` | `node samples/apptest.js` — dependency-free smoke test of filtering, per-set logging and export against both schema versions. |
+| `supabase/` | Repo-managed backend config, migrations, fake seed data and pgTAP access-policy tests. No client integration yet. |
+| `scripts/verify.sh` | One local command for the database security suite and all existing contract/app checks. |
 
 ## Screen layout
 
@@ -129,7 +131,7 @@ Every input has an `oninput`/`onchange` handler that mutates the session object 
 
 `exportSession()` builds the `tp-session-3` object, serialises it, and triggers a download via a `Blob` + object URL + synthetic `<a download>` click. Both it and `copyJSON()` are wrapped in `try/catch` that toasts the error: a throw here would look like the button doing nothing, at the one moment the session has to leave the phone.
 
-Why a download rather than writing to the athlete's Drive folder directly: the File System Access API isn't available on iOS Safari, and the app deliberately has no backend or cloud credentials. On iPhone the download goes through the share sheet → *Save to Files* → the Drive folder. `copyJSON()` is the fallback path — clipboard, then paste into chat.
+Why a download rather than writing to the athlete's Drive folder directly: the File System Access API isn't available on iOS Safari, and the current client has no backend credentials or sync module yet. On iPhone the download goes through the share sheet → *Save to Files* → the Drive folder. `copyJSON()` is the fallback path — clipboard, then paste into chat. The staged replacement is tracked in `docs/backend-launch-plan.md`.
 
 ## Styling
 
@@ -150,12 +152,15 @@ Layout rules that are load-bearing on a phone, and easy to undo by accident:
 - The four-across log/set grids are gated on `min-width: 360px` and fall back to 2×2 below that.
 - **The drawer opens and closes with `visibility`, not `[hidden]`** — a delayed `visibility` transition keeps the panel present until it has slid out, with no JS timers. The reduced-motion block has to zero that *delay* as well as the durations, or an invisible scrim keeps eating taps for 240ms.
 
-## Deliberate non-goals
+## Current client boundary
 
-No framework, no bundler, no npm, no TypeScript, no CDN assets, no analytics, no accounts, no server, no cloud sync, **no in-app athlete switching**. Every one of these was considered and rejected for an offline gym tool.
+No framework, bundler, npm runtime, TypeScript, CDN assets, analytics or in-app profile switching.
+The client still has no auth or remote calls, but accounts and asynchronous cloud backup are now an
+approved staged addition; `docs/backend-launch-plan.md` is authoritative for that work. Offline
+autosave remains the source of truth for in-progress training and must never wait for the backend.
 
-**Multi-athlete lives on the coaching side, not here.** `athlete/<slug>/` gives each person their own profile, plans, programmes and logs, and the planner/builder skills take the athlete as an input. The app does not model people at all: a second athlete installs the PWA on her own phone, which gives her her own `localStorage` and therefore her own programme, settings and logs.
+**Today, multi-athlete lives on the coaching side.** `athlete/<slug>/` gives each person their own profile, plans, programmes and logs, and the planner/builder skills take the athlete as an input. Until the account phase ships, a second athlete installs the PWA on her own phone, which gives her separate `localStorage`, settings, programme and logs.
 
-**The Tracked fields section is not multi-user support.** It's a per-device preference: which optional inputs render, and what the pain field is called. That is how one athlete's tendon protocol and another's shoulder rehab both reach the UI without the app knowing who anyone is. There are no profiles, no switching, and nothing keyed by person.
+**The Tracked fields section is not multi-user support.** It remains a per-device preference: which optional inputs render, and what the pain field is called. The planned account identity must stay outside this UI preference model; in-app profile switching remains deferred.
 
 `meta.athleteId` is the one place a person's name appears in the data path. The app reads it from the imported programme and writes it back out in the session export, so a log file identifies the `athlete/<slug>/logs/` folder it belongs in. It is never used to select, filter, or key anything.

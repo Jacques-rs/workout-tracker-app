@@ -1,6 +1,6 @@
 # Workout Tracker
 
-An installable, offline-first PWA for reading a training programme and logging each session in the gym. No accounts, no backend; one athlete per device.
+An installable, offline-first PWA for reading a training programme and logging each session in the gym. The shipped client is still one athlete per device; a repo-managed Supabase foundation is now deployed for the account and cloud-sync phases without changing that offline path.
 
 Sessions export as JSON, which an AI coach reviews to adjust the next week's training. The coaching side of that loop lives alongside the app in `athlete/`: the planner and builder skills plus shared research are committed, and each athlete's own folder — profile, plans, programmes, logs — is **gitignored**.
 
@@ -16,6 +16,18 @@ python3 -m http.server 8000
 ```
 
 The repo ships a sample `program.json` so the app works immediately. Use **Import** to load a real programme.
+
+## Backend development
+
+The backend definition lives in `supabase/`: config, one ordered migration, fake seed data and
+pgTAP security tests. Install Docker Desktop and Supabase CLI `2.114.0`, then run the complete
+frontend-and-backend suite with:
+
+```bash
+./scripts/verify.sh
+```
+
+The hosted project is migration-managed. Never apply dashboard schema edits or push seed data to it.
 
 ## Deploy
 
@@ -54,9 +66,10 @@ Everything autosaves on device as you go.
 
 | Doc | Contents |
 |---|---|
-| `CLAUDE.md` | Primary context: purpose, constraints, conventions, repo layout. Read first. |
+| `CLAUDE.md` / `AGENTS.md` | Agent entrypoints; both link to the canonical architecture and backend plan. |
 | `docs/data-contracts.md` | The `tp-program-2` input and `tp-session-3` output schemas, and how every earlier version is still supported. |
 | `docs/architecture.md` | File layout, state model, service worker, export flow, known quirks. |
+| `docs/backend-launch-plan.md` | Live, concise decision register and delivery plan for accounts, saved programmes and cloud-synced logs. |
 | `docs/roadmap.md` | Known gaps and candidate features, with rationale. |
 | `samples/README.md` | Development fixtures, v1 and v2 of both schemas. |
 | `athlete/README.md` | Coaching-project layout: the planner/builder skills, shared research, and one gitignored folder per athlete. |
@@ -65,7 +78,7 @@ Everything autosaves on device as you go.
 
 **This GitHub repo is public** — it has to be for GitHub Pages on the free plan.
 
-Logged data stays in the browser's `localStorage` on the device and only leaves when a file is exported or JSON copied. Nothing is transmitted anywhere.
+In the currently shipped client, logged data stays in the browser's `localStorage` and only leaves when a file is exported or JSON copied. The Supabase foundation contains invented fixtures only; transmission of athlete data does not begin until the later sync phase ships with its privacy controls.
 
 Each `athlete/<slug>/` folder holds real health and training data in the working tree. The ignore rules are **deny-by-default**: every folder under `athlete/` is ignored except `skills/` and `sources/`, so a new athlete's folder — and anything dropped into it, including an export the phone share sheet saved one level too high — is covered without editing a file. Never commit a real programme or session log. Check with `git status` and `git check-ignore -v <path>` before committing; once health data is in public history, deleting the file does not remove it.
 
