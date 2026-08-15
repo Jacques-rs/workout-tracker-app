@@ -1,6 +1,6 @@
 # Backend launch plan
 
-**Status:** authentication implemented and locally verified; hosted private-beta smoke test is next
+**Status:** authentication committed locally; deployment smoke and account-first entry are next
 **Last updated:** 2026-08-15
 **Owner:** Jacques makes the product calls below; implementation choices default to established
 engineering conventions.
@@ -11,10 +11,12 @@ one sitting; the detailed programme and session formats remain in `docs/data-con
 
 ## Product outcome
 
-An athlete can sign in, keep multiple programmes, and retain their workout logs in the cloud. The
-gym experience remains offline-first: logging saves on the device immediately and never waits for
-the network. Cloud synchronization adds identity, backup and access across installs; it does not
-become a prerequisite for completing a workout.
+An athlete lands on a clear account/profile home, can sign in, keep multiple programmes, and review
+previous workout logs grouped with their programmes. A deliberate **View sample programme** action
+keeps the no-account demo available without making it the default experience. The gym experience
+remains offline-first: logging saves on the device immediately and never waits for the network.
+Cloud synchronization adds identity, history, backup and access across installs; it does not become
+a prerequisite for completing a workout.
 
 ## Owner decision register
 
@@ -49,13 +51,16 @@ external dependency). Additional methods can be added later without changing sto
 
 ### 3. Account requirement — decided
 
-**Decision: cloud features require an account, but cached workouts remain usable offline.** A
-new user may explore the bundled sample before registering; importing personal programmes and cloud
-backup prompt sign-in. A previously signed-in athlete must not be locked out of cached data when the
-gym has no signal.
+**Decision: the app opens on an account/profile page, with an explicit sample-programme path.** A
+signed-out visitor sees invitation sign-in and recovery first, plus a **View sample programme** action
+that enters a clearly labelled demo without an account. A signed-in athlete sees her profile,
+programmes and recent workout history before entering the active programme. Importing personal
+programmes and all cloud features require the account. A previously signed-in athlete must still be
+able to reach cached programmes and workouts when the gym has no signal.
 
-The stricter alternative is account-first onboarding. It is conceptually simpler but increases
-drop-off and makes a network connection mandatory on first use.
+The workout screen remains focused on training rather than doubling as account navigation. The
+profile is the home for programme management and history; the sample remains a deliberate preview,
+not an implicit anonymous account.
 
 **Status:** decided 2026-08-15.
 
@@ -131,16 +136,20 @@ Postgres JSON queries or derived views before the storage model is normalized.
 1. **Foundation — complete:** confirmed the blocking decisions; added the Supabase project layout,
    migration, sanitized seed data, row-level-security tests and CI; and deployed the reviewed
    migration and auth configuration to the hosted beta project.
-2. **Authentication — implemented, hosted smoke pending:** invite acceptance, verified email/password
+2. **Authentication — committed, deployment smoke pending:** invite acceptance, verified email/password
    setup, sign-in, recovery, device-local sign-out and offline-safe auth state are integrated without
    changing workout persistence. A first successful account binds the installation; a different
    account is rejected without deleting local data. Personal programme import requires that account,
    while the bundled sample and cached workouts remain usable. Public sign-up remains deferred.
-3. **Programme library:** save, list, activate and remove user-owned programmes while retaining a
-   local copy for offline use.
-4. **Session synchronization:** keep local autosave, add a dirty queue and retryable remote upserts,
-   expose a small honest sync status, and test offline/reconnect/conflict behavior.
-5. **Launch hardening:** data export/deletion, privacy copy, recovery testing, backups, operational
+3. **Account entry and profile — next:** make sign-in/profile the default route, add the explicit
+   sample-programme action, and keep cached training reachable for the known owner while offline.
+   The authenticated profile initially provides honest empty/loading states for programmes and logs.
+4. **Programme library:** list, import, activate and remove user-owned programmes from the profile,
+   while retaining the active programme locally for offline use.
+5. **Session synchronization and history:** keep local autosave, add a dirty queue and retryable
+   remote upserts, then show previous logs on the profile grouped with their programme. Expose a small
+   honest sync status and test offline/reconnect/conflict behavior.
+6. **Launch hardening:** data export/deletion, privacy copy, recovery testing, backups, operational
    monitoring that excludes health payloads, and a private beta.
 
 ## Guardrails for AI-assisted maintenance
