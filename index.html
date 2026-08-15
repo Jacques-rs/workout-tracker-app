@@ -380,7 +380,7 @@
   .setchip[data-state="current"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
   /* Dashed and quiet: an upcoming set is a plan, not a destination and not a delete
      button. It used to be a live button that dropped the set on one tap, which read as
-     "jump to set 4" — the count is changed by .setcount below instead. */
+     "jump to set 4" — set count now lives in the secondary Adjust sets sheet. */
   .setchip[data-state="todo"]{opacity:.55;border-style:dashed;color:var(--placeholder);
     background:transparent}
   /* The set that just landed. The one bit of motion in the app, and it earns its place:
@@ -393,14 +393,6 @@
   .setchip.just{animation:chippop .42s cubic-bezier(.2,.8,.2,1)}
   .setlabelrow{display:flex;align-items:center;gap:var(--s2);margin-bottom:var(--s2)}
   .setlabel{flex:1 1 auto;min-width:0;font-size:var(--t-sm);color:var(--muted);font-weight:700}
-  .setcount{flex:0 0 auto;display:flex;align-items:center;gap:2px;padding:2px;
-    background:var(--well);border:1px solid var(--line-soft);border-radius:999px}
-  .cntbtn{width:32px;height:32px;padding:0;display:grid;place-items:center;border:0;
-    background:transparent;color:var(--ink);font-size:var(--t-md);font-weight:700;
-    border-radius:50%;line-height:1}
-  .cntbtn:disabled{opacity:.3}
-  .cntval{min-width:50px;text-align:center;font-size:var(--t-xs);font-weight:700;
-    color:var(--muted)}
   .setgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s2)}
   @media (min-width:360px){
     .setgrid{grid-template-columns:repeat(3,minmax(0,1fr)) 70px}
@@ -416,14 +408,84 @@
   .addnote{border:0;background:transparent;color:var(--accent2);padding:6px 2px;
     font-weight:700}
   /* Two rows, neither wrapping: one unmistakable primary action, and the quieter things
-     beneath it at equal width. Three similar buttons in one wrapping row is what made
-     "Log set" and "Finish exercise" a coin toss under a chalked thumb. */
+     beneath it at equal width. The planned set path stays visually dominant. */
   .setactions{display:flex;gap:var(--s2);margin-top:var(--s3)}
   .setactions>button{flex:1 1 0;min-width:0}
   .setactions.mainrow>button{min-height:var(--h-primary);font-size:var(--t-base)}
   .setactions.subrow{margin-top:var(--s2)}
   .setactions.subrow>button{min-height:var(--h-tap);font-size:var(--t-sm)}
   .setactions.subrow:empty{display:none}
+
+  /* ---------- mobile action sheet ----------
+     RPE, set-count changes and circuit logging choices are finite decisions. Keeping
+     them in one reusable bottom sheet avoids opening a keyboard and keeps secondary
+     controls out of the set-by-set path. */
+  .sheet-wrap{position:fixed;inset:0;z-index:90;display:none;align-items:flex-end}
+  .sheet-wrap.in{display:flex}
+  .sheet-bg{position:absolute;inset:0;background:var(--scrim)}
+  .sheet{position:relative;width:100%;max-width:720px;margin:0 auto;background:var(--panel);
+    border:1px solid var(--line);border-bottom:0;border-radius:20px 20px 0 0;
+    padding:var(--s3) var(--s4) calc(var(--s4) + env(safe-area-inset-bottom));
+    max-height:min(82vh,680px);overflow-y:auto;overscroll-behavior:contain}
+  .sheet-handle{width:38px;height:4px;border-radius:999px;background:var(--line);
+    margin:0 auto var(--s3)}
+  .sheet-head{display:flex;align-items:flex-start;gap:var(--s3);margin-bottom:var(--s3)}
+  .sheet-title{font-size:var(--t-md);font-weight:800;line-height:1.25}
+  .sheet-copy{font-size:var(--t-sm);color:var(--muted);line-height:1.45;margin-top:2px}
+  .sheet-close{flex:0 0 auto;width:38px;height:38px;padding:0;border-radius:50%}
+  .sheet-actions{display:flex;gap:var(--s2);margin-top:var(--s4)}
+  .sheet-actions>button{flex:1 1 0;min-height:var(--h-tap)}
+  .rpe-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--s2)}
+  .rpe-grid button{min-height:48px;padding:8px 4px;font-variant-numeric:tabular-nums}
+  .rpe-grid button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent);
+    border-color:var(--accent)}
+  .pickerbtn{width:100%;min-height:var(--h-field);text-align:center;font-size:var(--t-md);
+    font-variant-numeric:tabular-nums;color:var(--ink);font-weight:700}
+  .pickerbtn.empty{color:var(--placeholder);font-weight:500}
+  .quietaction{border:0;background:transparent;color:var(--accent2);padding:6px 2px;
+    font-size:var(--t-sm);font-weight:700}
+  .setsecondary{display:flex;justify-content:space-between;gap:var(--s3);align-items:center;
+    margin-top:var(--s2)}
+  .setsecondary button:last-child{text-align:right}
+  .adjustbox{display:flex;align-items:center;justify-content:center;gap:var(--s3);
+    background:var(--well);border:1px solid var(--line-soft);border-radius:var(--r-sm);
+    padding:var(--s3)}
+  .adjustbox button{width:48px;height:48px;padding:0;font-size:var(--t-lg);border-radius:50%}
+  .adjustvalue{min-width:120px;text-align:center}
+  .adjustvalue strong{display:block;font-size:var(--t-lg);font-variant-numeric:tabular-nums}
+  .adjustvalue span{display:block;color:var(--muted);font-size:var(--t-xs);margin-top:2px}
+
+  /* ---------- circuit logger ---------- */
+  .circuitplan{margin-top:var(--s3);padding:var(--s3);background:var(--well);
+    border:1px solid var(--line-soft);border-radius:var(--r-sm)}
+  .circuitplan .cp-title{font-size:var(--t-xs);font-weight:800;color:var(--muted);
+    text-transform:uppercase;letter-spacing:.6px;margin-bottom:var(--s2)}
+  .circuitpart{display:flex;gap:var(--s2);align-items:baseline;padding:5px 0;
+    color:var(--ink-dim);font-size:var(--t-sm);font-weight:650}
+  .circuitpart+.circuitpart{border-top:1px solid var(--line-soft)}
+  .circuitpart .cpn{flex:0 0 auto;width:20px;height:20px;display:grid;place-items:center;
+    border-radius:50%;background:var(--accent-soft);color:var(--accent-ink);
+    font-size:var(--t-xs);font-weight:800}
+  .circuitload{margin-top:var(--s2);color:var(--muted);font-size:var(--t-xs)}
+  .modeline{display:flex;justify-content:space-between;align-items:center;gap:var(--s3);
+    margin-top:var(--s3);padding-bottom:var(--s2);border-bottom:1px solid var(--line-soft)}
+  .modeline .modehint{font-size:var(--t-xs);color:var(--muted)}
+  .modeline button{white-space:nowrap}
+  .modechoices{display:flex;flex-direction:column;gap:var(--s2)}
+  .modechoice{text-align:left;padding:var(--s3);background:var(--well)}
+  .modechoice[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+  .modechoice strong{display:block;font-size:var(--t-base)}
+  .modechoice span{display:block;color:var(--muted);font-size:var(--t-sm);font-weight:400;
+    line-height:1.4;margin-top:2px}
+  .circuitresult{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s2);
+    margin-top:var(--s3)}
+  .circuitresult .full{grid-column:1/-1}
+  .circuitresult input,.circuitresult textarea{width:100%;min-height:var(--h-field)}
+  .circuit-primary{width:100%;min-height:var(--h-primary);margin-top:var(--s3)}
+  .toast.action{pointer-events:auto;display:flex;align-items:center;gap:var(--s3);
+    padding:7px 8px 7px 14px}
+  .toast.action button{border:0;background:transparent;color:var(--toast-ink);
+    padding:7px;font-size:var(--t-sm);text-decoration:underline}
 
   /* readiness tints the check-in card */
   .sessioncard[data-readiness="Green"]{--cat:var(--good)}
@@ -612,6 +674,21 @@
   </aside>
 </div>
 
+<div class="sheet-wrap" id="sheetWrap" aria-hidden="true">
+  <div class="sheet-bg" id="sheetBg"></div>
+  <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <div class="sheet-head">
+      <div class="grow">
+        <div class="sheet-title" id="sheetTitle"></div>
+        <div class="sheet-copy" id="sheetCopy"></div>
+      </div>
+      <button class="ghost sheet-close" id="sheetClose" aria-label="Close">×</button>
+    </div>
+    <div id="sheetBody"></div>
+  </section>
+</div>
+
 <div class="toast" id="toast"></div>
 <input type="file" id="fileInp" accept="application/json,.json" style="display:none" />
 
@@ -637,11 +714,53 @@ let PROGRAM=null, STATE={week:1,day:null,date:todayISO(),focus:0,setEdit:null};
 
 function todayISO(){const d=new Date();const z=n=>String(n).padStart(2,"0");
   return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`;}
-function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");
-  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),1900);}
+function toast(msg,action){const t=$("#toast");t.innerHTML="";t.classList.toggle("action",!!action);
+  t.append(document.createTextNode(msg));
+  if(action){const b=el("button",{},action.label);b.onclick=()=>{hideToast();action.onclick();};t.append(b);}
+  t.classList.add("show");clearTimeout(t._t);
+  t._t=setTimeout(()=>hideToast(),action?4200:1900);}
+function hideToast(){const t=$("#toast");t.classList.remove("show","action");t.innerHTML="";}
 function slug(s){return (s||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"").slice(0,40);}
 const txt=v=>String(v??"").trim();
 function parseNum(s){const n=parseFloat(s);return Number.isFinite(n)?n:null;}
+
+/* One reusable finite-choice sheet. The card never rebuilds while a keyboard is open;
+   opening and closing this only follows a deliberate tap. */
+let SHEET_RETURN=null;
+function sheetOpen(title,copy,body,onclose){
+  SHEET_RETURN=document.activeElement;$("#sheetTitle").textContent=title;
+  $("#sheetCopy").textContent=copy||"";const host=$("#sheetBody");host.innerHTML="";
+  if(body)host.append(body);$("#sheetWrap").classList.add("in");
+  $("#sheetWrap").setAttribute("aria-hidden","false");document.body.classList.add("noscroll");
+  $("#sheetWrap")._onclose=onclose||null;setTimeout(()=>$("#sheetClose").focus(),0);
+}
+function sheetClose(){const w=$("#sheetWrap");if(!w.classList.contains("in"))return;
+  w.classList.remove("in");w.setAttribute("aria-hidden","true");document.body.classList.remove("noscroll");
+  const cb=w._onclose;w._onclose=null;if(cb)cb();
+  if(SHEET_RETURN&&SHEET_RETURN.focus)SHEET_RETURN.focus();SHEET_RETURN=null;
+}
+function sheetActions(primaryLabel,onprimary,secondaryLabel="Cancel"){
+  const row=el("div",{className:"sheet-actions"});
+  const cancel=el("button",{className:"ghost"},secondaryLabel);cancel.onclick=sheetClose;
+  const primary=el("button",{className:"primary"},primaryLabel);
+  primary.onclick=()=>{sheetClose();onprimary();};row.append(cancel,primary);return row;
+}
+function openRpePicker(value,prescribed,onpick){
+  const wrap=el("div");const grid=el("div",{className:"rpe-grid"});
+  for(let n=1;n<=10;n+=.5){const v=String(n),b=el("button",{
+    attrs:{"aria-pressed":String(txt(value)===v),"aria-label":"RPE "+v}},v);
+    b.onclick=()=>{sheetClose();onpick(v);};grid.append(b);}
+  wrap.append(grid);const clear=el("button",{className:"ghost",style:"width:100%;margin-top:12px"},"Clear RPE");
+  clear.onclick=()=>{sheetClose();onpick("");};wrap.append(clear);
+  sheetOpen("How hard was it?",prescribed?"Prescribed: "+prescribed+" · 1 easy, 10 maximal":"1 easy · 10 maximal",wrap);
+}
+function rpeButton(value,prescribed,onpick,label="RPE"){
+  const b=el("button",{className:"pickerbtn"});
+  b._setValue=v=>{const current=txt(v);b.textContent=current||"Pick";
+    b.classList.toggle("empty",!current);b.setAttribute("aria-label",`${label}${current?`, ${current}`:", not logged"}`);
+    b.onclick=()=>openRpePicker(current,prescribed,onpick);};
+  b._setValue(value);return b;
+}
 
 /* ---------- settings ----------
    Which optional inputs are shown. Defaults are all-on, so the coaching loop that
@@ -1086,6 +1205,45 @@ function targetSets(ex,e){
   return (typeof e.setTarget==="number"&&e.setTarget>=1)?e.setTarget:prescribedSets(ex);
 }
 
+/* Circuits need a different question from a strength set. The format already tells us
+   whether a live round counter or one final result is the lower-friction default. */
+function circuitOf(ex){
+  const s=txt(ex&&ex.sets);let m;
+  if((m=/^(\d+)\s+rounds?\b/i.exec(s)))return {kind:"rounds",target:Math.min(12,Math.max(1,+m[1])),
+    defaultMode:/for\s+time/i.test(s)?"final":"quick",label:/for\s+time/i.test(s)?"Rounds for time":"Rounds"};
+  if(/\bamrap\b/i.test(s)){m=/^(\d+)\s*(?:min(?:ute)?s?)?\s+amrap\b/i.exec(s)||/\bamrap\s*(\d+)?/i.exec(s);
+    return {kind:"amrap",minutes:m&&m[1]?+m[1]:0,defaultMode:"final",label:"AMRAP"};}
+  if(/\bemom\b/i.test(s)){m=/^(\d+)\s*(?:min(?:ute)?s?)?\s+emom\b/i.exec(s)||/\bemom\s*(\d+)?/i.exec(s);
+    return {kind:"emom",minutes:m&&m[1]?+m[1]:0,defaultMode:"final",label:"EMOM"};}
+  if(/\bfor\s+time\b/i.test(s))return {kind:"fortime",defaultMode:"final",label:"For time"};
+  if(/^\d+(?:\s*[-–—]\s*\d+){2,}$/.test(s))return {kind:"ladder",defaultMode:"final",label:s};
+  return null;
+}
+function circuitParts(ex){return txt(ex&&ex.reps).split(/\s*(?:\+|;|,)\s*/).map(x=>x.trim()).filter(Boolean);}
+function blankCircuit(){return {mode:"",rounds:"",extra:"",time:"",result:"",minutes:"",load:"",note:"",touched:false};}
+function circuitState(e,ex){
+  /* Keep the object identity stable while fields are being edited. Replacing this
+     object here leaves the other inputs in the same rendered form closing over a stale
+     reference (typing rounds and then extra reps would silently lose the second value). */
+  const fresh=!e.circuit||typeof e.circuit!=="object";
+  if(fresh)e.circuit=blankCircuit();
+  const c=e.circuit,defaults=blankCircuit();
+  Object.keys(defaults).forEach(k=>{if(!(k in c))c[k]=defaults[k];});
+  const spec=circuitOf(ex);if(!c.mode)c.mode=spec?spec.defaultMode:"final";
+  if(!c.rounds&&e.sets&&e.sets.length)c.rounds=e.sets.length;
+  /* A circuit logged before this UI existed has only the public flat headline. Keep it
+     as a final-result fallback so opening Edit result can never blank old training data. */
+  if(fresh&&c.mode==="final"&&(txt(e.reps)||txt(e.load)||txt(e.notes))){
+    c.result=txt(e.reps);c.load=txt(e.load);c.note=txt(e.notes);c.touched=true;
+  }
+  return c;
+}
+function circuitHasData(e){const c=e&&e.circuit;
+  return !!((e&&e.sets&&e.sets.length)||draftDirty(e)||(c&&(c.touched||c.rounds||txt(c.extra)||txt(c.time)||
+    txt(c.result)||txt(c.minutes)||txt(c.load)||txt(c.note))));
+}
+function circuitModeName(mode){return mode==="quick"?"Quick rounds":mode==="details"?"Round details":"Final result";}
+
 /* ---------- what the "reps" field actually measures ----------
    `reps` is prose, and in a real block roughly two rows in five prescribe something
    that is not a rep count: "45 sec", "8-10 min", "20 m", "45 sec hard / 75 sec easy".
@@ -1234,7 +1392,7 @@ const BLANK_SESSION={bodyweightKg:"",sleep:"",readiness:"",hrvNote:"",amPainOnWa
    is the athlete's own adjusted set count (see targetSets()) — null until they remove an
    upcoming chip, so it doesn't have to be reset when a programme is re-imported. */
 /* `dirty` is the difference between "these fields are showing you the last set" and
-   "you have typed this set". Only a dirty draft is auto-committed when you Finish or
+   "you have typed this set". Only a dirty draft is auto-committed when you end early or
    navigate away (see flushDraft), which is what stops a typed set being silently
    dropped without ever inventing a set nobody performed. App-local: `draft` never
    reaches an export, and commitSet() builds its row from named fields. */
@@ -1251,10 +1409,10 @@ function draftDirty(e){return !!(e&&e.draft&&e.draft.dirty&&!draftEmpty(e.draft)
 function entryState(e){
   if(!e)return "todo";
   if(e.done)return "done";
-  return ((e.sets&&e.sets.length)||draftDirty(e))?"part":"todo";
+  return ((e.sets&&e.sets.length)||draftDirty(e)||circuitHasData(e))?"part":"todo";
 }
 function blankEntry(){return {done:false,load:"",reps:"",rpe:"",painDuring:"",notes:"",
-  sets:[],draft:blankDraft(),summaryAuto:true,setTarget:null};}
+  sets:[],draft:blankDraft(),summaryAuto:true,setTarget:null,circuit:null};}
 function renumber(e){(e.sets||[]).forEach((r,i)=>{r.set=i+1;});return e.sets;}
 
 /* ---------- deriving the flat summary from sets[] ----------
@@ -1335,7 +1493,8 @@ function normalizeEntry(e){
   /* Per-set logging used to be opt-in, so most existing logs are flat-only. Promote that
      into one committed set rather than let derivation below silently blank it out — but
      not for a box ticked with nothing logged at all (a warm-up needs no invented set). */
-  if(!e.sets.length&&(txt(e.load)||txt(e.reps)||txt(e.rpe)||txt(e.painDuring))){
+  if(!e.sets.length&&!(e.circuit&&e.circuit.mode==="final")&&
+     (txt(e.load)||txt(e.reps)||txt(e.rpe)||txt(e.painDuring))){
     e.sets=[{set:1,load:txt(e.load),reps:txt(e.reps),rpe:txt(e.rpe),painDuring:txt(e.painDuring),note:""}];
     changed=true;
   }
@@ -1343,8 +1502,15 @@ function normalizeEntry(e){
     e.draft=e.sets.length?seedDraft(e.sets[e.sets.length-1]):blankDraft();
     changed=true;
   }
+  if(e.circuit&&typeof e.circuit==="object"){
+    const normalized={...blankCircuit(),...e.circuit};
+    if(JSON.stringify(normalized)!==JSON.stringify(e.circuit)){e.circuit=normalized;changed=true;}
+  }else if(e.circuit!=null){e.circuit=null;changed=true;}
   if(typeof e.summaryAuto!=="boolean"){e.summaryAuto=true;changed=true;}
-  if(changed)applyDerivedSummary(e);
+  if(changed){
+    if(e.circuit&&e.circuit.mode!=="final")syncCircuitSummary(e);
+    else if(!(e.circuit&&e.circuit.mode==="final"))applyDerivedSummary(e);
+  }
   return changed;
 }
 
@@ -1396,12 +1562,20 @@ function deleteSet(e,idx,unit){
   e.sets.splice(idx,1);renumber(e);
   applyDerivedSummary(e,unit);
 }
-/* A set the athlete typed but never confirmed used to vanish: Finish set `done` without
+/* A set the athlete typed but never confirmed used to vanish: ending set `done` without
    touching the draft, and only committed rows are exported. So anything that ends the
    athlete's time on an exercise commits a dirty draft first. Only *dirty* — a draft
    still showing the previous set's values is not a set that happened. */
 function commitDraftIfDirty(e,unit){
   return draftDirty(e)?commitSet(e,unit):false;
+}
+function commitCircuitRound(e){
+  if(!draftDirty(e))return false;
+  e.sets.push({set:e.sets.length+1,load:txt(e.draft.load),
+    reps:txt(e.draft.reps)||"As prescribed",rpe:txt(e.draft.rpe),
+    painDuring:txt(e.draft.painDuring),note:txt(e.draft.note)});
+  const c=e.circuit;c.rounds=e.sets.length;c.touched=true;e.draft=blankDraft();
+  syncCircuitSummary(e);return true;
 }
 /* The same thing for the exercise currently open in Log view, for callers that navigate
    away rather than holding the entry. Returns whether anything was committed, because a
@@ -1413,6 +1587,11 @@ function flushDraft(){
   const exs=dayExercises(),ex=exs[STATE.focus];
   if(!ex)return false;
   const s=getSession(),e=s.entries[ex.id];
+  const spec=circuitOf(ex);
+  if(spec){
+    if(!e||circuitState(e,ex).mode!=="details"||!commitCircuitRound(e))return false;
+    saveSession(s);return true;
+  }
   if(!e||!commitDraftIfDirty(e,metricOf(ex).unit))return false;
   saveSession(s);
   return true;
@@ -1748,8 +1927,16 @@ function statusLine(ex,e){
   const st=entryState(e),n=(e.sets||[]).length;
   /* No tick in the text either — the badge beside it carries that, and the line is better
      spent on what was actually logged. */
-  if(st==="done")return summaryText(e)||"Finished — nothing logged";
+  if(st==="done")return summaryText(e)||"Skipped — no sets logged";
   if(st==="todo")return "Not started";
+  const spec=circuitOf(ex);
+  if(spec){
+    const c=circuitState(e,ex),rounds=Math.max(Number(c.rounds)||0,n);
+    if(c.mode==="final")return summaryText(e)||"Result in progress";
+    if(rounds)return spec.target?`${rounds} of ${spec.target} rounds completed`:
+      `${rounds} round${rounds===1?"":"s"} completed`;
+    return "Round in progress — not logged yet";
+  }
   if(!n)return `Set 1 typed — not logged yet`;
   return `${n} of ${targetSets(ex,e)} sets logged`
     +(draftDirty(e)?` · set ${n+1} in progress`:"");
@@ -1801,6 +1988,54 @@ let JUST=null,NOTE_OPEN=null;
    45-second hold doesn't put the cursor in a Load box that will stay empty all session. */
 const NO_LOAD=/bodyweight|^bw\b|^band|^manual|^easy$|^bike$|^erg$|^none$/i;
 
+function advanceFrom(ex,e,s,idx,onchange,message){
+  const addAnother=()=>{const latest=getSession(),current=latest.entries[ex.id]||(latest.entries[ex.id]=blankEntry());
+    current.done=false;current.setTarget=Math.min(12,Math.max(targetSets(ex,current)+1,current.sets.length+1));
+    STATE.focus=idx;STATE.setEdit=null;saveSession(latest);renderMain();scrollTop();};
+  if(viewMode()==="focus"&&idx===STATE.focus&&idx<dayExercises().length-1){
+    STATE.focus=idx+1;STATE.setEdit=null;renderMain();scrollTop();
+  }else onchange("");
+  const nudge=painAsked(ex)&&!painLogged(e)?` · no ${painLbl().toLowerCase()} logged`:"";
+  toast((message||"Exercise complete")+nudge,{label:"Add set",onclick:addAnother});
+}
+
+function openAdjustSets(ex,e,s,onchange){
+  const prescribed=prescribedSets(ex),floor=Math.max(e.sets.length+1,1);
+  const wrap=el("div"),box=el("div",{className:"adjustbox"});
+  const minus=el("button",{attrs:{"aria-label":"Plan one set fewer"}},"−");
+  const plus=el("button",{attrs:{"aria-label":"Plan one set more"}},"+");
+  const value=el("div",{className:"adjustvalue"});
+  const paint=()=>{const n=targetSets(ex,e);value.innerHTML="";
+    value.append(el("strong",{className:"tnum"},`${n} set${n===1?"":"s"}`),
+      el("span",{},`${prescribed} prescribed`));minus.disabled=n<=floor;plus.disabled=n>=12;};
+  minus.onclick=()=>{e.setTarget=Math.max(floor,targetSets(ex,e)-1);saveSession(s);paint();};
+  plus.onclick=()=>{e.setTarget=Math.min(12,targetSets(ex,e)+1);saveSession(s);paint();};
+  box.append(minus,value,plus);paint();wrap.append(box,
+    el("div",{className:"sheet-copy",style:"margin-top:12px"},
+      "This changes today's plan only. The original prescription stays in the exported log."));
+  sheetOpen("Adjust planned sets",`Set ${e.sets.length+1} is next.`,wrap,()=>onchange(""));
+}
+
+function confirmEndExercise(ex,e,s,idx,onchange,metric){
+  const spec=circuitOf(ex);
+  const before=e.sets.length+(draftDirty(e)?1:0),target=targetSets(ex,e);
+  const none=spec?!circuitHasData(e):before===0,title=none?"Skip this exercise?":spec?"End this circuit?":"End this exercise?";
+  const copy=none?"No work will be recorded. The exercise will remain visible as skipped in the session.":spec?
+    "Everything logged so far will be kept. The original workout remains unchanged.":
+    `${before} of ${target} planned sets will be recorded. Your original prescription is not changed.`;
+  const primary=none?"Skip exercise":spec?"End circuit":`End after ${before} set${before===1?"":"s"}`;
+  const body=el("div");body.append(sheetActions(primary,()=>{
+    if(spec&&circuitState(e,ex).mode==="details")commitCircuitRound(e);
+    else if(!spec)commitDraftIfDirty(e,metric.unit);
+    e.done=true;if(spec){if(circuitState(e,ex).mode==="final")syncFinalCircuit(ex,e);else syncCircuitSummary(e);}saveSession(s);
+    if(viewMode()==="focus"&&idx===STATE.focus&&idx<dayExercises().length-1){
+      STATE.focus=idx+1;STATE.setEdit=null;renderMain();scrollTop();
+    }else onchange("");
+    toast(none?"Exercise skipped":spec?"Circuit ended":`Exercise ended after ${e.sets.length} set${e.sets.length===1?"":"s"}`);
+  },"Keep logging"));
+  sheetOpen(title,copy,body);
+}
+
 /* ---------- the set editor (Log view) ----------
    Always exactly one set's fields on screen: the draft (the next new set) or, while
    STATE.setEdit names a committed row, that row instead. Every oninput here writes
@@ -1813,6 +2048,18 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
   const target=targetSets(ex,e);
   const metric=metricOf(ex);
   const asked=painAsked(ex);
+  if(e.done){
+    if(rows.length)host.append(el("div",{className:"setrecap"},[
+      el("span",{className:"rl"},"Completed"),
+      el("span",{className:"rv tnum"},rows.map(r=>setRecap(r,metric.unit)).join(" · "))]));
+    else host.append(el("div",{className:"setlabel"},"Exercise skipped — no sets logged"));
+    const actions=el("div",{className:"setactions mainrow"});
+    const reopen=el("button",{className:"ghost"},"Reopen exercise");
+    reopen.onclick=()=>{e.done=false;saveSession(s);onchange("");};
+    const add=el("button",{className:"primary"},"Add another set");
+    add.onclick=()=>{e.done=false;e.setTarget=Math.min(12,Math.max(target+1,rows.length+1));saveSession(s);onchange("first");};
+    actions.append(reopen,add);host.append(actions);return;
+  }
   const editIdx=(STATE.setEdit!=null&&STATE.setEdit>=0&&STATE.setEdit<rows.length)?STATE.setEdit:null;
   const draftMode=editIdx===null;
   const curPos=draftMode?rows.length:editIdx;
@@ -1846,8 +2093,8 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
     }else{
       /* An upcoming slot is a plan, not a destination and not a delete button. It used to
          be a live button that dropped the set on one unconfirmed tap, which read as
-         "jump to set 4" — so it is a plain placeholder now, and the count is changed by
-         the ⊖ ⊕ control below, where nothing is destructive by accident. */
+         "jump to set 4" — so it is a plain placeholder now, and the count is changed in
+         the secondary Adjust sets sheet, where it cannot be hit by accident. */
       chips.append(el("span",{className:"setchip",
         attrs:{"data-state":"todo","aria-hidden":"true"}},String(i+1)));
     }
@@ -1859,27 +2106,13 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
 
   const labelRow=el("div",{className:"setlabelrow"});
   labelRow.append(el("div",{className:"setlabel"},`Set ${curNum} of ${total}`));
-  if(draftMode){
-    /* Never below what is already committed plus the set in progress: the count is a
-       plan for what is left, and it has no business rewriting what happened. */
-    const floor=Math.max(rows.length+1,1);
-    const ctl=el("div",{className:"setcount"});
-    const dec=el("button",{className:"cntbtn",attrs:{"aria-label":"Plan one set fewer"}},"−");
-    dec.disabled=total<=floor;
-    dec.onclick=()=>{e.setTarget=Math.max(floor,total-1);saveSession(s);onchange("");};
-    const inc=el("button",{className:"cntbtn",attrs:{"aria-label":"Plan one set more"}},"+");
-    inc.disabled=total>=12;
-    inc.onclick=()=>{e.setTarget=Math.min(12,total+1);saveSession(s);onchange("");};
-    ctl.append(dec,el("span",{className:"cntval tnum"},`${total} set${total===1?"":"s"}`),inc);
-    labelRow.append(ctl);
-  }
   host.append(labelRow);
 
   const data=draftMode?e.draft:rows[editIdx];
   const grid=el("div",{className:"setgrid"+(SETTINGS.painPerExercise?"":" nopain")});
   const commonAttrs={autocapitalize:"off",autocorrect:"off",spellcheck:"false"};
   const onFieldInput=()=>{
-    /* A draft the athlete has typed into is a set that happened — flag it so Finish and
+    /* A draft the athlete has typed into is a set that happened — flag it so ending early and
        every navigation commit it rather than throwing it away. */
     if(draftMode)e.draft.dirty=true;
     else applyDerivedSummary(e,metric.unit);
@@ -1901,9 +2134,7 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
   /* text + inputmode, not type=number: a number input reports "" while the value is an
      incomplete float like "7.", so the autosaved RPE would flicker to blank mid-type.
      This is also what lets RPE hold a half point ("7.5") — see CLAUDE.md. */
-  const rpeInp=el("input",{type:"text",value:data.rpe??"",
-    attrs:{placeholder:"RPE",inputmode:"decimal","aria-label":"RPE",...commonAttrs}});
-  rpeInp.oninput=()=>{data.rpe=rpeInp.value;onFieldInput();};
+  const rpeInp=rpeButton(data.rpe,ex.rpe,v=>{data.rpe=v;onFieldInput();onchange("");});
   grid.append(field("RPE",rpeInp));
   if(SETTINGS.painPerExercise){
     const painInp=el("input",{type:"number",value:data.painDuring??"",
@@ -1922,7 +2153,7 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
     const note=el("input",{type:"text",value:data.note||"",
       attrs:{placeholder:`Set ${curNum} note…`,"aria-label":`Set ${curNum} note`}});
     /* Through onFieldInput, so a note-only set ("felt the knee on rep 3") is dirty too and
-       gets committed rather than dropped on Finish. */
+       gets committed rather than dropped when the exercise ends. */
     note.oninput=()=>{data.note=note.value;onFieldInput();};
     host.append(el("div",{className:"setnoteinp"},note));
     if(focusOn==="note"&&note.focus)note.focus();
@@ -1935,8 +2166,7 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
   }
 
   /* Two rows, and neither wraps: one unmistakable primary action, and the quieter things
-     beneath it at equal width. Three buttons of similar weight in one wrapping row is
-     what made "Log set" and "Finish exercise" a coin toss under a chalked thumb. */
+     beneath it at equal width. The main set action remains the obvious next tap. */
   const mainrow=el("div",{className:"setactions mainrow"});
   const subrow=el("div",{className:"setactions subrow"});
   if(!draftMode){
@@ -1954,8 +2184,9 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
     mainrow.append(save);
     subrow.append(cancel,del);
   }else{
-    const commit=el("button",{className:"primary"},
-      rows.length<target?`Log set ${curNum}`:"Log another set");
+    const finalPlanned=rows.length===target-1;
+    const commit=el("button",{className:"primary"},finalPlanned?"Log final set":
+      (rows.length<target?`Log set ${curNum} of ${target}`:"Log another set"));
     commit.onclick=()=>{
       /* Silence used to be the answer here, which is indistinguishable from a dead app. */
       if(!commitSet(e,metric.unit)){toast("Nothing to log yet — add a load, "+
@@ -1964,39 +2195,21 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
       saveSession(s);
       JUST={id:ex.id,n};
       if(navigator.vibrate)try{navigator.vibrate(12);}catch(err){}
-      toast(`Set ${n} logged · ${setRecap(e.sets[n-1],metric.unit)}`);
-      onchange();
+      if(finalPlanned){e.done=true;saveSession(s);
+        advanceFrom(ex,e,s,idx,onchange,`Exercise complete · ${n} sets logged`);}
+      else{toast(`Set ${n} logged · ${setRecap(e.sets[n-1],metric.unit)}`);onchange();}
     };
     mainrow.append(commit);
-    /* Always offered, even with zero sets logged — a warm-up needs no invented set, and
-       cutting a lift short for pain is exactly the signal the coach wants, not something
-       the UI should withhold until a count is met. */
-    const short=rows.length<target;
-    const finish=el("button",{className:"ghost"},short?"Finish early ›":"Finish exercise ›");
-    if(short)finish.setAttribute("aria-label",
-      `Finish exercise with ${rows.length} of ${target} sets logged`);
-    finish.onclick=()=>{
-      const bits=[];
-      /* BEFORE done, and this is the whole fix: Finish used to mark the exercise complete
-         and leave the set in the draft, where nothing reads it and no export sees it. */
-      if(commitDraftIfDirty(e,metric.unit))bits.push(`set ${e.sets.length} logged`);
-      e.done=true;saveSession(s);
-      /* The programme asked for a reading on this movement and there isn't one. Said once,
-         never blocking — stopping early *is* the data. */
-      if(asked&&!painLogged(e))bits.push(`no ${painLbl().toLowerCase()} logged`);
-      toast(bits.length?"Finished — "+bits.join(", "):"Finished: "+ex.name);
-      if(viewMode()==="focus"&&idx===STATE.focus&&idx<dayExercises().length-1){
-        STATE.focus=idx+1;STATE.setEdit=null;renderMain();scrollTop();
-      }else{onchange();}
-    };
-    subrow.append(finish);
-    if(e.done){
-      const undo=el("button",{className:"ghost"},"Un-finish");
-      undo.onclick=()=>{e.done=false;saveSession(s);onchange();};
-      subrow.append(undo);
-    }
   }
   host.append(mainrow,subrow);
+
+  if(draftMode){const secondary=el("div",{className:"setsecondary"});
+    const adjust=el("button",{className:"quietaction"},"Adjust sets");
+    adjust.onclick=()=>openAdjustSets(ex,e,s,onchange);
+    const n=rows.length+(draftDirty(e)?1:0);
+    const end=el("button",{className:"quietaction"},n?`End after ${n} of ${target}`:"Skip exercise");
+    end.onclick=()=>confirmEndExercise(ex,e,s,idx,onchange,metric);
+    secondary.append(adjust,end);host.append(secondary);}
 
   if(focusOn&&focusOn!=="note"){
     /* Load first, unless there is no load to give — see NO_LOAD. */
@@ -2024,7 +2237,8 @@ function buildSummaryPanel(host,ex,e,s){
      value of "3x45s" was its own small lie. */
   const reps=mk("reps",metric.label==="Result"?"Result":"Sets × "+metric.label.toLowerCase(),
     "text",{placeholder:"4×"+metric.placeholder});
-  const rpe=mk("rpe","RPE","text",{placeholder:"7"});
+  const rpeBtn=rpeButton(e.rpe,ex.rpe,v=>{e.rpe=v;e.summaryAuto=false;saveSession(s);buildSummaryPanel(host,ex,e,s);},"Summary RPE");
+  const rpe={inp:rpeBtn,node:field("RPE",rpeBtn)};
   wrap.append(load.node,reps.node,rpe.node);
   let pain=null;
   if(SETTINGS.painPerExercise){
@@ -2036,7 +2250,8 @@ function buildSummaryPanel(host,ex,e,s){
   nt.oninput=()=>{e.notes=nt.value;saveSession(s);};
   host.append(el("div",{className:"full"},[el("label",{className:"lbl"},"Notes"),nt]));
   host._refresh=()=>{
-    load.inp.value=e.load??"";reps.inp.value=e.reps??"";rpe.inp.value=e.rpe??"";
+    load.inp.value=e.load??"";reps.inp.value=e.reps??"";
+    rpe.inp._setValue(e.rpe);
     if(pain)pain.inp.value=e.painDuring??"";
   };
 }
@@ -2054,6 +2269,227 @@ function hintChips(hints){
       attrs:{title:h}},short));
   });
   return wrap;
+}
+
+function circuitPlan(ex,spec){
+  const box=el("div",{className:"circuitplan"});
+  box.append(el("div",{className:"cp-title"},spec.kind==="rounds"?spec.label+" · each round":spec.label+" · workout"));
+  const parts=circuitParts(ex);(parts.length?parts:[txt(ex.reps)]).forEach((p,i)=>
+    box.append(el("div",{className:"circuitpart"},[
+      el("span",{className:"cpn"},String(i+1)),el("span",{},p)])));
+  if(ex.load)box.append(el("div",{className:"circuitload"},"Equipment / load · "+ex.load));
+  return box;
+}
+
+function clearCircuitLog(e,mode){
+  e.done=false;e.load="";e.reps="";e.rpe="";e.painDuring="";e.notes="";e.sets=[];
+  e.draft=blankDraft();e.summaryAuto=true;e.setTarget=null;e.circuit={...blankCircuit(),mode};
+}
+function openCircuitModeSheet(ex,e,s,onchange){
+  const c=circuitState(e,ex),wrap=el("div",{className:"modechoices"});
+  const options=[
+    ["quick","Quick rounds","One large tap records each completed round. Finish details are collected once at the end."],
+    ["details","Round details","Record a time, split, RPE or changed load for each round."],
+    ["final","Final result","Skip live round tracking and record only the completed result."]];
+  options.forEach(([mode,name,desc])=>{const b=el("button",{className:"modechoice",
+      attrs:{"aria-pressed":String(c.mode===mode)}},[el("strong",{},name),el("span",{},desc)]);
+    b.onclick=()=>{
+      if(mode===c.mode){sheetClose();return;}
+      if(!circuitHasData(e)){c.mode=mode;saveSession(s);sheetClose();onchange("");return;}
+      sheetClose();const confirm=el("div");
+      confirm.append(sheetActions("Reset and change",()=>{clearCircuitLog(e,mode);saveSession(s);onchange("");},"Keep current log"));
+      sheetOpen("Start this circuit over?","Changing mode after logging has started resets this exercise only. Nothing changes unless you confirm.",confirm);
+    };wrap.append(b);});
+  sheetOpen("Choose how to log",`Recommended here: ${circuitModeName(circuitOf(ex).defaultMode)}.`,wrap);
+}
+
+function circuitModeLine(ex,e,s,onchange){
+  const c=circuitState(e,ex),line=el("div",{className:"modeline"});
+  line.append(el("div",{},[el("div",{className:"modehint"},"Logging mode"),
+    el("strong",{},circuitModeName(c.mode))]));
+  const change=el("button",{className:"quietaction"},circuitHasData(e)?"Change / reset ›":"Change ›");
+  change.onclick=()=>openCircuitModeSheet(ex,e,s,onchange);line.append(change);return line;
+}
+
+function syncCircuitSummary(e){
+  const c=e.circuit||blankCircuit(),rows=e.sets||[],n=Math.max(Number(c.rounds)||0,rows.length);
+  if(rows.length){
+    e.load=pickMode(rows.map(r=>txt(r.load)).filter(Boolean))||txt(c.load);
+    e.rpe=pickMax(rows.map(r=>txt(r.rpe)).filter(Boolean))||txt(e.rpe);
+    e.painDuring=pickMax(rows.map(r=>txt(r.painDuring)).filter(Boolean))||txt(e.painDuring);
+  }else if(c.load)e.load=txt(c.load);
+  const count=n?`${n} round${n===1?"":"s"}`:"";
+  const extra=txt(c.extra)?` + ${txt(c.extra)} reps`:"";
+  const time=txt(c.time)?` · ${txt(c.time)}`:"";
+  const result=txt(c.result)?` · ${txt(c.result)}`:"";
+  const mins=txt(c.minutes)?`${txt(c.minutes)} min completed`:"";
+  e.reps=mins||((count||extra||time||result)?count+extra+time+result:e.reps);
+}
+
+function finishCircuit(ex,e,s,idx,onchange,message){
+  e.done=true;
+  if(circuitState(e,ex).mode==="final")syncFinalCircuit(ex,e);
+  else syncCircuitSummary(e);
+  saveSession(s);
+  if(viewMode()==="focus"&&idx===STATE.focus&&idx<dayExercises().length-1){
+    STATE.focus=idx+1;STATE.setEdit=null;renderMain();scrollTop();
+  }else onchange("");
+  toast(message||"Circuit complete");
+}
+
+function openCircuitFinish(ex,e,s,idx,onchange){
+  const c=circuitState(e,ex),spec=circuitOf(ex),wrap=el("div");
+  const grid=el("div",{className:"circuitresult"});
+  const time=el("input",{type:"text",value:c.time,attrs:{placeholder:"e.g. 12:34",
+    inputmode:"text","aria-label":"Final time or result"}});
+  time.oninput=()=>{c.time=time.value;c.touched=true;syncCircuitSummary(e);saveSession(s);};
+  grid.append(field(/for\s+time/i.test(txt(ex.sets))?"Finish time":"Time / result",time));
+  const rpe=rpeButton(e.rpe,ex.rpe,v=>{e.rpe=v;c.touched=true;saveSession(s);openCircuitFinish(ex,e,s,idx,onchange);},"Final RPE");
+  grid.append(field("Final RPE",rpe));
+  if(SETTINGS.painPerExercise){const pain=el("input",{type:"number",value:e.painDuring,
+      attrs:{min:0,max:10,placeholder:"0","aria-label":painLbl()}});
+    pain.oninput=()=>{e.painDuring=pain.value;c.touched=true;saveSession(s);};
+    grid.append(field(painLbl(),pain,"/10",painAsked(ex)?"asked":""));}
+  const note=el("input",{type:"text",value:c.note,attrs:{placeholder:"Optional finish note"}});
+  note.oninput=()=>{c.note=note.value;e.notes=txt(note.value);c.touched=true;saveSession(s);};
+  grid.append(el("div",{className:"full"},field("Note",note)));
+  const actions=sheetActions("Save & next",()=>finishCircuit(ex,e,s,idx,onchange,
+    `${spec.kind==="rounds"?c.rounds+" rounds":"Circuit"} logged`),"Skip details");
+  wrap.append(grid,actions);
+  /* Skip details still means finish; it is a valid quick-count path, not Cancel. */
+  const skip=actions.children[0];
+  if(skip)skip.onclick=()=>{sheetClose();finishCircuit(ex,e,s,idx,onchange,"Circuit complete");};
+  sheetOpen("Finish circuit",`${c.rounds||e.sets.length} round${(c.rounds||e.sets.length)===1?"":"s"} completed. Add only what is useful.`,wrap);
+}
+
+function buildQuickCircuit(host,ex,e,s,idx,onchange){
+  const c=circuitState(e,ex),spec=circuitOf(ex),n=Math.max(c.rounds,e.sets.length);
+  const target=spec.target||Math.max(n+1,1),chips=el("div",{className:"setchips"});
+  const total=spec.target?Math.max(spec.target,n+1):Math.max(n+1,1);
+  for(let i=0;i<total;i++)chips.append(el("span",{className:"setchip",attrs:{"data-state":i<n?"done":i===n?"current":"todo"}},String(i+1)));
+  if(total>1)host.append(chips);
+  host.append(el("div",{className:"setlabel"},spec.target&&n<target?`Round ${n+1} of ${target}`:
+    spec.target?`${n} rounds completed · ${target} prescribed`:`${n} round${n===1?"":"s"} completed`));
+  const done=el("button",{className:"primary circuit-primary"},spec.target&&n<target?
+    (n===target-1?"Complete final round":`Complete round ${n+1} of ${target}`):"Complete another round");
+  done.onclick=()=>{const row={set:e.sets.length+1,load:"",reps:"As prescribed",rpe:"",painDuring:"",note:""};
+    e.sets.push(row);c.rounds=e.sets.length;c.touched=true;syncCircuitSummary(e);saveSession(s);
+    if(navigator.vibrate)try{navigator.vibrate(12);}catch(err){}
+    if(spec.target&&c.rounds>=spec.target){onchange("");openCircuitFinish(ex,e,s,idx,onchange);}
+    else{toast(`Round ${c.rounds} logged`);onchange("");}};
+  host.append(done);
+  if(n){const end=el("button",{className:"quietaction",style:"width:100%;margin-top:8px"},"Finish circuit now");
+    end.onclick=()=>openCircuitFinish(ex,e,s,idx,onchange);host.append(end);}
+}
+
+function circuitResultLabel(ex){const h=txt(ex.logHint);
+  return /split/i.test(h)?"Time / split":/time/i.test(h)?"Round time":"Round result";}
+
+function buildDetailedCircuit(host,ex,e,s,idx,onchange){
+  const c=circuitState(e,ex),spec=circuitOf(ex),rows=e.sets;
+  const edit=(STATE.setEdit!=null&&STATE.setEdit<rows.length)?STATE.setEdit:null;
+  const cur=edit==null?rows.length:edit,data=edit==null?e.draft:rows[edit];
+  const target=spec.target||Math.max(rows.length+1,1),chips=el("div",{className:"setchips"});
+  for(let i=0;i<Math.max(target,rows.length+1);i++){
+    if(i<rows.length){const b=el("button",{className:"setchip",attrs:{"data-state":i===edit?"current":"done","aria-label":`Round ${i+1}, tap to edit`}},String(i+1));
+      b.onclick=()=>{STATE.setEdit=i;onchange("");};chips.append(b);}
+    else chips.append(el("span",{className:"setchip",attrs:{"data-state":i===rows.length?"current":"todo"}},String(i+1)));
+  }
+  if(Math.max(target,rows.length+1)>1)host.append(chips);
+  const roundLabel=edit!=null?`Edit round ${cur+1}${spec.target?` of ${target}`:""}`:
+    spec.target&&rows.length>=target?`${rows.length} rounds completed · ${target} prescribed`:
+    `Round ${cur+1}${spec.target?` of ${target}`:""}`;
+  host.append(el("div",{className:"setlabel"},roundLabel));
+  const grid=el("div",{className:"circuitresult"});
+  const changed=()=>{if(edit==null)e.draft.dirty=true;else syncCircuitSummary(e);saveSession(s);};
+  const result=el("input",{type:"text",value:data.reps,attrs:{placeholder:"e.g. 1:42 or as prescribed"}});
+  result.oninput=()=>{data.reps=result.value;changed();};
+  grid.append(field(circuitResultLabel(ex),result));
+  const rpe=rpeButton(data.rpe,ex.rpe,v=>{data.rpe=v;changed();onchange("");});
+  grid.append(field("RPE",rpe));
+  const load=el("input",{type:"text",value:data.load,attrs:{placeholder:"Only if changed"}});
+  load.oninput=()=>{data.load=load.value;changed();};
+  grid.append(field("Changed load",load));
+  if(SETTINGS.painPerExercise){const pain=el("input",{type:"number",value:data.painDuring,
+      attrs:{min:0,max:10,placeholder:"0"}});pain.oninput=()=>{data.painDuring=pain.value;changed();};
+    grid.append(field(painLbl(),pain,"/10",painAsked(ex)?"asked":""));}
+  const note=el("input",{type:"text",value:data.note,attrs:{placeholder:"Optional round note"}});
+  note.oninput=()=>{data.note=note.value;changed();};grid.append(el("div",{className:"full"},field("Note",note)));
+  host.append(grid);
+  const actions=el("div",{className:"setactions mainrow"});
+  if(edit!=null){const save=el("button",{className:"primary"},`Save round ${cur+1}`);save.onclick=()=>{STATE.setEdit=null;syncCircuitSummary(e);saveSession(s);onchange("");};
+    const del=el("button",{className:"ghost danger"},"Delete round");let armed=false;
+    del.onclick=()=>{if(!armed){armed=true;del.textContent="Tap again to delete";del.classList.add("armed");
+        setTimeout(()=>{armed=false;},4000);return;}
+      e.sets.splice(edit,1);renumber(e);c.rounds=e.sets.length;STATE.setEdit=null;syncCircuitSummary(e);saveSession(s);onchange("");};
+    actions.append(save,del);
+  }else{const final=!!spec.target&&rows.length===spec.target-1;
+    const log=el("button",{className:"primary"},final?"Log final round":
+      spec.target&&rows.length>=target?"Log another round":`Log round ${rows.length+1}`);
+    log.onclick=()=>{e.draft.dirty=!draftEmpty(e.draft);
+      if(!commitCircuitRound(e)){/* A round tap itself confirms prescribed work. */
+        e.draft.reps="As prescribed";e.draft.dirty=true;commitCircuitRound(e);}
+      saveSession(s);
+      if(final){onchange("");openCircuitFinish(ex,e,s,idx,onchange);}
+      else{toast(`Round ${rows.length} logged`);onchange("");}};
+    actions.append(log);
+  }host.append(actions);
+  if(edit==null&&rows.length){const finish=el("button",{className:"quietaction",style:"width:100%;margin-top:8px"},"Finish circuit now");
+    finish.onclick=()=>openCircuitFinish(ex,e,s,idx,onchange);host.append(finish);}
+}
+
+function syncFinalCircuit(ex,e){
+  const c=circuitState(e,ex),spec=circuitOf(ex),n=txt(c.rounds),extra=txt(c.extra),time=txt(c.time),result=txt(c.result);
+  if(spec.kind==="amrap")e.reps=n?`${n} round${n==="1"?"":"s"}${extra?` + ${extra} reps`:""}`:result;
+  else if(spec.kind==="emom")e.reps=txt(c.minutes)?`${txt(c.minutes)} min completed${result?` · ${result}`:""}`:result;
+  else if(spec.kind==="rounds")e.reps=n?`${n} round${n==="1"?"":"s"}${time?` · ${time}`:""}`:time||result;
+  else e.reps=time?`Time ${time}${result?` · ${result}`:""}`:result;
+  e.load=txt(c.load);e.notes=txt(c.note);
+}
+
+function buildFinalCircuit(host,ex,e,s,idx,onchange){
+  const c=circuitState(e,ex),spec=circuitOf(ex),grid=el("div",{className:"circuitresult"});
+  let end;
+  const mk=(key,label,placeholder,mode="text")=>{const input=el("input",{type:"text",value:c[key],attrs:{placeholder,inputmode:mode}});
+    input.oninput=()=>{c[key]=input.value;c.touched=true;syncFinalCircuit(ex,e);saveSession(s);
+      if(end)end.textContent="End circuit now";};grid.append(field(label,input));return input;};
+  if(spec.kind==="amrap"){mk("rounds","Rounds","e.g. 4","numeric");mk("extra","Extra reps","e.g. 12","numeric");}
+  else if(spec.kind==="emom"){mk("minutes","Minutes completed",spec.minutes?String(spec.minutes):"minutes","numeric");mk("result","Result / notes","optional");}
+  else if(spec.kind==="rounds"){mk("rounds","Rounds completed",String(spec.target),"numeric");mk("time","Time / result","e.g. 12:34");}
+  else{mk("time","Finish time","e.g. 12:34");mk("result","Completed work","as prescribed or where you stopped");}
+  const rpe=rpeButton(e.rpe,ex.rpe,v=>{e.rpe=v;c.touched=true;syncFinalCircuit(ex,e);saveSession(s);onchange("");},"Final RPE");grid.append(field("Final RPE",rpe));
+  if(SETTINGS.painPerExercise){const pain=el("input",{type:"number",value:e.painDuring,attrs:{min:0,max:10,placeholder:"0"}});
+    pain.oninput=()=>{e.painDuring=pain.value;c.touched=true;saveSession(s);if(end)end.textContent="End circuit now";};
+    grid.append(field(painLbl(),pain,"/10",painAsked(ex)?"asked":""));}
+  mk("load","Changed load","Only if different");
+  const note=el("input",{type:"text",value:c.note,attrs:{placeholder:"Optional finish note"}});
+  note.oninput=()=>{c.note=note.value;c.touched=true;syncFinalCircuit(ex,e);saveSession(s);
+    if(end)end.textContent="End circuit now";};
+  grid.append(el("div",{className:"full"},field("Note",note)));
+  host.append(grid);const save=el("button",{className:"primary circuit-primary"},"Save result & next");
+  save.onclick=()=>{syncFinalCircuit(ex,e);if(!circuitHasData(e)&&!txt(e.rpe)&&!txt(e.painDuring)){toast("Add a result or use Skip exercise");return;}
+    finishCircuit(ex,e,s,idx,onchange,"Circuit result saved");};host.append(save);
+  end=el("button",{className:"quietaction",style:"width:100%;margin-top:8px"},circuitHasData(e)?"End circuit now":"Skip exercise");
+  end.onclick=()=>confirmEndExercise(ex,e,s,idx,onchange,{unit:""});host.append(end);
+}
+
+function buildCircuitEditor(host,ex,e,s,idx,onchange){
+  const c=circuitState(e,ex);host.append(circuitPlan(ex,circuitOf(ex)),circuitModeLine(ex,e,s,onchange));
+  if(e.done){const body=el("div",{className:"setblock"});
+    body.append(el("div",{className:"setrecap"},[el("span",{className:"rl"},"Completed"),
+      el("span",{className:"rv tnum"},summaryText(e)||"No result logged")]));
+    const actions=el("div",{className:"setactions mainrow"});
+    const edit=el("button",{className:c.mode==="final"?"primary":"ghost"},c.mode==="final"?"Edit result":"Reopen circuit");
+    edit.onclick=()=>{e.done=false;saveSession(s);onchange("");};actions.append(edit);
+    if(c.mode!=="final"){
+      const add=el("button",{className:"primary"},"Add another round");
+      add.onclick=()=>{e.done=false;saveSession(s);onchange("");};actions.append(add);
+    }
+    body.append(actions);host.append(body);return;}
+  const body=el("div",{className:"setblock"});host.append(body);
+  if(c.mode==="quick")buildQuickCircuit(body,ex,e,s,idx,onchange);
+  else if(c.mode==="details")buildDetailedCircuit(body,ex,e,s,idx,onchange);
+  else buildFinalCircuit(body,ex,e,s,idx,onchange);
 }
 
 /* ---------- Log card ----------
@@ -2079,13 +2515,14 @@ function logCard(ex,s,idx){
   const summaryHost=el("div");
   const refreshSummary=()=>{if(summaryHost._refresh)summaryHost._refresh();};
 
-  const editorHost=el("div",{className:"setblock"});
+  const editorHost=el("div",{className:circuitOf(ex)?"":"setblock"});
   /* focusOn: "first" (a field, chosen by NO_LOAD), "note", or "" for no focus change —
      a tap on the set-count control must not open the keyboard. */
   const redraw=focusOn=>{
     editorHost.innerHTML="";
-    buildSetEditor(editorHost,ex,e,s,idx,
-      f=>{redraw(f===undefined?"first":f);refreshSummary();},focusOn);
+    const changed=f=>{redraw(f===undefined?"first":f);refreshSummary();};
+    if(circuitOf(ex))buildCircuitEditor(editorHost,ex,e,s,idx,changed);
+    else buildSetEditor(editorHost,ex,e,s,idx,changed,focusOn);
   };
   redraw("");
   c.append(editorHost);
@@ -2190,6 +2627,8 @@ $("#menuBtn").onclick=toggleDrawer;
 $("#ctxBtn").onclick=openDrawer;
 $("#drawerClose").onclick=closeDrawer;
 $("#drawerBg").onclick=closeDrawer;
+$("#sheetClose").onclick=sheetClose;
+$("#sheetBg").onclick=sheetClose;
 $("#viewOverview").onclick=()=>setView("list");
 $("#viewLog").onclick=()=>setView("focus");
 $("#prevBtn").onclick=()=>stepFocus(-1);
@@ -2205,6 +2644,15 @@ $("#fileInp").onchange=async e=>{
    Suppressed while editing a set: an arrow key while STATE.setEdit is set would jump
    exercises with a chip (not an INPUT) focused mid-edit. */
 if(document.addEventListener)document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"&&$("#sheetWrap").classList.contains("in")){sheetClose();return;}
+  if(e.key==="Tab"&&$("#sheetWrap").classList.contains("in")){
+    const nodes=Array.from($("#sheet").querySelectorAll("button,input,textarea,select"))
+      .filter(n=>!n.disabled&&(!n.getAttribute||n.getAttribute("aria-hidden")!=="true"));
+    if(nodes.length){const first=nodes[0],last=nodes[nodes.length-1];
+      if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+      else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
+    return;
+  }
   if(e.key==="Escape"&&drawerOpen()){closeDrawer();return;}
   if(drawerOpen()||viewMode()!=="focus"||STATE.setEdit!=null)return;
   const t=e.target&&e.target.tagName;

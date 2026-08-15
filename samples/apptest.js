@@ -150,6 +150,16 @@ function loadFixture(name){
   app.loadProgram(prog);
   return prog;
 }
+function loadSynthetic(exercises){
+  store.clear();ACTIVE_ELEMENT=null;app.SETTINGS={...app.SET_DEFAULTS};
+  const day="Day 1 (Mon) - Circuit test";
+  const rows=exercises.map((e,i)=>({id:`w1d1e${i+1}`,week:1,day,name:e.name||`Circuit ${i+1}`,
+    sets:e.sets,reps:e.reps,load:e.load||"",rpe:e.rpe||"RPE 7",tempo:"",rest:"",
+    logHint:e.logHint||"",focus:"",progression:""}));
+  app.loadProgram({meta:{schema:"tp-program-2",block:"Circuit fixture",athlete:"Sample",
+    athleteId:"sample",weeks:1,version:1,days:[day]},exercises:rows});
+  return rows;
+}
 /* Render the current view without asserting anything about layout. */
 function cards(){ const m = stubFor("#main"); m.children = []; app.renderMain(); return m.children.filter(n => n.nodeType === 1); }
 /* Only the exercise cards — banners are element children of #main too. */
@@ -167,9 +177,22 @@ function chipsOf(c){ return c.findAll(n => n.classList.contains("setchip")); }
 /* Both action rows carry the .setactions class, so this keeps finding every button one
    level deep even though the primary and the quieter actions are now separate rows. */
 function actionBtn(c, re){ return c.findAll(n => n.classList.contains("setactions")).flatMap(a => a.children).find(b => re.test(b.text)); }
-function countBtn(c, glyph){ return c.findAll(n => n.classList.contains("cntbtn")).find(b => b.text === glyph); }
+function buttonOf(c, re){ return c.findAll(n => n.tagName === "BUTTON").find(b => re.test(b.text)); }
+function sheetButton(re){ return stubFor("#sheetBody").findAll(n => n.tagName === "BUTTON").find(b => re.test(b.text)); }
+function chooseRpe(c, value){
+  const picker = c.findAll(n => n.classList.contains("pickerbtn"))[0];
+  assert(!!picker, "RPE is a picker button, not a keyboard field");
+  picker.onclick();
+  const choice = sheetButton(new RegExp("^" + String(value).replace(".", "\\.") + "$"));
+  assert(!!choice, `RPE picker offers ${value}`);
+  choice.onclick();
+}
+function endExercise(c){
+  const open=buttonOf(c,/End after|Skip exercise/);assert(!!open,"an explicit end/skip action is available");
+  open.onclick();const confirm=sheetButton(/End after|Skip exercise/);assert(!!confirm,"ending early requires clear confirmation");
+  confirm.onclick();
+}
 function setLabel(c){ const n = c.findAll(x => x.classList.contains("setlabel"))[0]; return n && n.text; }
-function countValue(c){ const n = c.findAll(x => x.classList.contains("cntval"))[0]; return n && n.text; }
 /* Type into a field WITHOUT re-finding the node afterwards — this is what would catch
    the old bug where oninput rebuilt the container and destroyed the input mid-keystroke. */
 function type(inp, v){ inp.value = v; inp.oninput(); }
@@ -249,6 +272,77 @@ console.log("\nprescribedSets — plain integers, ranges, and prose");
   is(app.prescribedSets({ sets: "AMRAP" }), 1, "AMRAP falls back to one set");
   is(app.prescribedSets({ sets: "8 x 2" }), 8, "…but a leading count still wins when there is one");
   is(app.prescribedSets({}), 1, "missing sets falls back to one set");
+}
+
+console.log("\nadaptive circuit logging modes");
+{
+  const fixed={sets:"4 rounds",reps:"200 m row + 15 KB swing + 10 pull-ups"};
+  const forTime={sets:"3 rounds for time",reps:"300 m row + 12 KB swing"};
+  const amrap={sets:"AMRAP 12",reps:"250 m row + 10 KB swing"};
+  const emom={sets:"EMOM 12",reps:"Min 1 row; min 2 KB swing; repeat"};
+  const ladder={sets:"21-15-9",reps:"KB swing + burpee"};
+  is(app.circuitOf(fixed),{kind:"rounds",target:4,defaultMode:"quick",label:"Rounds"},
+    "fixed rounds default to one-tap round counting");
+  is(app.circuitOf(forTime).target,3,"rounds-for-time keeps its prescribed round count");
+  is(app.circuitOf(forTime).defaultMode,"final","rounds-for-time defaults to the finish result, not live tapping");
+  is(app.circuitOf(amrap).defaultMode,"final","AMRAP defaults to final-result logging");
+  is(app.circuitOf(emom).minutes,12,"EMOM duration is understood");
+  is(app.circuitOf({sets:"12 min AMRAP"}).minutes,12,"duration-first AMRAP wording is understood");
+  is(app.circuitOf(ladder).kind,"ladder","descending ladders use the circuit logger");
+  is(app.circuitParts(fixed),["200 m row","15 KB swing","10 pull-ups"],
+    "composite work is split into a readable movement list");
+  is(app.circuitParts({reps:"200 m row, 15 kg KB swing, 10 pull-ups"}),
+    ["200 m row","15 kg KB swing","10 pull-ups"],"comma-separated rounds read just as clearly");
+  const legacyCircuit=app.blankEntry();legacyCircuit.reps="Time 10:22";legacyCircuit.load="16";
+  app.circuitState(legacyCircuit,forTime);app.syncFinalCircuit(forTime,legacyCircuit);
+  is(legacyCircuit.reps,"Time 10:22","opening the new result editor preserves a legacy circuit headline");
+
+  const rows=loadSynthetic([{...fixed,name:"Fixed circuit",load:"15 kg KB",logHint:"Time; RPE at finish"},
+    {...amrap,name:"AMRAP circuit",load:"16 kg KB"},
+    {...fixed,name:"Detailed circuit",load:"15 kg KB"}]);
+  app.STATE.focus=0;
+  let C=logCardNode();
+  assert(/Quick rounds/.test(C.text),"the adaptive mode is visible without extra fields");
+  const round=buttonOf(C,/Complete round 1 of 4/);assert(!!round,"quick mode has one large round action");
+  round.onclick();
+  let e=app.getSession().entries[rows[0].id];
+  is(e.sets[0].reps,"As prescribed","a quick tap records an explicit completed-as-prescribed round");
+  is(e.reps,"1 round","the flat circuit summary remains useful to older readers");
+  is(app.statusLine(rows[0],e),"1 of 4 rounds completed","Overview speaks in rounds, not strength sets");
+  assert(!("circuit" in app.buildSessionExport().entries[0]),"circuit UI bookkeeping never reaches export");
+
+  app.goFocus(1);C=logCardNode();
+  assert(/Final result/.test(C.text),"AMRAP opens directly on its final-result form");
+  const resultInputs=C.findAll(n=>n.classList.contains("circuitresult")).flatMap(g=>g.findAll(n=>n.tagName==="INPUT"));
+  is(resultInputs.map(i=>i.getAttribute("placeholder")),["e.g. 4","e.g. 12","0","Only if different","Optional finish note"],
+    "the final-result fields stay in a fast, predictable order");
+  type(resultInputs[0],"4");
+  is(app.getSession().entries[rows[1].id].circuit.rounds,"4","the rounds field autosaves independently");
+  type(resultInputs[1],"12");
+  is(app.getSession().entries[rows[1].id].circuit.extra,"12","the extra-reps field autosaves independently");
+  is(app.getSession().entries[rows[1].id].reps,"4 rounds + 12 reps","AMRAP fields serialize to a clear flat result");
+  buttonOf(C,/Save result & next/).onclick();
+  const exportedAmrap=app.buildSessionExport().entries[1];
+  is(exportedAmrap.sets,[],"a final-result circuit does not fabricate per-round rows");
+  is(exportedAmrap.reps,"4 rounds + 12 reps","the final result survives completion and export");
+
+  C=logCardNode();buttonOf(C,/Change/).onclick();sheetButton(/^Round details/).onclick();
+  C=logCardNode();assert(/Round details/.test(C.text),"the quiet override switches to per-round details");
+  chooseRpe(C,8.5);
+  is(app.getSession().entries[rows[2].id].draft.rpe,"8.5","a detailed-round RPE survives the picker redraw");
+  app.goFocus(1);
+  const detailed=app.getSession().entries[rows[2].id];
+  is(detailed.sets[0].rpe,"8.5","navigating away commits a typed detailed round");
+  is(detailed.sets[0].reps,"As prescribed","that round still identifies the completed circuit work");
+
+  app.goFocus(0);C=logCardNode();
+  buttonOf(C,/Complete round 2 of 4/).onclick();
+  C=logCardNode();buttonOf(C,/Complete round 3 of 4/).onclick();
+  C=logCardNode();buttonOf(C,/Complete final round/).onclick();
+  is(stubFor("#sheetTitle").text,"Finish circuit","the final planned round opens one compact finish sheet");
+  app.sheetClose();C=logCardNode();
+  assert(!!buttonOf(C,/Complete another round/),"dismissing finish details cannot log the final round twice");
+  is(app.getSession().entries[rows[0].id].sets.length,4,"exactly four quick rounds remain committed");
 }
 
 console.log("\nmetricOf — the reps field is whatever the exercise measures");
@@ -333,7 +427,7 @@ console.log("\nlogging one set at a time — the commit flow");
   const card = () => logCardNode();
   let C = card();
   is(chipsOf(C).length, n, `${n} set chips shown before anything is logged`);
-  assert(/Log set 1/.test(actionBtn(C, /Log set|Log another/).text), "the primary button reads Log set 1");
+  assert(/Log set 1 of/.test(actionBtn(C, /Log set|Log final|Log another/).text), "the primary button names the current and planned set");
 
   /* Rendering a never-touched exercise creates its entry in memory only (exactly like
      the old exerciseCard did) — nothing is persisted until a save happens, so read
@@ -348,7 +442,8 @@ console.log("\nlogging one set at a time — the commit flow");
   type(loadInp, "100");
   assert(setInputs(C)[0] === loadInp, "typing a character does not replace the input node");
   type(inputs[1], "4");
-  type(inputs[2], "9");
+  chooseRpe(C, "9");
+  C = card();
   actionBtn(C, /Log set 1/).onclick();
 
   is(stored().sets.length, 1, "committing appends one row");
@@ -356,24 +451,35 @@ console.log("\nlogging one set at a time — the commit flow");
      "the committed row carries what was typed");
   C = card();
   is(stored().draft.load, "100", "the next draft seeds from the set just committed");
-  assert(/Log set 2/.test(actionBtn(C, /Log set|Log another/).text), "the button now reads Log set 2");
-  assert(!!actionBtn(C, /Finish early/), "Finish is offered even before every set is logged");
+  assert(/Log set 2 of/.test(actionBtn(C, /Log set|Log final|Log another/).text), "the button now reads Log set 2");
+  assert(!!buttonOf(C, /End after 1 of/), "partial work has an explicit End-after action");
 
   /* Commit the rest without changing anything — a confirmed set that matches the one
      before it is still a set that was performed, and must still be exported. */
-  while(stored().sets.length < n){
-    actionBtn(card(), /Log set|Log another/).onclick();
-  }
+  while(stored().sets.length < n-1)actionBtn(card(), /Log set/).onclick();
+  const originalIndex=app.STATE.focus;
+  assert(/Log final set/.test(actionBtn(card(), /Log final set/).text), "the last prescribed action is named as final");
+  actionBtn(card(), /Log final set/).onclick();
   is(stored().sets.length, n, `all ${n} prescribed sets committed`);
   is(stored().sets[n - 1].load, "100", "an unedited commit keeps following the seed — it is still a real set");
-  assert(/Finish exercise ›/.test(actionBtn(card(), /Finish/).text), "once all sets are logged the Finish label drops the count");
+  is(stored().done, true, "the final planned set completes the exercise");
+  is(app.STATE.focus, originalIndex+1, "the final planned set advances to the next exercise");
+
+  /* The recovery action reads the latest session rather than its pre-navigation copy:
+     tapping it after starting the next exercise must never autosave that new work away. */
+  const nextEx=app.dayExercises()[originalIndex+1],nextCard=card();
+  type(setInputs(nextCard)[0],"keep me");
+  const addFromToast=buttonOf(stubFor("#toast"),/Add set/);assert(!!addFromToast,"completion offers a quiet Add set recovery action");
+  addFromToast.onclick();
+  is(app.getSession().entries[nextEx.id].draft.load,"keep me","Add set preserves anything already typed on the next exercise");
 
   /* Every new draft seeds forward from the set just committed — that is the whole
-     point, so "Log another set" past the prescribed count costs one tap, not four. */
+     point, so logging another set past the prescribed count costs one tap, not four. */
   const before2 = stored().sets.length;
-  const c2 = card();
-  is(setInputs(c2).map(i => i.value).some(Boolean), true, "the new draft is seeded from the last commit, not blank");
-  actionBtn(c2, /Log another/).onclick();
+  app.goFocus(originalIndex);
+  const c2=card();
+  is(setInputs(c2).map(i => i.value).some(Boolean), true, "the extra-set draft is seeded from the last commit, not blank");
+  actionBtn(c2, /Log final set/).onclick();
   is(stored().sets.length, before2 + 1, "logging another set after the prescribed count still works");
 
   /* Committing an entirely empty draft must be a no-op, not a phantom set. The only way
@@ -381,7 +487,9 @@ console.log("\nlogging one set at a time — the commit flow");
      directly rather than through the UI, since a fresh draft is never blank on its own. */
   const s3 = app.getSession();
   s3.entries[ex.id].draft = app.blankDraft();
+  s3.entries[ex.id].done = false;
   app.saveSession(s3);
+  app.goFocus(originalIndex);
   const beforeEmpty = stored().sets.length;
   actionBtn(card(), /Log another/).onclick();
   is(stored().sets.length, beforeEmpty, "committing a wholly empty draft does nothing");
@@ -412,10 +520,8 @@ console.log("\nediting and deleting a committed set");
   chipsOf(C)[0].onclick();
   C = logCardNode();
   is(app.STATE.setEdit, 0, "tapping a committed chip opens it for editing");
-  let inputs = setInputs(C);
-  const rpeInp = inputs[2];
-  type(rpeInp, "8.5");
-  assert(setInputs(C)[2] === rpeInp, "editing a committed set's field does not rebuild it either");
+  chooseRpe(C, "8.5");
+  C = logCardNode();
   is(app.getSession().entries[ex.id].sets[0].rpe, "8.5", "the edit writes into the committed row, not the draft");
   is(app.getSession().entries[ex.id].draft.rpe, "7", "…and the draft is untouched while editing");
 
@@ -445,11 +551,8 @@ console.log("\nediting and deleting a committed set");
   is(app.STATE.setEdit, null, "deleting returns to the draft rather than an edit for a row that moved");
 }
 
-console.log("\nupcoming chips are inert; the planned count has its own control");
+console.log("\nupcoming chips are inert; set-count changes are secondary");
 {
-  /* The reported bug: tapping an upcoming set number deleted planned sets. It reads as
-     "jump to set 4" and was destructive with no confirmation. Upcoming chips are plain
-     placeholders now, and the count moved to an explicit ⊖ N ⊕ control. */
   loadFixture("program.v2.sample.json");
   app.STATE.week = 1;
   const ex = app.dayExercises().slice().sort((a, b) => app.prescribedSets(b) - app.prescribedSets(a))[0];
@@ -476,43 +579,26 @@ console.log("\nupcoming chips are inert; the planned count has its own control")
   assert(doneChips.every(c => typeof c.onclick === "function"),
      "a logged set is still tappable, because there is something there to edit");
 
-  const dec = () => countBtn(C, "−"), inc = () => countBtn(C, "+");
-  assert(!!dec() && !!inc(), "the set-count control renders in draft mode");
-  dec().onclick();
+  assert(!C.findAll(n=>n.classList.contains("cntbtn")).length,
+    "set-count steppers do not compete with the main logging action");
+  const adjust=buttonOf(C,/Adjust sets/);
+  assert(!!adjust,"a quiet Adjust sets action remains available");
+  adjust.onclick();
+  const minus=stubFor("#sheetBody").findAll(n=>n.tagName==="BUTTON").find(b=>b.getAttribute("aria-label")==="Plan one set fewer");
+  const plus=stubFor("#sheetBody").findAll(n=>n.tagName==="BUTTON").find(b=>b.getAttribute("aria-label")==="Plan one set more");
+  assert(!!minus&&!!plus,"the add/remove controls live in the secondary sheet");
+  minus.onclick();app.sheetClose();
   C = logCardNode();
   is(chipsOf(C).length, n - 1, "⊖ drops exactly one planned set");
   is(app.getSession().entries[ex.id].sets.length, 2, "…without touching anything already committed");
   is(app.getSession().entries[ex.id].setTarget, n - 1, "the reduced target is what's stored");
 
-  /* Keep going; it must stop at the set in progress, never eat into what is logged. */
-  while(!dec().disabled){ dec().onclick(); C = logCardNode(); }
-  is(chipsOf(C).length, 3, "shrinks to the two logged sets plus the one in progress, no further");
-  is(setLabel(C), "Set 3 of 3", "the label reflects the reduced target");
-  is(countValue(C), "3 sets", "and so does the control");
-  assert(/Finish early/.test(actionBtn(C, /Finish/).text),
-     "Finish still reads as early, since the reduced target's own last set isn't logged yet");
-
-  inc().onclick();
+  buttonOf(C,/Adjust sets/).onclick();
+  const plus2=stubFor("#sheetBody").findAll(n=>n.tagName==="BUTTON").find(b=>b.getAttribute("aria-label")==="Plan one set more");
+  plus2.onclick();app.sheetClose();
   C = logCardNode();
-  is(chipsOf(C).length, 4, "⊕ plans another set");
-  is(setLabel(C), "Set 3 of 4", "…and the label follows");
-  dec().onclick();
-  C = logCardNode();
-
-  /* Logging that last set must still work — a shrunk target is a ceiling on the display,
-     never a hard cap on what can actually be logged. */
-  type(setInputs(C)[0], "60");
-  actionBtn(C, /Log set 3/).onclick();
-  C = logCardNode();
-  is(app.getSession().entries[ex.id].sets.length, 3, "the set really was recorded");
-  assert(/Finish exercise ›/.test(actionBtn(C, /Finish/).text),
-     "…and Finish now reads as complete, since the reduced target has actually been met");
-
-  /* Logging past a reduced target must still work too. */
-  actionBtn(C, /Log another set/).onclick();
-  C = logCardNode();
-  is(chipsOf(C).length, 5, "logging beyond the reduced target grows the strip again");
-  is(app.getSession().entries[ex.id].sets.length, 4, "…and that set is recorded as well");
+  is(chipsOf(C).length,n,"⊕ restores the prescribed planned count");
+  is(setLabel(C),`Set 3 of ${n}`,"the visible progress label follows the sheet choice");
 
   assert(!("setTarget" in app.buildSessionExport().entries.find(x => x.exercise === ex.name)),
      "setTarget is app-local bookkeeping and never reaches the export");
@@ -520,11 +606,11 @@ console.log("\nupcoming chips are inert; the planned count has its own control")
   /* Editing a committed set is not the moment to be re-planning the session. */
   chipsOf(C)[0].onclick();
   C = logCardNode();
-  assert(!countBtn(C, "−"), "the count control is absent while editing a committed set");
+  assert(!buttonOf(C,/Adjust sets/), "set planning is absent while editing a committed set");
   actionBtn(C, /Cancel/).onclick();
 }
 
-console.log("\na typed set is never lost — flushed on Finish, navigation and export");
+console.log("\na typed set is never lost — flushed on End, navigation and export");
 {
   /* The defect: Finish marked the exercise done and left the typed set sitting in the
      draft, which nothing but the editor reads. It exported as if the set never happened,
@@ -545,8 +631,8 @@ console.log("\na typed set is never lost — flushed on Finish, navigation and e
   type(setInputs(C)[1], "5");
   is(entry(ex).sets.length, 0, "typing alone commits nothing — the draft is still a draft");
   assert(app.draftDirty(entry(ex)), "…but it is flagged as typed, not as a seeded copy");
-  actionBtn(C, /Finish/).onclick();
-  is(entry(ex).sets.length, 1, "Finish commits the typed set instead of discarding it");
+  endExercise(C);
+  is(entry(ex).sets.length, 1, "End commits the typed set instead of discarding it");
   is(entry(ex).sets[0].load, "72.5", "…carrying exactly what was typed");
   is(entry(ex).done, true, "and the exercise is still marked done");
 
@@ -585,8 +671,8 @@ console.log("\na typed set is never lost — flushed on Finish, navigation and e
   actionBtn(C, /Log set 1/).onclick();
   is(entry(ex).sets.length, 1, "one set committed");
   assert(!app.draftDirty(entry(ex)), "the next draft is seeded, not dirty");
-  actionBtn(logCardNode(), /Finish/).onclick();
-  is(entry(ex).sets.length, 1, "so Finish does not invent a second set from the seed");
+  endExercise(logCardNode());
+  is(entry(ex).sets.length, 1, "so End does not invent a second set from the seed");
 
   /* Neither is an empty draft, and the bookkeeping never reaches a log file. */
   ex = setup();
@@ -638,7 +724,7 @@ console.log("\nOverview always says where an exercise stands");
   is(ovOf(1).line, `1 of ${target} sets logged · set 2 in progress`,
      "…and a set in progress on top of it is spelled out");
 
-  actionBtn(logCardNode(), /Finish/).onclick();
+  endExercise(logCardNode());
   /* The badge carries "done"; the line is spent on what was logged, not on a second tick. */
   is(ovOf(1).badge, "✓", "a finished exercise gets the done badge");
   assert(!/✓/.test(ovOf(1).line) && ovOf(1).line.length > 0,
@@ -649,8 +735,8 @@ console.log("\nOverview always says where an exercise stands");
   const warm = app.dayExercises().find(e => app.prescribedSets(e) === 1) || exs[0];
   const wi = app.dayExercises().indexOf(warm);
   app.goFocus(wi);
-  actionBtn(logCardNode(), /Finish/).onclick();
-  is(ovOf(wi).line, "Finished — nothing logged", "a deliberate empty finish says exactly that");
+  endExercise(logCardNode());
+  is(ovOf(wi).line, "Skipped — no sets logged", "a deliberate skip says exactly that");
 
   is(app.summaryText(app.blankEntry()), "", "summaryText itself reports nothing as empty, not as prose");
 }
@@ -703,7 +789,7 @@ console.log("\nthe programme's own logHint drives what gets flagged");
      `programPainSite reads a site off the fixture (got ${JSON.stringify(app.programPainSite())})`);
 }
 
-console.log("\nfinish, un-finish, and early stopping");
+console.log("\nclear early stopping and reopening");
 {
   loadFixture("program.v2.sample.json");
   app.STATE.week = 1;
@@ -720,16 +806,16 @@ console.log("\nfinish, un-finish, and early stopping");
   const entry = () => app.getSession().entries[ex.id];
   const exIdx = app.STATE.focus;
   is(entry().sets.length, 1, "one set committed");
-  actionBtn(logCardNode(), /Finish/).onclick();
-  is(entry().done, true, "finishing early marks the exercise done");
+  endExercise(logCardNode());
+  is(entry().done, true, "ending early marks the exercise done");
   is(entry().sets.length, 1, "…without inventing the sets that were never logged");
   is(app.STATE.focus, exIdx + 1, "and — like the old Mark done — finishing advances to the next exercise");
 
-  app.goFocus(exIdx);              /* Un-finish only makes sense back on the card itself */
-  const undo = actionBtn(logCardNode(), /Un-finish/);
-  assert(!!undo, "an un-finish action is offered on a done exercise");
-  undo.onclick();
-  is(entry().done, false, "un-finishing clears done");
+  app.goFocus(exIdx);
+  const reopen = actionBtn(logCardNode(), /Reopen exercise/);
+  assert(!!reopen, "a completed exercise can be reopened");
+  reopen.onclick();
+  is(entry().done, false, "reopening clears done");
   is(entry().sets.length, 1, "…and does not touch what was already logged");
 
   /* A warm-up with zero sets can still be finished. */
@@ -737,10 +823,10 @@ console.log("\nfinish, un-finish, and early stopping");
   const warm = app.dayExercises().find(e => app.prescribedSets(e) === 1) || app.dayExercises()[0];
   app.STATE.focus = app.dayExercises().indexOf(warm);
   const wCard = logCardNode();
-  const finishNoSets = actionBtn(wCard, /Finish/);
-  assert(!!finishNoSets, "Finish is offered with nothing logged yet");
-  finishNoSets.onclick();
-  is(app.getSession().entries[warm.id].done, true, "and it finishes with an empty sets[]");
+  const skipNoSets = buttonOf(wCard, /Skip exercise/);
+  assert(!!skipNoSets, "Skip exercise is explicit with nothing logged yet");
+  endExercise(wCard);
+  is(app.getSession().entries[warm.id].done, true, "and it skips with an empty sets[]");
   is(app.getSession().entries[warm.id].sets.length, 0, "…exactly zero, not a fabricated set");
 }
 
@@ -753,7 +839,8 @@ console.log("\nthe typed summary — auto-follows sets until overridden");
   let C = logCardNode();
   type(setInputs(C)[0], "60");
   type(setInputs(C)[1], "5");
-  type(setInputs(C)[2], "7");
+  chooseRpe(C,"7");
+  C=logCardNode();
   actionBtn(C, /Log set 1/).onclick();
 
   let e = app.getSession().entries[ex.id];
@@ -944,21 +1031,19 @@ console.log("\nview modes — Overview (read-only) vs Log (one exercise)");
   is(app.STATE.focus, exs.length - 1, "jumping past the end clamps to the last exercise");
   is(stubFor("#nextBtn").disabled, true, "where Next is dead instead");
 
-  /* Finishing is the one thing that moves you without being asked, so it is the one
-     most worth pinning down. */
-  const finishBtn = c => actionBtn(c, /Finish/);
+  /* Ending or skipping deliberately keeps the old forward-navigation behaviour. */
   const isDone = i => !!(app.getSession().entries[exs[i].id] || {}).done;
   app.goFocus(0);
-  if(isDone(0)){ finishBtn(logCardNode()).onclick(); }             // start from a known state
+  if(isDone(0)){ actionBtn(logCardNode(),/Reopen exercise/).onclick(); }
   app.goFocus(0);
-  finishBtn(logCardNode()).onclick();
-  is(app.STATE.focus, 1, "finishing moves on to the next exercise");
+  endExercise(logCardNode());
+  is(app.STATE.focus, 1, "ending moves on to the next exercise");
   is(isDone(0), true, "and the one behind you stays logged");
 
   const lastIdx = exs.length - 1;
   app.goFocus(lastIdx);
-  if(isDone(lastIdx)){ finishBtn(logCardNode()).onclick(); app.goFocus(lastIdx); }
-  finishBtn(logCardNode()).onclick();
+  if(isDone(lastIdx)){ actionBtn(logCardNode(),/Edit result|Reopen exercise/).onclick(); app.goFocus(lastIdx); }
+  endExercise(logCardNode());
   is(app.STATE.focus, lastIdx, "and the last exercise has nowhere to advance to");
   is(isDone(lastIdx), true, "…but is still marked done");
 
