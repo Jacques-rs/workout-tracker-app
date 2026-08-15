@@ -140,7 +140,12 @@ Both are git worktrees of the same clone, so `athlete/` exists only in the workt
 
 ## Verifying changes
 
-There is no test suite. After edits, at minimum:
+`./scripts/verify.sh` is the repository implementation gate. Deployed browser testing is a separate
+release-smoke gate: if no controllable browser is connected, report only that release smoke as
+pending; do not describe the implementation as unverified or repeat completed implementation work.
+
+The repository uses dependency-light verification rather than framework-managed browser E2E tests.
+After edits, at minimum:
 
 ```bash
 python3 -m http.server 8000        # then open http://localhost:8000
