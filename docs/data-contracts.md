@@ -19,9 +19,9 @@ Version detection is `meta.schema` / `schema`. Neither reader should infer versi
 presence of a field.
 
 **No schema change since `tp-session-3`.** The app has since learned to read the prescription
-more closely — what the reps field measures, how many set slots a `"4 rounds"` couplet needs,
-which exercises want a pain reading — but every one of those is **inference from strings the
-generator already writes**. No field was added, removed or retyped on either side, and
+more closely — what the reps field measures, whether work is ordinary sets or a circuit, and
+which circuit format needs live round taps versus one final result — but every one of those is
+**inference from strings the generator already writes**. No field was added, removed or retyped on either side, and
 `program-builder` needs no matching change. Where that inference changes how a value should be
 *read*, it is written down below: see `reps` and `logHint` in the programme table, and
 "Reading a logged `reps` value" on the session side.
@@ -103,7 +103,7 @@ reader never has to probe.
 | `entries[].exercise` | string | ✅ | ✅ | ✅ | app | Entries are keyed by name, not `id` — so the v1→v2 id change does not affect logs. |
 | `entries[].prescribed` | object | ✅ | ✅ | ✅ | skill→app | Denormalised so a log is reviewable without the programme. |
 | `entries[].done` | bool | ✅ | ✅ | ✅ | athlete | |
-| `entries[].sets[]` | array | — | ✅ | ✅ | athlete | `[]` when only the summary was logged. Contiguous from 1. |
+| `entries[].sets[]` | array | — | ✅ | ✅ | athlete | Ordinary sets or completed circuit rounds. `[]` when nothing was logged, or when a circuit was logged as one final result. Contiguous from 1. |
 
 ## `tp-session-*` — value-optional
 
@@ -381,51 +381,70 @@ see which set was which.
 | `note` | Free text for this set. Usually empty. |
 
 **The flat `load` / `reps` / `rpe` / `painDuring` stay, and stay authoritative for the summary
-view.** They are not derived — the app keeps them as what the athlete considers the headline
-number for the exercise, and a v1 reader that ignores `sets` still gets a sensible answer.
+view.** The app derives them from committed rows until the athlete edits the summary directly;
+after that it preserves the override. A v1 reader that ignores `sets` still gets a sensible answer.
 When they disagree with `sets` (as above: flat `load: "80"`, first set `100`), the flat value
 is the athlete's own summary, not a bug.
 
-**How the app produces `sets`.** Per-set rows are opt-in per exercise — tapping "Log each set"
-materialises the prescribed number of rows, and a value typed into one row flows down into
-every row below it that the athlete has not edited. So the common case (all sets the same)
-costs one entry per field, and correcting set 3 downwards costs one more. Rows that are
-left completely empty are dropped at export and the rest renumbered, so a `set: 3` in a log
-file always means a third set was actually performed. The whole feature can be switched off
-per device in the drawer's Tracked fields section, which shows up as `tracking.perSetLogging: false`.
+**How the app produces `sets`.** An ordinary exercise starts with the prescribed set count and
+shows exactly one set editor at a time. Confirming a set appends one row and seeds the next
+editor from it. Adding or removing planned sets is a secondary action and never changes the
+original prescription. Completely empty rows are dropped at export and the rest are renumbered,
+so a `set: 3` in a log file always means a third set or circuit round was actually performed.
 
-**Reading rule for the coach:** use `sets` when it is non-empty — it is strictly more
-information. Fall back to the flat fields when `sets` is `[]` or absent (any v1 file). Do not
-average `sets` into a single load; the shape of a session (100 → 80 → 80) *is* the signal.
+**Reading rule for the coach:** for ordinary exercises, use `sets` when it is non-empty — it
+is strictly more information. Fall back to the flat fields when `sets` is `[]` or absent (any
+v1 file). Do not average `sets` into a single load; the shape of a session (100 → 80 → 80) *is*
+the signal. Circuit entries are the explicit exception described below: their flat result and
+round rows are complementary.
 
 **Since the app moved to logging one set at a time (no schema change, just how the app fills
 these fields):**
 
-- `sets` is now normally non-empty for any exercise that was actually trained — the app
-  logs a real set as soon as one is confirmed, rather than per-set logging being an opt-in
-  extra. `[]` means *nothing was logged*, full stop; it no longer also covers "the athlete
-  used the summary instead of the per-set table", because there is no separate per-set
-  table to opt into.
+- `sets` is now normally non-empty for any ordinary exercise that was actually trained — the
+  app logs a real set as soon as one is confirmed. For circuit prescriptions, `[]` can also
+  mean the athlete chose **Final result** and logged the outcome directly in the flat fields.
 - The flat `load`/`reps`/`rpe`/`painDuring` are **auto-filled from `sets` as each one is
   confirmed, and stay editable.** They are still the athlete's own headline number, and a
   reader must still not recompute them — but a disagreement with `sets` is now more likely
   to be a *deliberate override* (the athlete corrected the headline by hand) than the
   independent judgement call it used to be. Worth a line in the review rather than skipped.
-- `sets.length` is the number of sets **actually performed.** A set the app pre-fills while
+- For ordinary work, `sets.length` is the number of sets **actually performed.** A set the app pre-fills while
   the athlete is mid-entry (seeded from the set before it) never reaches a log file unless
   it was actually confirmed — the export only ever contains committed sets.
-- RPE may carry a half point (`"7.5"`) — the field is free text for exactly this reason.
-  Still a string; parse as a float if you parse it at all, never as an integer.
+- RPE may carry a half point (`"7.5"`) — the app's picker offers 1–10 in 0.5 increments.
+  It is still stored as a string, and legacy prose values remain readable; parse as a float
+  if you parse it at all, never as an integer.
 - `tracking.perSetLogging` is unconditionally `true` from this build on — it is no longer a
   switch, it is how every exercise is logged. `false` still appears in older files and keeps
   its old meaning there.
 - **A set the athlete typed but never confirmed is now committed rather than dropped.** The
   app commits a typed-into draft when the athlete finishes the exercise, pages away, changes
   day or week, leaves for Overview, exports, or backgrounds the app. Before this it was
-  possible to train a set, tap Finish, and have the log say the set never happened. The rule
+  possible to train a set, choose End after N, and have the log say the set never happened. The rule
   in the line above still holds exactly: a draft the app merely *seeded* from the previous
   set is not a set that happened and is never committed. **`sets.length` is still the number
   of sets actually performed.**
+
+### Circuit logging (`rounds`, `AMRAP`, `EMOM`, `for time`, ladders)
+
+The app chooses a low-friction default from `prescribed.sets`, with a quiet mode override:
+
+- A fixed `"4 rounds"` prescription defaults to **Quick rounds**. Each tap appends one
+  `sets[]` row whose `reps` is `"As prescribed"`; the denormalised `prescribed.reps` contains
+  the movements that phrase refers to. The flat `reps` becomes a headline such as
+  `"4 rounds · 12:34"`.
+- **Round details** also uses `sets[]`, but each row may carry its own split/result, changed
+  load, RPE, pain and note.
+- AMRAP, EMOM, for-time work and numeric ladders default to **Final result**. These can export
+  `sets: []` with the outcome in flat `reps`, for example `"4 rounds + 12 reps"`,
+  `"12 min completed"`, or `"Time 08:42 · as prescribed"`.
+
+For a circuit, never discard the flat `reps` merely because `sets[]` is non-empty: the rows
+say which rounds were completed or how they differed, while the flat field carries the final
+round count/time/partial work. `"As prescribed"` is explicit confirmation of one complete
+round, not missing data. The UI's selected logging mode is local bookkeeping and is never
+exported.
 
 ### Reading a logged `reps` value
 

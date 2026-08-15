@@ -99,17 +99,17 @@ Five things reported from actual gym use, and what they turned out to be:
   generator already writes, and `deriveReps()` appends it so a hold reads `"3x45s"`.
 - **"Clicking a future set number removes those sets."** It did, with no confirmation, on a
   chip that reads as "jump to set 4". Upcoming chips are inert placeholders now and the planned
-  count has an explicit `⊖ N sets ⊕` control, floored at what is already logged.
+  count now lives behind an explicit **Adjust sets** action, floored at the current set.
 - **"No clear indication a set has been logged; sometimes Overview shows none."** Two causes.
   A commit changed almost nothing on screen (the next draft is seeded from the set just
   logged) — so there is now a `LOGGED 60×4 · 60×4` recap line, a toast, a chip pulse and a
-  haptic. And **Finish discarded a typed-but-unconfirmed set entirely**: it set `done` without
+  haptic. And the old finish action discarded a typed-but-unconfirmed set entirely: it set `done` without
   committing the draft, so the export, the pips and the Overview status all said the set never
-  happened. `flushDraft()` closes that on Finish, navigation, view change, export and
+  happened. `flushDraft()` closes that on early end, navigation, view change, export and
   backgrounding. Overview now always renders one of six status lines plus a `○ / ◐ / ✓` badge.
 - **"The app should infer from the programme whether knee pain needs logging."** It reads
   `logHint`: split into a row of `Capture` chips, and scanned for pain cues to accent the pain
-  field and nudge once on Finish. The drawer offers the site the block actually monitors.
+  field and nudge when the exercise ends. The drawer offers the site the block actually monitors.
   Deliberately **prompting, not hiding** — see below.
 - **"The buttons don't feel premium."** One height scale, one full-width primary with the
   cards' own light-from-above treatment, the quieter actions at equal width on their own
@@ -201,13 +201,29 @@ Decisions worth knowing:
   no schema bump, because `tp-session-3` already defined them as "the athlete's own summary,
   never recomputed", and that stayed literally true. A disagreement with `sets[]` now more
   often means a deliberate correction than an independent judgement call.
-- **Finish is always offered**, even with zero sets logged or fewer than prescribed — cutting
-  a set short for pain is exactly the signal the coach wants, not something the UI should
-  withhold until a count is met.
-- **RPE moved off `type="number"`** to `type="text" inputmode="decimal"`, so it can hold a
-  half point ("7.5") without the value blanking mid-type on the decimal point.
+- **Skipping/ending is always offered**, even with zero sets logged or fewer than prescribed —
+  cutting a set short for pain is exactly the signal the coach wants. The newer logging pass
+  makes those two cases explicit and confirms what will be retained.
+- **RPE moved to a finite picker** (1–10 in 0.5 steps), so a gym log needs one tap and never
+  opens the keyboard. The stored string contract did not change.
 - **Per-set logging is no longer switchable.** The `Tracked fields` toggle for it is gone;
   `tracking.perSetLogging` is stamped `true` unconditionally for reader compatibility.
+
+## Done — lower-cognitive-load workout logging
+
+- The prescribed number of ordinary sets is available by default, with one set visible at a
+  time. **Log final set** completes and advances; extra/missed sets are handled by Adjust sets,
+  Reopen, or the completion toast's Add set action.
+- The ambiguous finish-early wording is gone. Untouched work says **Skip exercise**; partial
+  work says **End after N of M**; both explain the consequence before changing state.
+- Every RPE capture uses the reusable bottom-sheet picker, including set edits, summaries and
+  circuit finishes.
+- Circuit prescriptions are recognised from the existing programme strings. Fixed rounds use
+  one-tap counting by default; AMRAP/EMOM/for-time/ladders ask for their natural final result.
+  Quick rounds, Round details and Final result remain available as a quiet override.
+- The `tp-session-3` wire shape is unchanged. Quick/detailed circuit rounds use `sets[]`; final
+  result mode uses the flat fields. The review skill reads these two circuit representations
+  explicitly instead of mistaking `sets: []` for an empty workout.
 
 ## Explicitly not doing
 

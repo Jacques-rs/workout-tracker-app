@@ -59,7 +59,8 @@ If a folder holds more than one `program.json`, ask which block is active rather
 
 - **`tp-session-1`, `-2` and `-3` must all be readable.** A block spans the version boundaries. v1 has no `sets[]`; v1 and v2 have `amPainNextDay` instead of `amPainOnWaking` and no `programVersion`.
 - **`programVersion` vs the current `meta.version`** answers "did they train off this programme?" in one comparison. If it is lower, the athlete never re-imported after a revision — read every deviation below against what their app actually showed them, and say so before drawing conclusions. `0` or absent means the log predates the field; fall back to diffing `prescribed`.
-- **`sets[]` wins when non-empty.** It is strictly more information. **Do not average it into one load** — the shape of a session (100 → 80 → 80) *is* the signal, and it is the reason per-set logging exists. Fall back to the flat fields when `sets` is `[]` or absent. The app now logs one set at a time by default, so `sets[]` is normally populated for anything actually trained — `[]` means nothing was logged, not "the athlete used the summary instead."
+- **For ordinary exercises, `sets[]` wins when non-empty.** It is strictly more information. **Do not average it into one load** — the shape of a session (100 → 80 → 80) *is* the signal. Fall back to the flat fields when `sets` is `[]` or absent.
+- **Circuits are the exception.** A quick or detailed circuit uses each `sets[]` row as one completed round; `reps: "As prescribed"` explicitly means the full movement list in `prescribed.reps` was completed for that round. The flat `reps` complements those rows with the final round count, time, or partial work, so read both. AMRAP, EMOM, for-time work and ladders can be logged in Final result mode with `sets: []` and the outcome in the flat fields — that is trained work, not an empty entry.
 - **The flat `load`/`reps`/`rpe` are the athlete's own headline, auto-filled from `sets[]` as each set is confirmed but always editable.** When they disagree with `sets[]`, that is usually a deliberate correction rather than an independent judgement call — worth naming in the review, not just accepted silently.
 - **RPE can carry a half point** (`"7.5"`). It is still a string field; parse as a float if you parse it at all.
 - **`tracking` disambiguates an empty value.** `painDuring: ""` with `tracking.painPerExercise: true` means *no pain logged this time*; with `false` it means *this athlete does not track pain at all*, and the pain-monitoring rules simply do not apply. Absent pain data is not a clean week. A missing `tracking` key (older files) means treat everything as true.
@@ -182,7 +183,7 @@ A single chat response, structured as `reference/review-output-template.md`. No 
 - `programVersion` matches the current `meta.version` (or `prescribed` matches, on an older log) — or the mismatch is called out first.
 - The morning pain reading was attributed by **date gap**, and the right field was read for the log's schema.
 - `tracking` was checked before interpreting any empty pain field.
-- `sets[]` was used where present, and not averaged.
+- Ordinary `sets[]` rows were used where present and not averaged; circuit rows and the flat final result were read together.
 - Skipped exercises (`done: false`) are accounted for.
 - The pain trend is assessed **across weeks**, not from this session alone.
 - Every proposed change names its reason, and one variable moves per exercise.
