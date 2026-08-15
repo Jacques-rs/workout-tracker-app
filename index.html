@@ -125,7 +125,41 @@
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     font-size:16px;line-height:1.45;overflow-wrap:break-word;-webkit-font-smoothing:antialiased}
   body{padding:0 var(--s3) calc(92px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto}
+  body.profile-active{padding-bottom:calc(var(--s5) + env(safe-area-inset-bottom))}
   .tnum{font-variant-numeric:tabular-nums}
+
+  /* ---------- account/profile home ----------
+     This is the cold-start surface. It deliberately has no workout navigation or cloud
+     data calls: Phase 3 establishes the account boundary and honest local/empty states;
+     the programme library and history connect in the following phases. */
+  .profile-view{min-height:100vh;padding:calc(var(--s5) + env(safe-area-inset-top)) 0 var(--s5)}
+  .profile-hero{padding:var(--s3) var(--s1) var(--s5)}
+  .profile-kicker{font-size:var(--t-xs);font-weight:800;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--accent-ink)}
+  .profile-title{font-size:clamp(1.75rem,8vw,2.5rem);line-height:1.05;margin:var(--s2) 0 0;
+    letter-spacing:-.035em}
+  .profile-lead{color:var(--muted);font-size:var(--t-md);line-height:1.5;margin:var(--s3) 0 0;
+    max-width:36rem}
+  .profile-body{display:grid;gap:var(--s3)}
+  .profile-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+    padding:var(--s4)}
+  .profile-card-title{font-size:var(--t-md);line-height:1.25;margin:0}
+  .profile-copy{color:var(--muted);font-size:var(--t-sm);line-height:1.5;margin:var(--s2) 0 0}
+  .profile-status{display:inline-flex;margin:var(--s3) 0 0;padding:5px 9px;border-radius:999px;
+    background:var(--accent-soft);color:var(--accent-ink);font-size:var(--t-xs);font-weight:800}
+  .profile-actions{display:flex;gap:var(--s2);align-items:stretch;margin-top:var(--s3);flex-wrap:wrap}
+  .profile-actions>button{flex:1 1 150px}
+  .profile-wide{width:100%;margin-top:var(--s3)}
+  .profile-programme{margin-top:var(--s3);padding:var(--s3);border-radius:var(--r-sm);
+    border:1px solid var(--line-soft);background:var(--well)}
+  .profile-programme-title{font-size:var(--t-base);font-weight:800;line-height:1.35}
+  .profile-programme-meta{font-size:var(--t-xs);color:var(--muted);margin-top:3px}
+  .profile-loading{border-style:dashed}
+  .profile-error{border-left:3px solid var(--bad)}
+  .demo-banner{display:flex;align-items:center;gap:var(--s2);padding:7px var(--s3);
+    margin:calc(var(--s4) * -1) 0 var(--s2);border-radius:0 0 var(--r-sm) var(--r-sm);
+    background:var(--accent-soft);color:var(--accent-ink);font-size:var(--t-xs);font-weight:800}
+  .demo-banner[hidden]{display:none}
 
   /* ---------- header ----------
      Two rows only. Everything that is decided once a session — week, day, date, the
@@ -654,8 +688,19 @@
 }catch(e){document.documentElement.dataset.theme="a-dark";}})();
 </script>
 </head>
-<body>
+<body class="profile-active">
+<div class="profile-view" id="profileView">
+  <div class="profile-hero">
+    <div class="profile-kicker">Training Tracker</div>
+    <h1 class="profile-title" id="profileTitle" tabindex="-1">Your training, ready when you are.</h1>
+    <p class="profile-lead">Open a cached programme, import one for this device, or explore the sample.</p>
+  </div>
+  <main class="profile-body" id="profileBody" aria-live="polite"></main>
+</div>
+
+<div id="workoutView" hidden>
 <header>
+  <div class="demo-banner" id="demoBanner" hidden>Sample programme · demo activity is kept separate</div>
   <div class="row">
     <button class="iconbtn" id="menuBtn" aria-label="Session menu and settings"
             aria-expanded="false" aria-controls="drawer">
@@ -706,6 +751,7 @@
     <div class="drawer-body" id="drawerBody"></div>
   </aside>
 </div>
+</div>
 
 <div class="sheet-wrap" id="sheetWrap" aria-hidden="true">
   <div class="sheet-bg" id="sheetBg"></div>
@@ -744,6 +790,7 @@
 <script src="./js/auth-config.js"></script>
 <script src="./js/auth-client.js"></script>
 <script src="./js/auth-ui.js"></script>
+<script src="./js/profile-ui.js"></script>
 <script>
 "use strict";
 /* ---------- helpers ---------- */
@@ -755,7 +802,9 @@ const el = (t,props={},kids=[])=>{const n=document.createElement(t);
   return n;};
 
 const LS = { prog:"tp_program_v1", set:"tp_settings_v1", pos:"tp_pos_v1",
-  sess:(d,day)=>`tp_sess_v1::${d}::${day}` };
+  demoPos:"tp_demo_pos_v1",
+  sess:(d,day)=>`tp_sess_v1::${d}::${day}`,
+  demoSess:(d,day)=>`tp_demo_sess_v1::${d}::${day}` };
 /* `week` and `day` ARE persisted (LS.pos) — see restorePos(). `focus` is not: it is the
    index of the exercise shown in the Log view, and on a cold start it is derived from
    what is already ticked off, which lands you on the first exercise you haven't done.
@@ -765,6 +814,10 @@ const LS = { prog:"tp_program_v1", set:"tp_settings_v1", pos:"tp_pos_v1",
    The Overview scroll position is also runtime-only: it survives a trip into Log, but
    resets when the programme, week, day or date changes. */
 let PROGRAM=null, STATE={week:1,day:null,date:todayISO(),focus:0,setEdit:null};
+/* Cold starts always land on the profile. `source` changes the local position/session
+   namespace while a workout is open; it is runtime-only and never reaches an export. */
+const APP={surface:"profile",source:null};
+let SAMPLE_PROGRAM=null;
 let OVERVIEW_SCROLL=0;
 
 function todayISO(){const d=new Date();const z=n=>String(n).padStart(2,"0");
@@ -778,6 +831,55 @@ function hideToast(){const t=$("#toast");t.classList.remove("show","action");t.i
 function slug(s){return (s||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"").slice(0,40);}
 const txt=v=>String(v??"").trim();
 function parseNum(s){const n=parseFloat(s);return Number.isFinite(n)?n:null;}
+
+function cachedProgram(){
+  try{
+    const value=JSON.parse(localStorage.getItem(LS.prog)||"null");
+    return value&&value.meta&&Array.isArray(value.exercises)?value:null;
+  }catch(e){return null;}
+}
+function cachedAccess(){return !!window.TPAuth&&!!window.TPAuth.canAccessCached&&window.TPAuth.canAccessCached();}
+function showSurface(surface){
+  APP.surface=surface==="workout"?"workout":"profile";
+  const profile=APP.surface==="profile";
+  $("#profileView").hidden=!profile;$("#workoutView").hidden=profile;
+  document.body.classList.toggle("profile-active",profile);
+  if(profile){
+    if(window.TPProfileUI)TPProfileUI.render();
+    setTimeout(()=>{const h=$("#profileTitle");if(h&&h.focus)h.focus();},0);
+  }
+}
+function openProfile(){
+  if(APP.surface==="workout")flushDraft();
+  if(drawerOpen())closeDrawer();
+  showSurface("profile");scrollTop();
+}
+function openWorkout(source){
+  APP.source=source;
+  $("#demoBanner").hidden=source!=="sample";
+  showSurface("workout");renderAll();scrollTop();
+}
+function openCachedWorkout(){
+  if(!cachedAccess()){showSurface("profile");if(window.TPAuthUI)TPAuthUI.open("sign-in");return;}
+  const value=cachedProgram();
+  if(!value){toast("Import a programme first");showSurface("profile");return;}
+  PROGRAM=value;APP.source="personal";STATE={week:1,day:null,date:todayISO(),focus:0,setEdit:null};
+  restorePos();resetFocus();openWorkout("personal");
+}
+async function openSampleWorkout(){
+  try{
+    if(!SAMPLE_PROGRAM){
+      const response=await fetch("./program.json",{cache:"no-store"});
+      if(!response.ok)throw new Error("sample unavailable");
+      SAMPLE_PROGRAM=await response.json();
+    }
+    if(!SAMPLE_PROGRAM||!SAMPLE_PROGRAM.meta||!Array.isArray(SAMPLE_PROGRAM.exercises))
+      throw new Error("invalid sample");
+    PROGRAM=SAMPLE_PROGRAM;APP.source="sample";
+    STATE={week:1,day:null,date:todayISO(),focus:0,setEdit:null};
+    restorePos();resetFocus();openWorkout("sample");
+  }catch(e){toast("Sample programme is unavailable offline. Try again when connected.");}
+}
 
 /* One reusable finite-choice sheet. The card never rebuilds while a keyboard is open;
    opening and closing this only follows a deliberate tap. */
@@ -965,7 +1067,7 @@ let DAYBTNS=[];
 /* Which accordions are open. In memory, not storage — it is "where I was a moment ago",
    not a preference, and rebuilding the drawer must not collapse a section under the
    athlete's thumb. */
-const ACC={checkin:true,account:false,data:false,appearance:false,fields:false};
+const ACC={checkin:true,data:false,appearance:false,fields:false};
 /* Whether the date row shows the picker or just the value — also drawer-local state,
    reset every time the drawer opens so a stale open picker doesn't reappear later. */
 let dateEditing=false;
@@ -1088,31 +1190,16 @@ function authCanImport(){
 }
 function requestProgramImport(){
   if(authCanImport()){$("#fileInp").click();return;}
-  ACC.account=true;
-  openDrawer();
+  openProfile();
   if(window.TPAuthUI)TPAuthUI.open("sign-in");
   toast("Sign in to import a personal program");
-}
-function accountSummary(){
-  if(!window.TPAuth)return "Unavailable";
-  const a=TPAuth.getState();
-  if(a.status==="authenticated")return "Signed in";
-  if(a.status==="offline-owner")return "Offline";
-  if(a.status==="setup-required")return "Finish setup";
-  if(a.status==="conflict")return "Account mismatch";
-  if(a.status==="loading")return "Checking…";
-  return "Signed out";
-}
-function renderAccountSection(host){
-  host.innerHTML="";
-  if(window.TPAuthUI)TPAuthUI.renderAccount(host);
-  else host.append(el("p",{className:"dnote"},"Account services are unavailable. Cached workouts still work."));
-  const stat=$("#accountStat");if(stat)stat.textContent=accountSummary();
 }
 
 function renderDrawer(){
   const host=$("#drawerBody");if(!host)return;
   host.innerHTML="";DAYBTNS=[];
+  const home=el("button",{className:"ghost",style:"width:100%"},"← Profile home");
+  home.onclick=openProfile;host.append(home);
   if(PROGRAM){
     host.append(weekStepper());
     const days=el("div",{className:"daylist"});
@@ -1124,7 +1211,6 @@ function renderDrawer(){
     host.append(el("p",{className:"dnote"},
       "No program loaded. Import a program.json and the week, day and check-in appear here."));
   }
-  host.append(accordion("account","Account",renderAccountSection,"accountStat"));
   host.append(accordion("data","Program & data",renderDataSection));
   host.append(accordion("appearance","Appearance",renderAppearance));
   host.append(accordion("fields","Tracked fields",renderFields));
@@ -1421,13 +1507,14 @@ function programPainSite(){
    NOT restored: it keys the stored session, so reopening the app the next morning must
    start a new day rather than reopen yesterday's file. */
 function firstDay(){return (PROGRAM&&PROGRAM.meta&&PROGRAM.meta.days&&PROGRAM.meta.days[0])||null;}
+function positionKey(){return APP.source==="sample"?LS.demoPos:LS.pos;}
 function savePos(){
-  try{localStorage.setItem(LS.pos,JSON.stringify({week:STATE.week,day:STATE.day}));}catch(e){}
+  try{localStorage.setItem(positionKey(),JSON.stringify({week:STATE.week,day:STATE.day}));}catch(e){}
 }
 function restorePos(){
   STATE.day=firstDay();
   let p=null;
-  try{p=JSON.parse(localStorage.getItem(LS.pos)||"null");}catch(e){}
+  try{p=JSON.parse(localStorage.getItem(positionKey())||"null");}catch(e){}
   if(!p||typeof p!=="object")return;
   /* Clamp against the programme actually loaded, not against what was saved. A saved week
      can point past the end of a shorter block imported since, and a saved day can name a
@@ -1440,7 +1527,8 @@ function restorePos(){
 
 function loadProgram(obj){
   if(!obj||!obj.meta||!Array.isArray(obj.exercises))throw new Error("Not a valid program.json (need meta + exercises).");
-  PROGRAM=obj; localStorage.setItem(LS.prog,JSON.stringify(obj));
+  PROGRAM=obj;APP.source="personal";localStorage.setItem(LS.prog,JSON.stringify(obj));
+  const demo=$("#demoBanner");if(demo)demo.hidden=true;
   /* A fresh import starts at the top of the block — and that reset has to be persisted,
      or the next refresh would restore the position from the programme just replaced. */
   STATE.week=1; STATE.day=(obj.meta.days&&obj.meta.days[0])||null; STATE.date=todayISO();
@@ -1448,19 +1536,31 @@ function loadProgram(obj){
   resetFocus();
   renderAll();resetViewScroll();
 }
+function acceptProgramImport(obj,fromProfile=APP.surface==="profile"){
+  loadProgram(obj);
+  if(fromProfile){showSurface("profile");if(window.TPProfileUI)TPProfileUI.render();}
+  else closeDrawer();
+  toast(fromProfile?"Programme ready on this device":"Program loaded");
+}
 async function boot(){
   loadSettings();
   applyTheme();          /* head script already painted it; this keeps meta + state in sync */
   if(window.TPAuthUI)TPAuthUI.init({toast});
+  if(window.TPProfileUI)TPProfileUI.init({
+    getCachedProgram:cachedProgram,
+    onOpenCached:openCachedWorkout,
+    onImport:requestProgramImport,
+    onOpenSample:openSampleWorkout,
+    onSignedOut:()=>showSurface("profile")
+  });
   if(window.TPAuth){
-    TPAuth.subscribe(()=>{if(drawerOpen())renderDrawer();});
-    TPAuth.init();        /* Auth is asynchronous and never delays local workout boot. */
+    TPAuth.subscribe(()=>{
+      if(APP.surface==="workout"&&APP.source==="personal"&&!cachedAccess())openProfile();
+      else if(drawerOpen())renderDrawer();
+    });
+    TPAuth.init();
   }
-  const saved=localStorage.getItem(LS.prog);
-  if(saved){try{PROGRAM=JSON.parse(saved);}catch(e){}}
-  if(!PROGRAM){try{const r=await fetch("./program.json",{cache:"no-store"});if(r.ok)PROGRAM=await r.json();}catch(e){}}
-  if(PROGRAM){restorePos();resetFocus();}
-  renderAll();
+  showSurface("profile");
 }
 
 /* ---------- session persistence ---------- */
@@ -1602,7 +1702,7 @@ function normalizeEntry(e){
   return changed;
 }
 
-function sessionKey(){return LS.sess(STATE.date,STATE.day);}
+function sessionKey(){return APP.source==="sample"?LS.demoSess(STATE.date,STATE.day):LS.sess(STATE.date,STATE.day);}
 function getSession(){
   const raw=localStorage.getItem(sessionKey());
   let s=null;
@@ -2723,7 +2823,10 @@ $("#fileInp").onchange=async e=>{
   if(!authCanImport()){
     e.target.value="";requestProgramImport();return;
   }
-  try{const txt=await f.text();loadProgram(JSON.parse(txt));closeDrawer();toast("Program loaded");}
+  const fromProfile=APP.surface==="profile";
+  try{
+    const txt=await f.text();acceptProgramImport(JSON.parse(txt),fromProfile);
+  }
   catch(err){toast("Import failed: "+err.message);}
   e.target.value="";
 };

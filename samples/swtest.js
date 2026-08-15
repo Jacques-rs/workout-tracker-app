@@ -70,7 +70,9 @@ for (const asset of [
   "./vendor/supabase-js-2.111.0.min.js",
   "./js/auth-config.js",
   "./js/auth-client.js",
-  "./js/auth-ui.js"
+  "./js/auth-ui.js",
+  "./js/profile-ui.js",
+  "./program.json"
 ]) {
   assert.ok(source.includes(asset), `${asset} is precached`);
 }

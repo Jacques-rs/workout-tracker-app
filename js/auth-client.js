@@ -351,6 +351,11 @@
         return state.status === "authenticated" ||
           (state.status === "offline-owner" && owner && !owner.signedOut);
       },
+      canAccessCached() {
+        return state.status === "authenticated" ||
+          (state.status === "offline-owner" && owner && !owner.signedOut) ||
+          (state.status === "unavailable" && owner && !owner.signedOut);
+      },
       isKnownOwner: () => !!owner,
       reconnect,
       _client: client

@@ -15,11 +15,13 @@ breaking, because a v1 programme can be sitting in `localStorage` on a phone mid
 the coaching side has to read every session version because logs from all three are already
 on disk. Test both programme fixtures after any change to import, filtering, or export.
 
-## The two test files
+## Dependency-free tests
 
 | File | Direction it checks |
 |---|---|
-| `apptest.js` (node) | The app reads a **good** programme correctly: week filtering, per-set round-trip, export shape, across both programme versions. |
+| `apptest.js` (node) | Account-first entry, isolated sample storage, and the app reading a **good** programme correctly: week filtering, per-set round-trip and export shape. |
+| `authtest.js` / `profiletest.js` (node) | Authentication ownership/access states and the profile UI's loading, signed-out, authenticated, offline and conflict behavior. |
+| `swtest.js` (node) | App-shell caching and the cross-origin authentication/Data API boundary. |
 | `validatortest.py` (python3) | The builder refuses to emit a **bad** one: every fixture passes `validate_program.py`, and 23 single-mutation breakages are rejected. |
 
 `validatortest.py` mutates `program.v2.sample.json` one field at a time — a duplicate id, a

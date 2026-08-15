@@ -107,13 +107,14 @@ const sandbox = {
   getComputedStyle: () => ({ getPropertyValue: () => "" }),
   navigator: { onLine: true, clipboard: { writeText: async () => {} } },
   TPAuth: {
-    init(){}, subscribe(){ return () => {}; }, canImport(){ return true; },
+    init(){}, subscribe(){ return () => {}; }, canImport(){ return true; }, canAccessCached(){ return true; },
     getState(){ return { status: "authenticated", user: { email: "test@example.invalid", verified: true } }; }
   },
   TPAuthUI: {
     init(){}, open(){}, renderAccount(host){ host.append(textNode("Test account")); },
     handleKeydown(){ return false; }
   },
+  TPProfileUI: { init(){}, render(){} },
   window: {
     scrollY: 0, pageYOffset: 0,
     addEventListener(){},
@@ -148,6 +149,9 @@ Object.defineProperties(globalThis, {
   FIELD_DEFS:   {get:()=>FIELD_DEFS},
   NAV_AT:       {get:()=>NAV_AT},
   OVERVIEW_SCROLL: {get:()=>OVERVIEW_SCROLL, set:v=>{OVERVIEW_SCROLL=v}}
+  ,APP:          {get:()=>APP}
+  ,LS:           {get:()=>LS}
+  ,SAMPLE_PROGRAM:{get:()=>SAMPLE_PROGRAM,set:v=>{SAMPLE_PROGRAM=v}}
 });`;
 vm.runInContext(blocks[blocks.length - 1] + EPILOGUE, sandbox, { filename: "index.html<script>" });
 
@@ -220,6 +224,35 @@ function setLabel(c){ const n = c.findAll(x => x.classList.contains("setlabel"))
 function type(inp, v){ inp.value = v; inp.oninput(); }
 
 /* ---------- tests ---------- */
+console.log("\naccount-first entry and isolated sample storage");
+{
+  is(app.APP.surface, "profile", "a cold boot lands on the account/profile home");
+  assert(stubFor("#workoutView").hidden, "the personal workout is hidden during account entry");
+
+  const personal = loadFixture("program.v2.sample.json");
+  const personalJson = store.get("tp_program_v1");
+  app.APP.surface = "profile";
+  app.SAMPLE_PROGRAM = personal;
+  app.openSampleWorkout();
+  is(app.APP.source, "sample", "the deliberate sample action opens demo mode");
+  assert(!stubFor("#demoBanner").hidden, "sample mode is labelled persistently in the workout header");
+  assert(/^tp_demo_sess_v1::/.test(app.sessionKey()), "sample sessions use their own storage namespace");
+  app.savePos();
+  assert(store.has("tp_demo_pos_v1"), "sample week/day position is stored separately too");
+  is(store.get("tp_program_v1"), personalJson, "opening the sample never replaces the cached personal programme");
+
+  app.openProfile();
+  is(app.APP.surface, "profile", "the workout can return to profile home");
+  app.openCachedWorkout();
+  is(app.APP.source, "personal", "the known owner can reopen cached personal training");
+  assert(/^tp_sess_v1::/.test(app.sessionKey()), "personal sessions retain their existing keys");
+  assert(!/^tp_demo_/.test(app.sessionKey()), "personal and sample session keys cannot collide");
+
+  app.openProfile();
+  app.acceptProgramImport(personal,true);
+  is(app.APP.surface, "profile", "an import started from the profile stays on the profile");
+}
+
 console.log("\nauthenticated programme import boundary");
 {
   const auth = sandbox.TPAuth;
@@ -710,6 +743,13 @@ console.log("\na typed set is never lost — flushed on End, navigation and expo
   app.selectWeek(2);
   app.selectWeek(1);
   is(entry(ex).sets.length, 1, "changing week commits it");
+
+  ex = setup();
+  app.openWorkout("personal");
+  C = logCardNode();
+  type(setInputs(C)[0], "80");
+  app.openProfile();
+  is(entry(ex).sets.length, 1, "returning to profile home commits the set in progress");
 
   ex = setup();
   C = logCardNode();

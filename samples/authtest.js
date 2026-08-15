@@ -102,6 +102,7 @@ function makeClient({ storage = memoryStorage(), fake = fakeSupabase(), href = "
     const ctx = makeClient({ fake, hash: "#type=invite&access_token=secret&refresh_token=secret" });
     await ctx.client.init(); await tick();
     same(ctx.client.getState().status, "setup-required", "an invite session requires password setup");
+    ok(!ctx.client.canAccessCached(), "unfinished account setup does not expose cached personal training");
     same(ctx.client.getState().owner, {
       userId: "user-one", email: "one@example.invalid", signedOut: false, pendingFlow: "invite"
     }, "the first verified account binds the installation without storing tokens");
@@ -109,6 +110,7 @@ function makeClient({ storage = memoryStorage(), fake = fakeSupabase(), href = "
     const result = await ctx.client.updatePassword("strong123");
     ok(result.ok, "the invited user can set a password");
     same(ctx.client.getState().status, "authenticated", "password setup completes the account");
+    ok(ctx.client.canAccessCached(), "an authenticated owner may open cached personal training");
     same(JSON.parse(ctx.storage.snapshot().tp_auth_owner_v1).pendingFlow, null,
       "unfinished setup does not survive after success");
   }
@@ -127,6 +129,7 @@ function makeClient({ storage = memoryStorage(), fake = fakeSupabase(), href = "
     same(storage.snapshot()["tp_sess_v1::date::day"], "workout", "sign-out preserves cached workouts");
     ok(JSON.parse(storage.snapshot().tp_auth_owner_v1).signedOut, "the explicit signed-out state is remembered");
     ok(!ctx.client.canImport(), "an explicitly signed-out owner must sign in before importing");
+    ok(!ctx.client.canAccessCached(), "explicit sign-out also hides cached personal training");
 
     const offline = makeClient({ storage, fake: fakeSupabase(null), online: false });
     await offline.client.init(); await tick();
@@ -140,6 +143,7 @@ function makeClient({ storage = memoryStorage(), fake = fakeSupabase(), href = "
     await ctx.client.init(); await tick();
     same(ctx.client.getState().status, "offline-owner", "a remembered owner is not locked out without signal");
     ok(ctx.client.canImport(), "that remembered owner may import locally while offline");
+    ok(ctx.client.canAccessCached(), "that remembered owner may open cached workouts while offline");
   }
 
   console.log("\ninstallation ownership conflict");
@@ -155,6 +159,18 @@ function makeClient({ storage = memoryStorage(), fake = fakeSupabase(), href = "
     same(JSON.parse(storage.snapshot().tp_auth_owner_v1).userId, "user-one", "the original device owner is unchanged");
     same(storage.snapshot().tp_program_v1, "keep-me", "the conflict deletes no workout data");
     same(ctx.client.getState().status, "conflict", "the UI receives an explicit conflict state");
+    ok(!ctx.client.canAccessCached(), "an account conflict never exposes the bound owner's cache");
+  }
+
+  console.log("\naccount-service failure and cached access");
+  {
+    const owner = { userId: "user-one", email: "one@example.invalid", signedOut: false, pendingFlow: null };
+    const storage = memoryStorage({ tp_auth_owner_v1: JSON.stringify(owner) });
+    const client = authModule.createAuthClient({ createClient: null,
+      config: { ownerKey: "tp_auth_owner_v1" }, storage, location: {}, navigator: { onLine: true } });
+    same(client.getState().status, "unavailable", "missing account services are explicit");
+    ok(client.canAccessCached(), "a known owner keeps cached access when account services are unavailable");
+    ok(!client.canImport(), "but a new personal import still requires a working authenticated boundary");
   }
 
   console.log("\nrecovery and public surface");
