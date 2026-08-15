@@ -18,7 +18,9 @@
  *   - the programme revision is displayed and stamped on the export
  *   - the check-in renders into the drawer, not the training view
  *   - Overview is read-only (no inputs); Log shows one exercise and pages without
- *     losing data; tapping an Overview card opens that exercise in Log
+ *     losing data; tapping an Overview card opens that exercise in Log and returning
+ *     restores the Overview's position
+ *   - moving between sets never focuses a field or summons the keyboard
  *   - an input's oninput never replaces the input node it fires from (the old
  *     focus-loss bug)
  *
@@ -104,7 +106,13 @@ const sandbox = {
   matchMedia: () => ({ matches: false, addEventListener(){}, addListener(){} }),
   getComputedStyle: () => ({ getPropertyValue: () => "" }),
   navigator: { clipboard: { writeText: async () => {} } },
-  window: { addEventListener(){} },
+  window: {
+    scrollY: 0, pageYOffset: 0,
+    addEventListener(){},
+    scrollTo(x, y){
+      this.scrollY = Number(y) || 0; this.pageYOffset = this.scrollY;
+    }
+  },
   URL: { createObjectURL: () => "blob:x", revokeObjectURL(){} },
   Blob: function(){},
   setTimeout, clearTimeout,
@@ -127,7 +135,8 @@ Object.defineProperties(globalThis, {
   SETTINGS:     {get:()=>SETTINGS,     set:v=>{SETTINGS=v}},
   SET_DEFAULTS: {get:()=>SET_DEFAULTS},
   FIELD_DEFS:   {get:()=>FIELD_DEFS},
-  NAV_AT:       {get:()=>NAV_AT}
+  NAV_AT:       {get:()=>NAV_AT},
+  OVERVIEW_SCROLL: {get:()=>OVERVIEW_SCROLL, set:v=>{OVERVIEW_SCROLL=v}}
 });`;
 vm.runInContext(blocks[1] + EPILOGUE, sandbox, { filename: "index.html<script>" });
 
@@ -145,6 +154,7 @@ const app = sandbox;
 function loadFixture(name){
   store.clear();
   ACTIVE_ELEMENT = null;
+  sandbox.window.scrollY = 0; sandbox.window.pageYOffset = 0;
   app.SETTINGS = { ...app.SET_DEFAULTS };
   const prog = JSON.parse(fs.readFileSync(path.join(ROOT, "samples", name), "utf8"));
   app.loadProgram(prog);
@@ -152,6 +162,7 @@ function loadFixture(name){
 }
 function loadSynthetic(exercises){
   store.clear();ACTIVE_ELEMENT=null;app.SETTINGS={...app.SET_DEFAULTS};
+  sandbox.window.scrollY=0;sandbox.window.pageYOffset=0;
   const day="Day 1 (Mon) - Circuit test";
   const rows=exercises.map((e,i)=>({id:`w1d1e${i+1}`,week:1,day,name:e.name||`Circuit ${i+1}`,
     sets:e.sets,reps:e.reps,load:e.load||"",rpe:e.rpe||"RPE 7",tempo:"",rest:"",
@@ -549,6 +560,34 @@ console.log("\nediting and deleting a committed set");
   is(app.getSession().entries[ex.id].sets.length, 2, "the second tap deletes");
   is(app.getSession().entries[ex.id].sets.map(r => r.set), [1, 2], "the remaining sets renumber from 1");
   is(app.STATE.setEdit, null, "deleting returns to the draft rather than an edit for a row that moved");
+}
+
+console.log("\nset transitions do not summon the keyboard");
+{
+  loadFixture("program.v2.sample.json");
+  app.STATE.week = 1;
+  const ex = app.dayExercises().slice().sort((a, b) => app.prescribedSets(b) - app.prescribedSets(a))[0];
+  app.STATE.focus = app.dayExercises().indexOf(ex);
+
+  let C = logCardNode();
+  const first = setInputs(C)[0];
+  first.focus(); type(first, "70");
+  const commit = actionBtn(C, /Log set 1/);
+  commit.focus(); commit.onclick();
+  C = logCardNode();
+  assert(setInputs(C).every(i => !i._focused), "advancing to the next set leaves its fields unfocused");
+
+  const chip = chipsOf(C)[0];
+  chip.focus(); chip.onclick();
+  assert(setInputs(C).every(i => !i._focused), "opening a committed set leaves its fields unfocused");
+  const save = actionBtn(C, /Save set 1/);
+  save.focus(); save.onclick();
+  assert(setInputs(C).every(i => !i._focused), "returning from a committed set leaves the draft unfocused");
+
+  const addNote = buttonOf(C, /^\+ note$/);
+  addNote.focus(); addNote.onclick();
+  const note = C.findAll(n => n.tagName === "INPUT" && /note$/i.test(n.getAttribute("aria-label") || ""))[0];
+  assert(!!note && note._focused, "the explicit + note action still focuses its new note field");
 }
 
 console.log("\nupcoming chips are inert; set-count changes are secondary");
@@ -1077,10 +1116,31 @@ console.log("\ntapping an Overview card opens it in Log");
   const exs = app.dayExercises();
   const idx = exs.length > 1 ? 1 : 0;
   const targetCard = exCards()[idx];
+  sandbox.window.scrollY = 640; sandbox.window.pageYOffset = 640;
   targetCard.onclick();
   is(app.SETTINGS.view, "focus", "tapping a card switches to Log view");
   is(app.STATE.focus, idx, "…on the exercise that was tapped");
+  is(sandbox.window.scrollY, 0, "Log opens at the top");
   app.setView("list");
+  is(sandbox.window.scrollY, 640, "returning to Overview restores its previous position");
+}
+
+console.log("\nOverview position resets when the workout context changes");
+{
+  const prog = loadFixture("program.v2.sample.json");
+  app.STATE.week = 1;
+  app.OVERVIEW_SCROLL = 400; app.selectWeek(2);
+  is(app.OVERVIEW_SCROLL, 0, "changing week clears the Overview position");
+
+  const otherDay = prog.meta.days.find(d => d !== app.STATE.day);
+  app.OVERVIEW_SCROLL = 400; app.selectDay(otherDay);
+  is(app.OVERVIEW_SCROLL, 0, "changing day clears the Overview position");
+
+  app.OVERVIEW_SCROLL = 400; app.selectDate("2020-02-02");
+  is(app.OVERVIEW_SCROLL, 0, "changing date clears the Overview position");
+
+  app.OVERVIEW_SCROLL = 400; app.loadProgram(prog);
+  is(app.OVERVIEW_SCROLL, 0, "importing a programme clears the Overview position");
 }
 
 console.log("\ndrawer — week navigation has a dropdown, not just arrows");

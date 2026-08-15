@@ -709,8 +709,11 @@ const LS = { prog:"tp_program_v1", set:"tp_settings_v1", pos:"tp_pos_v1",
    what is already ticked off, which lands you on the first exercise you haven't done.
    `date` is not either — it keys the stored session, so it always starts at today.
    `setEdit` is the index of a committed set being re-edited from its chip, or null while
-   typing the next new one — always in-memory, reset by every navigation function below. */
+   typing the next new one — always in-memory, reset by every navigation function below.
+   The Overview scroll position is also runtime-only: it survives a trip into Log, but
+   resets when the programme, week, day or date changes. */
 let PROGRAM=null, STATE={week:1,day:null,date:todayISO(),focus:0,setEdit:null};
+let OVERVIEW_SCROLL=0;
 
 function todayISO(){const d=new Date();const z=n=>String(n).padStart(2,"0");
   return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`;}
@@ -1007,15 +1010,15 @@ function dateRow(){
 function selectDay(d){
   if(d===STATE.day)return;
   flushDraft();
-  STATE.day=d;savePos();resetFocus();paintDays();renderCheckin();renderHeader();renderMain();
+  STATE.day=d;savePos();resetFocus();paintDays();renderCheckin();renderHeader();renderMain();resetViewScroll();
 }
 function selectDate(v){
   flushDraft();
-  STATE.date=v||todayISO();resetFocus();renderCheckin();renderHeader();renderMain();
+  STATE.date=v||todayISO();resetFocus();renderCheckin();renderHeader();renderMain();resetViewScroll();
 }
 function selectWeek(w){
   flushDraft();
-  STATE.week=Number(w)||1;savePos();resetFocus();renderHeader();renderMain();
+  STATE.week=Number(w)||1;savePos();resetFocus();renderHeader();renderMain();resetViewScroll();
 }
 
 function renderDataSection(host){
@@ -1363,7 +1366,7 @@ function loadProgram(obj){
   STATE.week=1; STATE.day=(obj.meta.days&&obj.meta.days[0])||null; STATE.date=todayISO();
   savePos();
   resetFocus();
-  renderAll();
+  renderAll();resetViewScroll();
 }
 async function boot(){
   loadSettings();
@@ -1663,9 +1666,12 @@ function fmtDateShort(iso){
 function viewMode(){return SETTINGS.view==="focus"?"focus":"list";}
 function setView(v){
   const next=v==="focus"?"focus":"list";
-  if(next===viewMode())return;
+  const current=viewMode();
+  if(next===current)return;
+  if(current==="list")OVERVIEW_SCROLL=currentScrollY();
   if(next==="list")flushDraft();      /* leaving the editor ends the set in progress */
-  SETTINGS.view=next;saveSettings();renderMain();scrollTop();
+  SETTINGS.view=next;saveSettings();renderMain();
+  if(next==="list")restoreOverviewScroll();else scrollTop();
 }
 function syncView(){
   const focus=viewMode()==="focus";
@@ -1676,7 +1682,10 @@ function syncView(){
   $("#pbar").hidden=focus;
   $("#pips").hidden=!focus;
 }
+function currentScrollY(){return Math.max(0,Number(window.scrollY??window.pageYOffset)||0);}
 function scrollTop(){if(window.scrollTo)window.scrollTo(0,0);}
+function restoreOverviewScroll(){if(window.scrollTo)window.scrollTo(0,OVERVIEW_SCROLL);}
+function resetViewScroll(){OVERVIEW_SCROLL=0;scrollTop();}
 /* Where to land when the session changes: the first thing not yet ticked off. */
 function firstUndone(){
   const exs=dayExercises();
@@ -1984,9 +1993,6 @@ function painLogged(e){
 /* Which chip to pulse, and which set's note was opened by hand. Both are "what happened
    a moment ago" rather than state — in memory, consumed by the next redraw. */
 let JUST=null,NOTE_OPEN=null;
-/* An exercise with nothing to load: focus the metric field after a commit instead, so a
-   45-second hold doesn't put the cursor in a Load box that will stay empty all session. */
-const NO_LOAD=/bodyweight|^bw\b|^band|^manual|^easy$|^bike$|^erg$|^none$/i;
 
 function advanceFrom(ex,e,s,idx,onchange,message){
   const addAnother=()=>{const latest=getSession(),current=latest.entries[ex.id]||(latest.entries[ex.id]=blankEntry());
@@ -2057,7 +2063,7 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
     const reopen=el("button",{className:"ghost"},"Reopen exercise");
     reopen.onclick=()=>{e.done=false;saveSession(s);onchange("");};
     const add=el("button",{className:"primary"},"Add another set");
-    add.onclick=()=>{e.done=false;e.setTarget=Math.min(12,Math.max(target+1,rows.length+1));saveSession(s);onchange("first");};
+    add.onclick=()=>{e.done=false;e.setTarget=Math.min(12,Math.max(target+1,rows.length+1));saveSession(s);onchange("");};
     actions.append(reopen,add);host.append(actions);return;
   }
   const editIdx=(STATE.setEdit!=null&&STATE.setEdit>=0&&STATE.setEdit<rows.length)?STATE.setEdit:null;
@@ -2211,12 +2217,6 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
     end.onclick=()=>confirmEndExercise(ex,e,s,idx,onchange,metric);
     secondary.append(adjust,end);host.append(secondary);}
 
-  if(focusOn&&focusOn!=="note"){
-    /* Load first, unless there is no load to give — see NO_LOAD. */
-    const inputs=grid.querySelectorAll("input");
-    const first=inputs[NO_LOAD.test(txt(ex.load))&&inputs.length>1?1:0];
-    if(first&&first.focus)first.focus();
-  }
 }
 
 /* ---------- Summary & notes (collapsed, inside Log view) ----------
@@ -2516,11 +2516,11 @@ function logCard(ex,s,idx){
   const refreshSummary=()=>{if(summaryHost._refresh)summaryHost._refresh();};
 
   const editorHost=el("div",{className:circuitOf(ex)?"":"setblock"});
-  /* focusOn: "first" (a field, chosen by NO_LOAD), "note", or "" for no focus change —
-     a tap on the set-count control must not open the keyboard. */
+  /* Editor redraws are passive by default: moving between sets must not summon the
+     keyboard. Only the explicit + note action asks the rebuilt note input for focus. */
   const redraw=focusOn=>{
     editorHost.innerHTML="";
-    const changed=f=>{redraw(f===undefined?"first":f);refreshSummary();};
+    const changed=f=>{redraw(f===undefined?"":f);refreshSummary();};
     if(circuitOf(ex))buildCircuitEditor(editorHost,ex,e,s,idx,changed);
     else buildSetEditor(editorHost,ex,e,s,idx,changed,focusOn);
   };
