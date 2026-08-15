@@ -66,6 +66,9 @@ node samples/authtest.js
 echo "==> Running account/profile UI tests"
 node samples/profiletest.js
 
+echo "==> Running programme library tests"
+node samples/programstoretest.js
+
 echo "==> Running service-worker boundary tests"
 node samples/swtest.js
 

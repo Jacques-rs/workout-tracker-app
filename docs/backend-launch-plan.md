@@ -1,6 +1,6 @@
 # Backend launch plan
 
-**Status:** authentication smoke passed; account-first profile implemented locally; hosted profile smoke is next
+**Status:** programme library implemented locally; hosted profile and library smoke are next
 **Last updated:** 2026-08-15
 **Owner:** Jacques makes the product calls below; implementation choices default to established
 engineering conventions.
@@ -147,9 +147,13 @@ Postgres JSON queries or derived views before the storage model is normalized.
    known owner can reach cached training offline. Explicit sign-out preserves but hides personal data.
    The profile keeps the existing JSON import as device-only and gives programmes/history honest
    not-yet-connected states. No workout payload is sent to Supabase in this phase.
-4. **Programme library — next after profile smoke:** list, import, activate and remove user-owned programmes from the profile,
-   while retaining the active programme locally for offline use.
-5. **Session synchronization and history:** keep local autosave, add a dirty queue and retryable
+4. **Programme library — implemented locally, hosted smoke pending:** list, import, activate and
+   soft-remove user-owned programmes from the profile. Imports write the active device cache first;
+   an offline attempt keeps one stable UUID and retries after authenticated reconnect. Existing
+   device-only programmes require an explicit backup action rather than uploading silently. The
+   active programme remains in the existing local key for offline training, and no session payload
+   is sent in this phase.
+5. **Session synchronization and history — next after programme-library smoke:** keep local autosave, add a dirty queue and retryable
    remote upserts, then show previous logs on the profile grouped with their programme. Expose a small
    honest sync status and test offline/reconnect/conflict behavior.
 6. **Launch hardening:** data export/deletion, privacy copy, recovery testing, backups, operational

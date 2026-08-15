@@ -179,7 +179,9 @@ Old `tp_sess_v1::*` keys accumulate forever. Harmless at this volume, but a "cle
 
 **9. Plate calculator.** Nice-to-have; the athlete is advanced and does this arithmetic automatically.
 
-**10. Multiple programmes side by side.** Only one programme is stored (`tp_program_v1`). Fine for a linear block structure; would only matter if running two blocks at once.
+**10. Multiple programmes side by side. — done in the account profile.** The private cloud library
+holds multiple programmes and activates one at a time. `tp_program_v1` deliberately remains the
+single offline workout cache; session autosave does not need to know the library exists.
 
 ## Done — set-at-a-time logging, a read-only Overview, and three fixed defects
 

@@ -7,10 +7,10 @@ description; `docs/backend-launch-plan.md` is authoritative for the staged accou
 
 A single-purpose **installable PWA** that displays one athlete's training programme and logs each session **offline in the gym**, then exports the session as a JSON file for review by an AI coach in a separate Claude project.
 
-The shipped client is still a personal, local-only tool. A Supabase foundation now exists for an
-invite-only beta, but auth, programme storage and sync must arrive only in the phases defined in
-`docs/backend-launch-plan.md`; do not bypass the offline-first boundaries or broaden the beta into a
-public platform.
+The shipped client is an invite-only, account-backed personal tool. Supabase Auth and the private
+programme library are integrated; workout logs remain device-first and are not synchronized yet.
+Continue only in the phases defined in `docs/backend-launch-plan.md`; do not bypass the offline-first
+boundaries or broaden the beta into a public platform.
 
 ### More than one athlete — where the line is
 
@@ -20,8 +20,8 @@ Two people use this: Jacques and his partner. They are handled at **two differen
 - **The app is per-device, not multi-profile.** A second athlete installs the PWA on her own phone, which gives her her own `localStorage`, settings, programme and logs. One programme is stored at a time (`tp_program_v1`). Which optional fields appear, and what the pain field is called, is a per-device preference in the drawer's Tracked fields section (`tp_settings_v1`) — that is how athlete-specific needs reach the UI.
 
 So, in the current client: **no profile switching and nothing keyed by person inside the workout
-autosave path.** The account phase will add remote ownership at explicit module boundaries, not by
-rewriting the existing `localStorage` keys. `athleteId` remains a contract label carried from the
+autosave path.** Remote ownership lives at the auth/programme-store boundaries rather than by
+rewriting the existing session `localStorage` keys. `athleteId` remains a contract label carried from the
 programme into session export; it is not an authorization identifier.
 
 ## The wider workflow this app sits in
@@ -49,7 +49,7 @@ The two sides version independently. Current: **`tp-program-2` in, `tp-session-3
 
 ## Architecture in one paragraph
 
-`index.html` is the current app — markup, CSS, and JS inline, no build step, framework or npm runtime. `sw.js` caches the app shell. `program.json` is a bundled **sample** and imported programmes persist in `localStorage`. The repo-managed backend lives under `supabase/`, but no frontend module calls it yet. Full detail in `docs/architecture.md`.
+`index.html` is the current app — markup, CSS, and JS inline, no build step, framework or npm runtime. `sw.js` caches the app shell. `program.json` is a bundled **sample**; `js/program-store.js` backs private programmes with the repo-managed Supabase backend while the active payload remains in `localStorage`. Full detail in `docs/architecture.md`.
 
 ### Where a thing goes on screen
 

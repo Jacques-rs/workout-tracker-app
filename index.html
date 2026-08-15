@@ -129,9 +129,8 @@
   .tnum{font-variant-numeric:tabular-nums}
 
   /* ---------- account/profile home ----------
-     This is the cold-start surface. It deliberately has no workout navigation or cloud
-     data calls: Phase 3 establishes the account boundary and honest local/empty states;
-     the programme library and history connect in the following phases. */
+     This is the cold-start surface. Programme calls stay behind program-store.js;
+     session history remains an honest not-yet-connected state until the next phase. */
   .profile-view{min-height:100vh;padding:calc(var(--s5) + env(safe-area-inset-top)) 0 var(--s5)}
   .profile-hero{padding:var(--s3) var(--s1) var(--s5)}
   .profile-kicker{font-size:var(--t-xs);font-weight:800;letter-spacing:.11em;
@@ -790,6 +789,7 @@
 <script src="./js/auth-config.js"></script>
 <script src="./js/auth-client.js"></script>
 <script src="./js/auth-ui.js"></script>
+<script src="./js/program-store.js"></script>
 <script src="./js/profile-ui.js"></script>
 <script>
 "use strict";
@@ -1537,19 +1537,58 @@ function loadProgram(obj){
   renderAll();resetViewScroll();
 }
 function acceptProgramImport(obj,fromProfile=APP.surface==="profile"){
+  if(window.TPPrograms&&TPPrograms.importProgram){
+    const pending=TPPrograms.importProgram(obj);
+    return Promise.resolve(pending).then(result=>{
+      if(fromProfile)showSurface("profile");else closeDrawer();
+      if(result&&result.ok){
+        toast(result.pending?"Programme ready · cloud backup queued":"Programme added to your library");
+      }else{
+        const message=result&&result.error&&result.error.message||"Cloud backup failed";
+        toast("Programme ready on this device · "+message);
+      }
+      return result;
+    });
+  }
   loadProgram(obj);
   if(fromProfile){showSurface("profile");if(window.TPProfileUI)TPProfileUI.render();}
   else closeDrawer();
   toast(fromProfile?"Programme ready on this device":"Program loaded");
 }
+function clearCachedProgram(){
+  localStorage.removeItem(LS.prog);localStorage.removeItem(LS.pos);
+  if(APP.source==="personal"||APP.surface==="profile")PROGRAM=null;
+  if(window.TPProfileUI)TPProfileUI.render();
+}
 async function boot(){
   loadSettings();
   applyTheme();          /* head script already painted it; this keeps meta + state in sync */
   if(window.TPAuthUI)TPAuthUI.init({toast});
+  if(window.TPPrograms)TPPrograms.init({
+    getCachedProgram:cachedProgram,
+    onActivate:loadProgram,
+    onClearActive:clearCachedProgram
+  });
   if(window.TPProfileUI)TPProfileUI.init({
     getCachedProgram:cachedProgram,
     onOpenCached:openCachedWorkout,
     onImport:requestProgramImport,
+    onActivateProgram:id=>{
+      const result=window.TPPrograms&&TPPrograms.activate(id);
+      if(!result||!result.ok)toast(result&&result.error&&result.error.message||"Programme unavailable");
+    },
+    onBackUpCached:async()=>{
+      const result=await TPPrograms.backUpCached();
+      toast(result.ok?(result.pending?"Cloud backup queued":"Programme backed up"):
+        result.error&&result.error.message||"Cloud backup failed");
+    },
+    onRemoveProgram:async item=>{
+      const label=item&&item.title||"this programme";
+      if(window.confirm&&!window.confirm(`Remove ${label} from your library? The workout logs on this device will be kept.`))return;
+      const result=await TPPrograms.remove(item.id);
+      toast(result.ok?"Programme removed":result.error&&result.error.message||"Remove failed");
+    },
+    onNotice:toast,
     onOpenSample:openSampleWorkout,
     onSignedOut:()=>showSurface("profile")
   });
@@ -2825,7 +2864,7 @@ $("#fileInp").onchange=async e=>{
   }
   const fromProfile=APP.surface==="profile";
   try{
-    const txt=await f.text();acceptProgramImport(JSON.parse(txt),fromProfile);
+    const txt=await f.text();await acceptProgramImport(JSON.parse(txt),fromProfile);
   }
   catch(err){toast("Import failed: "+err.message);}
   e.target.value="";

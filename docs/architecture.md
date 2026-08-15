@@ -6,14 +6,15 @@
 |---|---|
 | `index.html` | The app shell, workout markup, inline styles and device-first workout logic. No build step. |
 | `js/auth-config.js`, `js/auth-client.js`, `js/auth-ui.js` | Environment selection, Supabase session boundary and authentication dialogs. Kept outside the workout script. |
-| `js/profile-ui.js` | Account-first profile states and actions. It receives local callbacks and makes no backend call. |
+| `js/program-store.js` | Private programme-library boundary. Owns `programs` reads/writes, local-first import retry, activation identity and revision-checked soft deletion. |
+| `js/profile-ui.js` | Account-first profile and programme-library states/actions. It receives callbacks and makes no backend call. |
 | `vendor/supabase-js-2.111.0.min.js` | Pinned browser SDK; origin and checksum are recorded in `vendor/README.md`. |
 | `sw.js` | Service worker. Caches the app shell for offline use. |
 | `manifest.webmanifest` | PWA manifest — name, colours, icons, `display: standalone`. |
 | `icon-192.png`, `icon-512.png`, `icon-512-maskable.png` | App icons (barbell glyph on dark background). |
 | `program.json` | Bundled **sample** programme (`tp-program-2`, 6 weeks × 4 days), opened only through **View sample programme**. |
 | `samples/apptest.js` | Dependency-free smoke test of account entry, local namespaces, workout logging and export. |
-| `samples/authtest.js`, `samples/profiletest.js`, `samples/swtest.js` | Dependency-free tests for auth ownership, profile states and the service-worker boundary. |
+| `samples/authtest.js`, `samples/profiletest.js`, `samples/programstoretest.js`, `samples/swtest.js` | Dependency-free tests for auth ownership, profile/library states, programme storage and the service-worker boundary. |
 | `supabase/` | Repo-managed backend config, migrations, fake seed data, pgTAP access-policy tests and a local Auth/Mailpit integration test. |
 | `scripts/verify.sh` | One local command for the database security suite and all existing contract/app checks. |
 
@@ -21,7 +22,7 @@
 
 Four surfaces, and which one a thing belongs on is the main design rule here:
 
-- **Profile home** — the cold-start surface. Signed-out visitors get sign-in/recovery and the explicit sample action. An authenticated or offline-known owner sees the cached programme and device-only import; programme-library and history sections say plainly that their cloud phases are not connected yet. Explicit sign-out hides personal cache metadata without deleting it.
+- **Profile home** — the cold-start surface. Signed-out visitors get sign-in/recovery and the explicit sample action. An authenticated owner sees the private cloud programme library and the active device cache; an offline-known owner keeps the active cached workout and may queue one imported replacement for reconnect. History still says plainly that session sync is not connected. Explicit sign-out hides personal cache metadata without deleting it.
 - **Header** (sticky, two rows) — the ≡ button and a tappable context line (`Week 3 · Tue 5 Aug` over the day's theme — the date lives on this line, not its own row) on row 1; a worded Overview/Log toggle and `n/m done` on row 2, with either the progress bar (Overview) or the pip strip (Log) beneath. Nothing here is an input. The progress bar has **two fill layers** (`#pbarDone`, and the dimmer `#pbarPart` behind it) so a session with four exercises half-logged doesn't read as 0% through, and the pips carry **three** states, not two (`data-done`, `data-part`).
 - **`<main>`** — exercise cards, and nothing else. In Overview, every card for the day, read-only; in Log, exactly one, with a set editor.
   - **Log card order is load-bearing**: name → prescription → the `Capture` chips → **the set editor** → coach notes / progression rule / Summary & notes. The reference material sits *below* the editor because three collapsibles above the fields pushed the primary action off a 320×568 screen.
@@ -34,10 +35,12 @@ The footer bar swaps by view: export actions in Overview, `‹ Prev / n / N / Ne
 
 The vendored Supabase SDK loads first, followed by the auth and profile modules. `auth-config.js`
 selects the local stack only for localhost/loopback and the hosted project elsewhere.
-`auth-client.js` owns every Supabase call and exposes state/actions to the rest of the app.
-`auth-ui.js` renders sign-in, recovery and password-setup dialogs. `profile-ui.js` renders account
-states from `TPAuth` and local callbacks; it does not query `programs` or `session_logs`. The workout
-script makes no direct backend call: it asks whether personal cache/import access is allowed.
+`auth-client.js` owns Supabase Auth calls and exposes state/actions to the rest of the app.
+`auth-ui.js` renders sign-in, recovery and password-setup dialogs. `program-store.js` owns every
+Data API call to `programs`; `profile-ui.js` renders account/library states from `TPAuth`,
+`TPPrograms` and local callbacks, and never calls Supabase itself. Nothing in the client queries
+`session_logs` yet. The workout script makes no direct backend call: it asks whether personal
+cache/import access is allowed and hands programme operations to the store boundary.
 
 The inline workout script is organised in labelled sections, in this order. Keep additions in the matching section.
 
@@ -67,6 +70,7 @@ APP = { surface: "profile" | "workout", source: null | "personal" | "sample" }
 | Key | Contents |
 |---|---|
 | `tp_program_v1` | The imported programme. One at a time. Holds **either** `tp-program-1` or `tp-program-2` — the storage key is not versioned, `meta.schema` inside it is. |
+| `tp_active_program_v1` | Stable cloud UUID, last known row revision and a `pending` retry marker for the active personal programme. It never contains the programme payload; that remains in `tp_program_v1`. |
 | `tp_pos_v1` | The selected week/day for the personal cached programme. |
 | `tp_sess_v1::<date>::<day>` | One session's logged data. |
 | `tp_demo_pos_v1` | Sample-only week/day position. Never used for personal training. |
@@ -74,6 +78,30 @@ APP = { surface: "profile" | "workout", source: null | "personal" | "sample" }
 | `tp_settings_v1` | Which optional fields are shown, plus `painLabel`, plus appearance (`palette`: `a`\|`b`, `mode`: `auto`\|`light`\|`dark`), `view` (`list`\|`focus`, meaning Overview\|Log) and `sv`, a one-shot settings-migration marker (see below). Defaults are all-on / `a` / `auto` / `focus`. Appearance and view are cosmetic and deliberately **not** part of the session export — `tracking` is built from `FIELD_DEFS` alone, so nothing added here can leak into a log file. |
 | `tp_supabase_auth_v1` | Supabase's persisted browser session. Owned only by the SDK; never read by workout persistence or exported. |
 | `tp_auth_owner_v1` | Minimal installation binding: first accepted user id/email, explicit local sign-out and an unfinished invite/recovery marker. It contains no token or workout payload. |
+
+## Programme library
+
+`TPPrograms` is the sole remote-storage boundary for the first cloud-data phase. On authenticated
+profile entry it selects the owner's non-deleted `programs` rows through RLS. The profile receives
+display summaries only; payloads remain private inside the store until the athlete activates one.
+Activation writes the selected payload through the existing `loadProgram()` path, so
+`tp_program_v1` remains the one offline workout source and existing position/session behavior does
+not branch on cloud state. If the active cloud row has a newer revision than the cached marker, the
+profile labels the update and waits for an explicit **Update device** action; a reconnect must not
+replace the prescription underneath an open workout.
+
+Import is local-first. The parsed contract payload is written to `tp_program_v1` immediately, a
+browser-generated UUID and `pending: true` are written to `tp_active_program_v1`, and the insert is
+then attempted asynchronously. An offline import therefore remains trainable; the same UUID is
+retried on the next authenticated refresh, making an uncertain retry idempotent. A cached programme
+from before the library phase is never uploaded silently — the profile offers an explicit **Back up
+to library** action. Inactive cloud payloads are fetched while online but are not promised as a full
+offline library; only the active programme is durable across reloads.
+
+Remove is a soft delete (`deleted_at`) guarded by the row's last-seen `revision`. A zero-row update
+means another device changed it, so the library refreshes and asks the athlete to review rather than
+overwriting. Removing the active programme clears `tp_program_v1`, `tp_pos_v1` and its active marker,
+but deliberately retains local session keys. No programme action writes `session_logs`.
 
 A stored session looks like:
 
@@ -150,7 +178,7 @@ Every input has an `oninput`/`onchange` handler that mutates the session object 
 
 `exportSession()` builds the `tp-session-3` object, serialises it, and triggers a download via a `Blob` + object URL + synthetic `<a download>` click. Both it and `copyJSON()` are wrapped in `try/catch` that toasts the error: a throw here would look like the button doing nothing, at the one moment the session has to leave the phone.
 
-Why a download rather than writing to the athlete's Drive folder directly: the File System Access API isn't available on iOS Safari, and the current client has no backend credentials or sync module yet. On iPhone the download goes through the share sheet → *Save to Files* → the Drive folder. `copyJSON()` is the fallback path — clipboard, then paste into chat. The staged replacement is tracked in `docs/backend-launch-plan.md`.
+Why a download rather than writing to the athlete's Drive folder directly: the File System Access API isn't available on iOS Safari, and session synchronization is not connected yet. On iPhone the download goes through the share sheet → *Save to Files* → the Drive folder. `copyJSON()` is the fallback path — clipboard, then paste into chat. The staged replacement is tracked in `docs/backend-launch-plan.md`.
 
 ## Styling
 
@@ -174,11 +202,11 @@ Layout rules that are load-bearing on a phone, and easy to undo by accident:
 ## Current client boundary
 
 No framework, bundler, npm runtime, TypeScript, runtime CDN dependency, analytics or multi-athlete
-profile switching. Supabase Auth is the only remote client integration. The account profile is a
-local UI boundary: programme and session reads/writes remain local, and its library/history cards
-state plainly that cloud data is not connected yet. Asynchronous cloud backup is still a later phase
-described in `docs/backend-launch-plan.md`. Offline autosave remains the source of truth for
-in-progress training and never waits for the backend.
+profile switching. Supabase Auth and the private `programs` library are the only remote client
+integrations. Programme payloads are cloud-backed, while the selected one remains in the existing
+device cache. Session reads/writes remain local and the history card states plainly that cloud
+history is not connected yet. Offline autosave remains the source of truth for in-progress training
+and never waits for the backend.
 
 **One installation belongs to one beta account.** The first accepted or signed-in account writes a
 small owner marker. A later attempt by a different account is signed out locally and rejected without

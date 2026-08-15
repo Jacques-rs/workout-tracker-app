@@ -5,7 +5,7 @@
     module.exports = exported;
     return;
   }
-  root.TPProfileUI = exported.createProfileUI(root.document, root.TPAuth, root.TPAuthUI);
+  root.TPProfileUI = exported.createProfileUI(root.document, root.TPAuth, root.TPAuthUI, root.TPPrograms);
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
@@ -39,7 +39,7 @@
     };
   }
 
-  function createProfileUI(document, auth, authUI) {
+  function createProfileUI(document, auth, authUI, programs) {
     let options = {};
     let initialized = false;
     let unsubscribe = null;
@@ -61,6 +61,15 @@
 
     function actionRow(children) {
       return node(document, "div", { className: "profile-actions" }, children);
+    }
+
+    function run(action) {
+      return async () => {
+        try { await action(); }
+        catch (error) {
+          if (options.onNotice) options.onNotice(error && error.message || "Programme action failed.");
+        }
+      };
     }
 
     function openAuth(mode) {
@@ -130,32 +139,87 @@
         node(document, "p", { className: "profile-status", textContent: status }), signOut
       ]));
 
+      const library = programs && programs.getState ? programs.getState()
+        : { status: "offline", items: [], activeId: "", pending: false, error: null };
       const summary = programSummary(options.getCachedProgram && options.getCachedProgram());
+      const items = Array.isArray(library.items) ? library.items : [];
+      const activeItem = items.find(item => item.id === library.activeId);
+      const importAllowed = !!(auth && auth.canImport && auth.canImport());
+      const libraryCopy = library.pending
+        ? "Saved on this device · cloud backup queued"
+        : library.status === "loading"
+          ? "Loading your private cloud library…"
+          : library.status === "offline"
+            ? "Offline · the active programme remains available on this device"
+            : library.status === "error"
+              ? library.error && library.error.message || "The cloud library is unavailable."
+              : "Private programmes · available only to this account";
+      const programmeChildren = [];
+
       if (summary) {
-        const facts = [summary.athlete, `${summary.weeks}-week block`, summary.version ? `v${summary.version}` : ""]
+        const facts = [summary.athlete, `${summary.weeks}-week block`, summary.version ? `v${summary.version}` : "",
+          library.pending ? "Backup queued" : activeItem && activeItem.current ? "Cloud backup current"
+            : activeItem ? "Cloud update available" : "On this device"]
           .filter(Boolean).join(" · ");
-        host.append(card("Programmes", "Stored on this device · cloud library not connected yet", [
-          node(document, "div", { className: "profile-programme" }, [
-            node(document, "div", { className: "profile-programme-title", textContent: summary.title }),
-            node(document, "div", { className: "profile-programme-meta", textContent: facts })
-          ]),
-          actionRow([
-            button("Start workout", "primary", () => { if (options.onOpenCached) options.onOpenCached(); }),
-            button("Replace JSON…", "ghost", () => { if (options.onImport) options.onImport(); })
-          ])
+        const activeActions = [
+          button("Start workout", "primary", () => { if (options.onOpenCached) options.onOpenCached(); })
+        ];
+        if (!activeItem && !library.pending && library.status === "ready" && state.status === "authenticated") {
+          activeActions.push(button("Back up to library", "ghost", run(async () => {
+            if (options.onBackUpCached) await options.onBackUpCached();
+          })));
+        }
+        if (activeItem && !activeItem.current) {
+          activeActions.push(button("Update device", "ghost", run(async () => {
+            if (options.onActivateProgram) await options.onActivateProgram(activeItem.id);
+          })));
+        }
+        if (activeItem && state.status === "authenticated") {
+          activeActions.push(button("Remove", "ghost danger", run(async () => {
+            if (options.onRemoveProgram) await options.onRemoveProgram(activeItem);
+          })));
+        }
+        programmeChildren.push(node(document, "div", { className: "profile-programme" }, [
+          node(document, "div", { className: "profile-programme-title", textContent: summary.title }),
+          node(document, "div", { className: "profile-programme-meta", textContent: facts }),
+          actionRow(activeActions)
         ]));
-      } else {
-        const importAllowed = !!(auth && auth.canImport && auth.canImport());
-        const importButton = button(importAllowed ? "Import programme JSON…" : "Import unavailable offline", "primary profile-wide", () => {
-          if (importAllowed && options.onImport) options.onImport();
-        });
-        importButton.disabled = !importAllowed;
-        host.append(card("Programmes",
-          importAllowed
-            ? "No personal programme is stored on this device yet. Imports remain device-only until the cloud library ships."
-            : "No personal programme is cached, and account services are unavailable for a new import.",
-          importButton));
       }
+
+      items.filter(item => !(summary && activeItem && item.id === activeItem.id)).forEach(item => {
+        const facts = [item.athlete, `${item.weeks}-week block`, item.programVersion ? `v${item.programVersion}` : ""]
+          .filter(Boolean).join(" · ");
+        const itemActions = [
+          button("Use on this device", "ghost", run(async () => {
+            if (options.onActivateProgram) await options.onActivateProgram(item.id);
+          }))
+        ];
+        if (state.status === "authenticated") itemActions.push(
+          button("Remove", "ghost danger", run(async () => {
+            if (options.onRemoveProgram) await options.onRemoveProgram(item);
+          }))
+        );
+        programmeChildren.push(node(document, "div", { className: "profile-programme" }, [
+          node(document, "div", { className: "profile-programme-title", textContent: item.title }),
+          node(document, "div", { className: "profile-programme-meta", textContent: facts }),
+          actionRow(itemActions)
+        ]));
+      });
+
+      if (!summary && !items.length && library.status !== "loading") {
+        programmeChildren.push(node(document, "p", { className: "profile-copy",
+          textContent: importAllowed
+            ? "No personal programme is stored yet. Import the first programme JSON for this account."
+            : "No personal programme is cached, and account services are unavailable for a new import." }));
+      }
+
+      const importButton = button(importAllowed ? "Import programme JSON…" : "Import unavailable", "primary profile-wide", () => {
+        if (importAllowed && options.onImport) options.onImport();
+      });
+      importButton.disabled = !importAllowed;
+      programmeChildren.push(importButton);
+      host.append(card("Programmes", libraryCopy, programmeChildren,
+        library.status === "error" ? "profile-error" : ""));
 
       host.append(card("Recent workouts",
         "Cloud history is not connected yet. Current workout data still autosaves on this device and remains available through session export."));
@@ -182,6 +246,11 @@
       if (initialized || !document) { render(); return; }
       initialized = true;
       if (auth && auth.subscribe) unsubscribe = auth.subscribe(render);
+      if (programs && programs.subscribe) {
+        const stopPrograms = programs.subscribe(render);
+        const stopAuth = unsubscribe;
+        unsubscribe = () => { if (stopAuth) stopAuth(); stopPrograms(); };
+      }
       render();
     }
 

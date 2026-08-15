@@ -58,14 +58,26 @@ const auth = {
 };
 const opened = [];
 const authUI = { open(mode) { opened.push(mode); } };
+let programState = { status: "ready", error: null, activeId: "program-one", pending: false, items: [
+  { id: "program-one", title: "Private strength block", athlete: "Sample Athlete", weeks: 6,
+    programVersion: 3, revision: 1, active: true, current: true }
+] };
+const programs = {
+  getState: () => programState,
+  subscribe(next) { next(programState); return () => {}; }
+};
 let cachedReads = 0, sampleOpens = 0, workoutOpens = 0, imports = 0, signedOutCallbacks = 0;
+let activations = 0, backups = 0, removals = 0;
 const personal = { meta: { block: "Private strength block", athlete: "Sample Athlete", weeks: 6, version: 3 }, exercises: [] };
-const ui = profileModule.createProfileUI(document, auth, authUI);
+const ui = profileModule.createProfileUI(document, auth, authUI, programs);
 ui.init({
   getCachedProgram() { cachedReads++; return personal; },
   onOpenSample() { sampleOpens++; },
   onOpenCached() { workoutOpens++; },
   onImport() { imports++; },
+  onActivateProgram() { activations++; },
+  onBackUpCached() { backups++; },
+  onRemoveProgram() { removals++; },
   onSignedOut() { signedOutCallbacks++; }
 });
 
@@ -90,15 +102,37 @@ console.log("\nauthenticated and offline-owner profile");
 copy = render({ status: "authenticated", user: { email: "one@example.invalid", verified: true },
   owner: { email: "one@example.invalid", signedOut: false }, error: null });
 ok(/Private strength block/.test(copy), "the authenticated owner sees the cached active programme");
-ok(/Stored on this device/.test(copy), "the programme is honestly labelled device-only");
+ok(/Cloud backup current/.test(copy), "the active programme is identified as backed up");
 ok(/Cloud history is not connected yet/.test(copy), "history is an honest not-yet-connected state");
-button("Start workout").onclick(); button("Replace JSON…").onclick();
-same([workoutOpens, imports], [1, 1], "programme actions enter training or request a local import");
+button("Start workout").onclick(); button("Import programme JSON…").onclick(); button("Remove").onclick();
+same([workoutOpens, imports], [1, 1], "programme actions enter training or request a library import");
+
+programState = { ...programState, items: [...programState.items,
+  { id: "program-two", title: "Cloud conditioning block", athlete: "Sample Athlete", weeks: 4,
+    programVersion: 1, revision: 1, active: false }] };
+ui.render();
+ok(/Cloud conditioning block/.test(profileBody.textContent), "the profile lists another private cloud programme");
+button("Use on this device").onclick();
 
 copy = render({ status: "offline-owner", user: null,
   owner: { email: "one@example.invalid", signedOut: false }, error: null });
 ok(/Offline · cached training available/.test(copy), "a known owner gets a clear offline state");
 ok(/Private strength block/.test(copy), "offline ownership retains cached programme access");
+
+programState = { ...programState, activeId: "program-one", items: [
+  { ...programState.items[0], active: true, current: false }
+] };
+copy = render({ status: "authenticated", user: { email: "one@example.invalid", verified: true },
+  owner: { email: "one@example.invalid", signedOut: false }, error: null });
+ok(/Cloud update available/.test(copy), "a newer cloud revision never silently replaces the device prescription");
+button("Update device").onclick();
+
+console.log("\nlegacy device-only programme can join the library");
+programState = { status: "ready", error: null, activeId: "", pending: false, items: [] };
+copy = render({ status: "authenticated", user: { email: "one@example.invalid", verified: true },
+  owner: { email: "one@example.invalid", signedOut: false }, error: null });
+ok(/On this device/.test(copy), "an unlinked cached programme is labelled honestly");
+button("Back up to library").onclick();
 
 console.log("\nexplicit sign-out and account conflicts");
 copy = render({ status: "guest", user: null,
@@ -120,6 +154,7 @@ ok(/Private strength block/.test(copy), "the cached programme remains usable dur
 button("Sign out on this device").onclick();
 setTimeout(() => {
   same([signedOut, signedOutCallbacks], [1, 1], "profile sign-out uses the local auth boundary and returns home");
+  same([activations, backups, removals], [2, 1, 1], "library actions are routed through callbacks");
   same(profileModule.programSummary(personal), {
     title: "Private strength block", athlete: "Sample Athlete", weeks: 6, version: 3
   }, "programme metadata is reduced to the profile's display-only summary");

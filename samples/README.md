@@ -20,7 +20,8 @@ on disk. Test both programme fixtures after any change to import, filtering, or 
 | File | Direction it checks |
 |---|---|
 | `apptest.js` (node) | Account-first entry, isolated sample storage, and the app reading a **good** programme correctly: week filtering, per-set round-trip and export shape. |
-| `authtest.js` / `profiletest.js` (node) | Authentication ownership/access states and the profile UI's loading, signed-out, authenticated, offline and conflict behavior. |
+| `authtest.js` / `profiletest.js` (node) | Authentication ownership/access states and the profile UI's loading, signed-out, authenticated, offline, library and conflict behavior. |
+| `programstoretest.js` (node) | Private programme list/import/activate/remove behavior, including local-first offline import retry and soft deletion. |
 | `swtest.js` (node) | App-shell caching and the cross-origin authentication/Data API boundary. |
 | `validatortest.py` (python3) | The builder refuses to emit a **bad** one: every fixture passes `validate_program.py`, and 23 single-mutation breakages are rejected. |
 
