@@ -1,5 +1,8 @@
 .DS_Store
 
+# Playwright MCP browser-test diagnostics
+.playwright-mcp/
+
 # Python bytecode, anywhere in the repo. athlete/.gitignore already covers the
 # builder scripts' own __pycache__/; this covers everywhere else, which nothing
 # did.
