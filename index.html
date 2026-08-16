@@ -716,7 +716,7 @@
   <div class="profile-hero">
     <div class="profile-kicker">Training Tracker</div>
     <h1 class="profile-title" id="profileTitle" tabindex="-1">Your training, ready when you are.</h1>
-    <p class="profile-lead">Open a cached programme, import one for this device, or explore the sample.</p>
+    <p class="profile-lead">Open a cached programme, import one for this device, or explore the sample. <a href="./privacy.html">Privacy</a></p>
   </div>
   <main class="profile-body" id="profileBody" aria-live="polite"></main>
 </div>
@@ -815,6 +815,7 @@
 <script src="./js/auth-ui.js"></script>
 <script src="./js/program-store.js"></script>
 <script src="./js/session-store.js"></script>
+<script src="./js/account-data.js"></script>
 <script src="./js/profile-ui.js"></script>
 <script>
 "use strict";
@@ -1630,6 +1631,24 @@ async function boot(){
       toast(result.ok?"Programme removed":result.error&&result.error.message||"Remove failed");
     },
     onNotice:toast,
+    onExportAccount:async()=>{
+      if(!window.TPAccountData)throw new Error("Account export is unavailable.");
+      await TPAccountData.exportAccountData();
+      toast("Account data downloaded");
+    },
+    onDeleteAccount:async()=>{
+      if(!window.TPAccountData)throw new Error("Account deletion is unavailable.");
+      const approved=window.confirm&&window.confirm(
+        "Delete this account permanently? Cloud programmes and workout history will be deleted. " +
+        "This device’s personal data will be cleared after deletion succeeds. Offline data on other devices and managed backups may remain temporarily. Choose Export account data first if you want a copy."
+      );
+      if(!approved)return;
+      const password=window.prompt&&window.prompt("Enter your current password to confirm account deletion:");
+      if(password==null)return;
+      await TPAccountData.deleteAccount(password);
+      toast("Account deleted on this device");
+      if(window.location&&window.location.reload)setTimeout(()=>window.location.reload(),300);
+    },
     onDownloadHistory:downloadSessionPayload,
     onCopyHistory:copySessionPayload,
     onOpenSample:openSampleWorkout,

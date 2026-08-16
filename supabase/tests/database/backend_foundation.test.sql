@@ -277,7 +277,63 @@ select ok(
   'users can create a visible soft-delete tombstone'
 );
 
+select ok(has_function_privilege('authenticated', 'public.export_own_account()', 'execute'),
+  'authenticated users can export their own account');
+select ok(not has_function_privilege('anon', 'public.export_own_account()', 'execute'),
+  'anonymous users cannot export accounts');
+select ok(not has_function_privilege('anon', 'public.delete_own_account()', 'execute'),
+  'anonymous users cannot delete accounts');
+select is(
+  (select jsonb_array_length(public.export_own_account() -> 'programmes')),
+  2::integer,
+  'account export includes caller live and soft-deleted programmes only'
+);
+select is(
+  (select jsonb_array_length(public.export_own_account() -> 'sessions')),
+  2::integer,
+  'account export includes caller canonical and conflict sessions only'
+);
+select throws_ok(
+  $$select public.delete_own_account()$$,
+  '42501', 'recent password authentication is required',
+  'account deletion rejects a missing password AMR'
+);
+set local request.jwt.claims = '{"sub":"00000000-0000-0000-0000-000000000101","email":"rls-one@example.invalid","amr":[{"method":"password","timestamp":1}]}' ;
+select throws_ok(
+  $$select public.delete_own_account()$$,
+  '42501', 'recent password authentication is required',
+  'account deletion rejects a stale password AMR'
+);
+select set_config('request.jwt.claims', json_build_object(
+  'sub', '00000000-0000-0000-0000-000000000101', 'email', 'rls-one@example.invalid',
+  'amr', json_build_array(json_build_object('method', 'password', 'timestamp', extract(epoch from statement_timestamp())::bigint))
+)::text, true);
+select lives_ok($$select public.delete_own_account()$$,
+  'fresh password AMR deletes only the current account');
 reset role;
+select is((select count(*) from public.programs where owner_id = '00000000-0000-0000-0000-000000000101'), 0::bigint,
+  'RPC deletion cascades caller programmes');
+select is((select count(*) from public.session_logs where owner_id = '00000000-0000-0000-0000-000000000101'), 0::bigint,
+  'RPC deletion cascades caller sessions');
+select is((select count(*) from public.programs where owner_id = '00000000-0000-0000-0000-000000000102'), 1::bigint,
+  'RPC deletion preserves another owner');
+
+insert into public.programs (id, owner_id, title, schema_version, payload, deleted_at) values
+  ('10000000-0000-0000-0000-000000000201', '00000000-0000-0000-0000-000000000102',
+   'Expired tombstone', 'tp-program-2', '{"meta":{"schema":"tp-program-2"}}', statement_timestamp() - interval '31 days'),
+  ('10000000-0000-0000-0000-000000000202', '00000000-0000-0000-0000-000000000102',
+   'Recent tombstone', 'tp-program-2', '{"meta":{"schema":"tp-program-2"}}', statement_timestamp() - interval '29 days');
+insert into public.session_logs (owner_id, program_id, session_date, day, week, schema_version, payload) values
+  ('00000000-0000-0000-0000-000000000102', '10000000-0000-0000-0000-000000000201',
+   '2026-02-01', 'Day retention', 1, 'tp-session-3', '{"schema":"tp-session-3"}');
+select is(private.purge_expired_programme_tombstones(), 1,
+  'retention purge removes only tombstones older than 30 days');
+select ok(not exists (select 1 from public.programs where id = '10000000-0000-0000-0000-000000000201'),
+  'expired programme tombstone is removed');
+select ok(exists (select 1 from public.programs where id = '10000000-0000-0000-0000-000000000202'),
+  'recent programme tombstone is retained');
+select ok(exists (select 1 from public.session_logs where day = 'Day retention' and program_id is null),
+  'retention purge preserves historical session while unlinking programme reference');
 
 delete from public.programs
 where id = '10000000-0000-0000-0000-000000000102';
@@ -285,11 +341,11 @@ where id = '10000000-0000-0000-0000-000000000102';
 select is(
   (select count(*) from public.session_logs
    where owner_id = '00000000-0000-0000-0000-000000000102'),
-  1::bigint,
+  2::bigint,
   'hard program deletion retains its historical session'
 );
 select ok(
-  (select program_id is null from public.session_logs
+  (select bool_and(program_id is null) from public.session_logs
    where owner_id = '00000000-0000-0000-0000-000000000102'),
   'hard program deletion clears the historical program reference'
 );
@@ -312,7 +368,7 @@ select is(
 select is(
   (select count(*) from public.session_logs
    where owner_id = '00000000-0000-0000-0000-000000000102'),
-  1::bigint,
+  2::bigint,
   'account deletion leaves another owner data intact'
 );
 

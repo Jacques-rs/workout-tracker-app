@@ -239,8 +239,20 @@
         await auth.signOutLocal();
         if (options.onSignedOut) options.onSignedOut();
       });
+      const accountActions = [signOut];
+      if (state.status === "authenticated") {
+        accountActions.push(button("Export account data", "ghost profile-wide", run(async () => {
+          if (options.onExportAccount) await options.onExportAccount();
+        })));
+        accountActions.push(button("Delete account…", "ghost danger profile-wide", run(async () => {
+          if (options.onDeleteAccount) await options.onDeleteAccount();
+        })));
+      }
       host.append(card("Your account", email, [
-        node(document, "p", { className: "profile-status", textContent: status }), signOut
+        node(document, "p", { className: "profile-status", textContent: status }),
+        ...accountActions,
+        state.status === "authenticated" ? node(document, "p", { className: "profile-copy",
+          textContent: "Export includes this device’s local-only and queued work. Deletion removes cloud data and this device’s personal data; other offline installations and managed backups are not erased immediately." }) : null
       ]));
 
       const library = programs && programs.getState ? programs.getState()

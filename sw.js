@@ -1,14 +1,16 @@
 /* Training Tracker service worker — offline app shell */
-const CACHE = "tp-tracker-v18";
+const CACHE = "tp-tracker-v19";
 const SHELL = [
   "./",
   "./index.html",
+  "./privacy.html",
   "./vendor/supabase-js-2.111.0.min.js",
   "./js/auth-config.js",
   "./js/auth-client.js",
   "./js/auth-ui.js",
   "./js/program-store.js",
   "./js/session-store.js",
+  "./js/account-data.js",
   "./js/profile-ui.js",
   "./program.json",
   "./manifest.webmanifest",

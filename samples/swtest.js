@@ -73,7 +73,9 @@ for (const asset of [
   "./js/auth-ui.js",
   "./js/program-store.js",
   "./js/session-store.js",
+  "./js/account-data.js",
   "./js/profile-ui.js",
+  "./privacy.html",
   "./program.json"
 ]) {
   assert.ok(source.includes(asset), `${asset} is precached`);

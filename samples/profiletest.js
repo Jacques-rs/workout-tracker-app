@@ -87,6 +87,7 @@ const sessions = {
 let cachedReads = 0, sampleOpens = 0, workoutOpens = 0, imports = 0, signedOutCallbacks = 0;
 let activations = 0, backups = 0, removals = 0;
 let historyDownloads = 0, historyCopies = 0;
+let accountExports = 0, accountDeletes = 0;
 const personal = { meta: { block: "Private strength block", athlete: "Sample Athlete", weeks: 6, version: 3 }, exercises: [] };
 const ui = profileModule.createProfileUI(document, auth, authUI, programs, sessions);
 ui.init({
@@ -99,6 +100,8 @@ ui.init({
   onRemoveProgram() { removals++; },
   onDownloadHistory() { historyDownloads++; },
   onCopyHistory() { historyCopies++; },
+  onExportAccount() { accountExports++; },
+  onDeleteAccount() { accountDeletes++; },
   onSignedOut() { signedOutCallbacks++; }
 });
 
@@ -128,9 +131,11 @@ ok(/Cloud history ready/.test(copy), "the connected history state is explicit");
 ok(/2026-08-14/.test(copy) && /Squat/.test(copy) && /Moved well/.test(copy),
   "history is grouped with readable workout detail");
 button("Download JSON").onclick(); button("Copy JSON").onclick();
+button("Export account data").onclick(); button("Delete account…").onclick();
 button("Start workout").onclick(); button("Import programme JSON…").onclick(); button("Remove").onclick();
 same([workoutOpens, imports], [1, 1], "programme actions enter training or request a library import");
 same([historyDownloads, historyCopies], [1, 1], "history export actions stay behind profile callbacks");
+same([accountExports, accountDeletes], [1, 1], "account portability controls stay behind profile callbacks");
 
 programState = { ...programState, items: [...programState.items,
   { id: "program-two", title: "Cloud conditioning block", athlete: "Sample Athlete", weeks: 4,

@@ -305,6 +305,32 @@
       return { ok: true };
     }
 
+    async function reauthenticate(password) {
+      if (!client) return { ok: false, error: friendlyError({ code: "auth_unavailable" }) };
+      if (!networkAvailable || !currentSession || !currentSession.user)
+        return { ok: false, error: friendlyError({ code: "network_error" }) };
+      try {
+        const result = await client.auth.signInWithPassword({
+          email: text(currentSession.user.email), password: String(password || "")
+        });
+        if (result.error) return { ok: false, error: friendlyError(result.error) };
+        const accepted = await acceptSession(result.data && result.data.session, null);
+        return accepted ? { ok: true } : { ok: false, error: friendlyError({ code: "account_conflict" }) };
+      } catch (error) {
+        if (isNetworkError(error)) networkAvailable = false;
+        return { ok: false, error: friendlyError(error) };
+      }
+    }
+
+    async function forgetInstallation() {
+      owner = null;
+      conflict = null;
+      currentSession = null;
+      if (storage && config.ownerKey) { try { storage.removeItem(config.ownerKey); } catch (_) {} }
+      emit({ status: "guest", user: null, flow: null, error: null });
+      try { if (client) await client.auth.signOut({ scope: "local" }); } catch (_) {}
+    }
+
     async function reconnect() {
       networkAvailable = true;
       emit({ online: true, status: deriveStatus(), error: null });
@@ -347,6 +373,8 @@
       requestRecovery,
       updatePassword,
       signOutLocal,
+      reauthenticate,
+      forgetInstallation,
       canImport() {
         return state.status === "authenticated" ||
           (state.status === "offline-owner" && owner && !owner.signedOut);

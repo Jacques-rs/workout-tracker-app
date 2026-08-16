@@ -8,9 +8,10 @@
 | `js/auth-config.js`, `js/auth-client.js`, `js/auth-ui.js` | Environment selection, Supabase session boundary and authentication dialogs. Kept outside the workout script. |
 | `js/program-store.js` | Private programme-library boundary. Owns `programs` reads/writes, local-first import retry, activation identity and revision-checked soft deletion. |
 | `js/session-store.js` | Device-first session queue and the sole `session_logs` Data API boundary. Owns retry, revision checks, conflict copies, backfill and history paging. |
+| `js/account-data.js` | Sole account portability/deletion boundary. Combines the owner-scoped RPC snapshot with safe current-device state; it never exports credentials or demo data. |
 | `js/profile-ui.js` | Account-first profile, programme-library and readable-history states/actions. It receives stores/callbacks and makes no backend call. |
 | `vendor/supabase-js-2.111.0.min.js` | Pinned browser SDK; origin and checksum are recorded in `vendor/README.md`. |
-| `sw.js` | Service worker. Caches the app shell for offline use. |
+| `sw.js` | Service worker. Caches the app shell and signed-out privacy notice for offline use. |
 | `manifest.webmanifest` | PWA manifest — name, colours, icons, `display: standalone`. |
 | `icon-192.png`, `icon-512.png`, `icon-512-maskable.png` | App icons (barbell glyph on dark background). |
 | `program.json` | Bundled **sample** programme (`tp-program-2`, 6 weeks × 4 days), opened only through **View sample programme**. |
@@ -243,6 +244,20 @@ returns to the profile and hides personal cache access until sign-in; it deletes
 The bundled sample is deliberate demo mode, not a fallback identity. It never replaces
 `tp_program_v1`, carries a persistent sample banner, and uses `tp_demo_*` position/session keys so a
 guest can explore without reading or overwriting an owner's cached training.
+
+## Account portability and deletion
+
+`TPAccountData.exportAccountData()` requires an authenticated online session and calls the
+owner-scoped `export_own_account()` RPC. It produces `tp-account-export-1` with all live and
+soft-deleted programmes, canonical and conflict sessions, plus this installation's active cache,
+local-only sessions and dirty queue. Supabase tokens, the owner marker, credentials and every
+`tp_demo_*` key are excluded. It is an access/portability file only; restoration is deferred.
+
+Deletion first re-authenticates with the current password (no email), then calls
+`delete_own_account()`. Only after the RPC succeeds are all non-demo `tp_*` keys cleared and the
+installation binding reset. A failed RPC leaves local data untouched. The database retains removed
+programme tombstones for 30 days and a daily Cron job then purges them; session history survives
+with a null programme reference.
 
 Multi-athlete programme authoring still lives on the coaching side. `athlete/<slug>/` gives each
 person their own profile, plans, programmes and logs, and the planner/builder skills take the athlete

@@ -68,6 +68,7 @@ Launch from the home-screen icon — it runs full-screen and works with no signa
 5. Train and log each set. Everything autosaves locally first, then queues a private cloud snapshot when an account programme is active. Returning home commits a typed set in progress before leaving the workout.
 6. Review synced or queued workouts under **Recent workouts** on the profile. History stays readable and exportable; a stale second-device edit is kept as a clearly labelled conflict copy.
 7. Tap **Export session** to keep the portable coaching file flow, or **Copy JSON** and paste it into chat. Both are also in the drawer and available from history.
+8. While signed in online, use **Export account data** for the complete cloud-plus-current-device access file, or **Delete account…** to permanently remove the cloud account and this installation’s personal data after password confirmation.
 
 Two ways to see the exercises, switched with the toggle at the top right and remembered on the device:
 
@@ -89,6 +90,9 @@ Everything autosaves on device as you go.
 | `athlete/README.md` | Coaching-project layout: the planner/builder skills, shared research, and one gitignored folder per athlete. |
 
 ## Privacy
+
+Read the signed-out, offline-cached [privacy notice](privacy.html) for collection, retention and
+deletion details. The private-beta operations checklist is in [docs/private-beta-runbook.md](docs/private-beta-runbook.md).
 
 **This GitHub repo is public** — it has to be for GitHub Pages on the free plan.
 

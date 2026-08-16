@@ -1,7 +1,7 @@
 # Backend launch plan
 
-**Status:** session synchronization/history implemented locally; hosted phase-5 and Auth-email
-smokes pending
+**Status:** Step 6 launch hardening implemented locally; hosted migration, Pro backups, canary and
+Auth-email smokes pending
 **Last updated:** 2026-08-16
 **Owner:** Jacques makes the product calls below; implementation choices default to established
 engineering conventions.
@@ -163,8 +163,12 @@ Postgres JSON queries or derived views before the storage model is normalized.
    instead of overwriting. Eligible existing logs backfill automatically; unmatched logs remain local.
    The profile groups readable/exportable history by programme, pages cloud rows, and reports queued,
    conflict and local-only states. Offline cold starts show this installation's logs only.
-6. **Launch hardening:** data export/deletion, privacy copy, recovery testing, backups, operational
-   monitoring that excludes health payloads, and a private beta.
+6. **Launch hardening — implemented locally; hosted release gates pending:** account export and
+password-confirmed deletion, 30-day programme tombstone purge, privacy notice, payload-free hourly
+availability check and beta runbook are committed. Before the canary, apply the reviewed migration,
+upgrade to Pro and confirm seven-day managed backups, deploy the shell, and run hosted smoke with
+invented data. Hosted invitations and recovery remain approval-gated because each email consumes
+the project allowance.
 
 ## Guardrails for AI-assisted maintenance
 
