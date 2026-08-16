@@ -155,6 +155,30 @@
   .profile-programme-meta{font-size:var(--t-xs);color:var(--muted);margin-top:3px}
   .profile-loading{border-style:dashed}
   .profile-error{border-left:3px solid var(--bad)}
+  .profile-history-group{margin-top:var(--s4)}
+  .profile-history-group:first-of-type{margin-top:var(--s3)}
+  .profile-history-group-title{font-size:var(--t-base);margin:0 0 var(--s2)}
+  .profile-history-item{margin-top:var(--s2);border:1px solid var(--line-soft);
+    border-radius:var(--r-sm);background:var(--well);overflow:hidden}
+  .profile-history-item>summary{display:grid;grid-template-columns:auto 1fr auto;gap:2px var(--s2);
+    padding:var(--s3);cursor:pointer;list-style:none}
+  .profile-history-item>summary::-webkit-details-marker{display:none}
+  .profile-history-item>summary::after{content:"›";grid-column:3;grid-row:1/3;align-self:center;
+    color:var(--muted);font-size:var(--t-lg);transition:transform .16s}
+  .profile-history-item[open]>summary::after{transform:rotate(90deg)}
+  .profile-history-date{font-size:var(--t-sm);font-weight:800}
+  .profile-history-day{font-size:var(--t-sm);font-weight:700;min-width:0;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  .profile-history-state{grid-column:1/-1;font-size:var(--t-xs);color:var(--muted)}
+  .profile-history-state.conflict{color:var(--warn);font-weight:800}
+  .profile-history-state.queued{color:var(--accent);font-weight:700}
+  .profile-history-detail{padding:0 var(--s3) var(--s2);border-top:1px solid var(--line-soft)}
+  .profile-history-checkin{font-size:var(--t-xs);line-height:1.5;color:var(--ink-dim)}
+  .profile-history-exercise{padding:var(--s2) 0;border-top:1px solid var(--line-soft)}
+  .profile-history-exercise-title{font-size:var(--t-sm);font-weight:750}
+  .profile-history-exercise-copy{font-size:var(--t-xs);line-height:1.45;color:var(--muted);
+    margin-top:2px}
+  .profile-history-item>.profile-actions{padding:0 var(--s3) var(--s3);margin-top:var(--s2)}
   .demo-banner{display:flex;align-items:center;gap:var(--s2);padding:7px var(--s3);
     margin:calc(var(--s4) * -1) 0 var(--s2);border-radius:0 0 var(--r-sm) var(--r-sm);
     background:var(--accent-soft);color:var(--accent-ink);font-size:var(--t-xs);font-weight:800}
@@ -790,6 +814,7 @@
 <script src="./js/auth-client.js"></script>
 <script src="./js/auth-ui.js"></script>
 <script src="./js/program-store.js"></script>
+<script src="./js/session-store.js"></script>
 <script src="./js/profile-ui.js"></script>
 <script>
 "use strict";
@@ -837,6 +862,18 @@ function cachedProgram(){
     const value=JSON.parse(localStorage.getItem(LS.prog)||"null");
     return value&&value.meta&&Array.isArray(value.exercises)?value:null;
   }catch(e){return null;}
+}
+function readPersonalSessions(){
+  const sessions=[];
+  for(let i=0;i<localStorage.length;i++){
+    const key=localStorage.key(i);
+    if(!key||!key.startsWith("tp_sess_v1::"))continue;
+    try{
+      const value=JSON.parse(localStorage.getItem(key)||"null");
+      if(value&&typeof value==="object")sessions.push({key,session:value});
+    }catch(e){}
+  }
+  return sessions;
 }
 function cachedAccess(){return !!window.TPAuth&&!!window.TPAuth.canAccessCached&&window.TPAuth.canAccessCached();}
 function showSurface(surface){
@@ -1569,6 +1606,10 @@ async function boot(){
     onActivate:loadProgram,
     onClearActive:clearCachedProgram
   });
+  if(window.TPSessions)TPSessions.init({
+    readLocalSessions:readPersonalSessions,
+    buildPayload:(session,program)=>buildSessionPayload(session,program)
+  });
   if(window.TPProfileUI)TPProfileUI.init({
     getCachedProgram:cachedProgram,
     onOpenCached:openCachedWorkout,
@@ -1589,6 +1630,8 @@ async function boot(){
       toast(result.ok?"Programme removed":result.error&&result.error.message||"Remove failed");
     },
     onNotice:toast,
+    onDownloadHistory:downloadSessionPayload,
+    onCopyHistory:copySessionPayload,
     onOpenSample:openSampleWorkout,
     onSignedOut:()=>showSurface("profile")
   });
@@ -1771,7 +1814,17 @@ function saveSession(s){
   s.week=STATE.week;s.day=STATE.day;s.date=STATE.date;
   /* localStorage can throw (quota, private mode) — never let a keystroke's autosave
      take the rest of the app down with it. */
-  try{localStorage.setItem(sessionKey(),JSON.stringify(s));}catch(e){}
+  let saved=false;
+  try{localStorage.setItem(sessionKey(),JSON.stringify(s));saved=true;}catch(e){}
+  /* The remote path begins only after the device write succeeds. stage() is synchronous:
+     it snapshots the contract into a durable queue and schedules network work elsewhere,
+     so a keystroke never waits for Supabase. Demo sessions never cross this boundary. */
+  if(saved&&APP.source==="personal"&&PROGRAM&&window.TPSessions&&window.TPPrograms){
+    const active=TPPrograms.getActiveIdentity&&TPPrograms.getActiveIdentity();
+    if(active&&active.id){
+      try{TPSessions.stage(sessionKey(),active.id,buildSessionPayload(s,PROGRAM));}catch(e){}
+    }
+  }
   updateProgress(s);
 }
 
@@ -2777,9 +2830,28 @@ function exportEntry(e){
   return {done:!!e.done,load:txt(e.load),reps:txt(e.reps),rpe:txt(e.rpe),
           painDuring:txt(e.painDuring),notes:txt(e.notes)};
 }
-function buildSessionExport(){
-  const s=getSession();
-  const exs=dayExercises();
+function programVersionOf(program){
+  const value=Number(program&&program.meta&&program.meta.version);
+  return Number.isFinite(value)&&value>0?Math.floor(value):0;
+}
+function sessionExercises(program,week,day){
+  if(!program||!Array.isArray(program.exercises))return [];
+  const v2=program.meta&&program.meta.schema==="tp-program-2";
+  return program.exercises.filter(ex=>ex.day===day&&(!v2||Number(ex.week)===Number(week)));
+}
+/* Pure enough for queue backfill: it receives the stored session and the programme that
+   authored it rather than reading whichever workout happens to be open now. The returned
+   wire shape is exactly the existing tp-session-3 export contract. */
+function buildSessionPayload(stored,program){
+  const s=JSON.parse(JSON.stringify(stored||{}));
+  s.session={...BLANK_SESSION,...(s.session||{})};
+  if(!s.entries||typeof s.entries!=="object")s.entries={};
+  Object.keys(s.entries).forEach(id=>{
+    const e={...blankEntry(),...s.entries[id]};normalizeEntry(e);s.entries[id]=e;
+  });
+  const week=Math.max(1,Math.floor(Number(s.week)||1));
+  const day=txt(s.day);
+  const exs=sessionExercises(program,week,day);
   /* `tracking` is additive metadata: it tells the coach whether an empty pain value means
      "no pain logged" or "this athlete doesn't track pain". Every other key keeps its shape
      so the review step never sees a missing field. See docs/data-contracts.md. */
@@ -2790,12 +2862,13 @@ function buildSessionExport(){
   tracking.perSetLogging=true;
   return {
     schema:"tp-session-3",
-    block:PROGRAM.meta.block,athlete:PROGRAM.meta.athlete,athleteId:athleteId(),
+    block:program.meta.block,athlete:program.meta.athlete,
+    athleteId:txt(program.meta.athleteId)||slug(program.meta.athlete),
     /* Which revision of the programme this was actually trained off. Without it the coach
        has to diff the denormalised `prescribed` values against the current program.json to
        spot an athlete who never re-imported. 0 means the programme predates versioning. */
-    programVersion:progVersion(),
-    week:STATE.week,day:STATE.day,date:STATE.date,
+    programVersion:programVersionOf(program),
+    week,day,date:txt(s.date),
     exportedAt:new Date().toISOString(),
     tracking,
     /* Merged, like entries: a session stored before a check-in field existed must
@@ -2811,6 +2884,23 @@ function buildSessionExport(){
     })
   };
 }
+function buildSessionExport(){return buildSessionPayload(getSession(),PROGRAM);}
+function sessionFilename(data){return `session-${data.date}-${slug(data.day)||"day"}.json`;}
+function downloadSessionPayload(data){
+  if(!data||!data.schema)throw new Error("Workout details are unavailable on this device.");
+  const name=sessionFilename(data);
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=el("a",{href:url,download:name});document.body.append(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);toast("Exported "+name);
+}
+async function copySessionPayload(data){
+  if(!data||!data.schema)throw new Error("Workout details are unavailable on this device.");
+  const json=JSON.stringify(data,null,2);
+  try{await navigator.clipboard.writeText(json);toast("Session JSON copied");}
+  catch(e){const ta=el("textarea",{value:json});document.body.append(ta);ta.select();
+    document.execCommand("copy");ta.remove();toast("Session JSON copied");}
+}
 /* Both export paths are wrapped: a throw here would look like the button doing
    nothing, at the one moment the session has to leave the phone. Better to say so —
    the data is still in localStorage and Copy JSON is the fallback. */
@@ -2821,11 +2911,8 @@ function exportSession(){
   if(flushDraft())renderMain();
   try{
     const data=buildSessionExport();
-    const name=`session-${STATE.date}-${slug(STATE.day)||"day"}.json`;
-    const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
-    const url=URL.createObjectURL(blob);
-    const a=el("a",{href:url,download:name});document.body.append(a);a.click();a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),1500);
+    const name=sessionFilename(data);
+    downloadSessionPayload(data);
     const who=athleteId();
     toast("Exported "+name+" — save into athlete/"+(who||"<you>")+"/logs/");
   }catch(err){toast("Export failed: "+err.message+" — try Copy JSON");}
@@ -2833,12 +2920,8 @@ function exportSession(){
 async function copyJSON(){
   if(!PROGRAM){toast("Load a program first");return;}
   if(flushDraft())renderMain();
-  let json;
-  try{json=JSON.stringify(buildSessionExport(),null,2);}
-  catch(err){toast("Copy failed: "+err.message);return;}
-  try{await navigator.clipboard.writeText(json);toast("Session JSON copied");}
-  catch(e){const ta=el("textarea",{value:json});document.body.append(ta);ta.select();
-    document.execCommand("copy");ta.remove();toast("Session JSON copied");}
+  try{await copySessionPayload(buildSessionExport());}
+  catch(err){toast("Copy failed: "+err.message);}
 }
 
 /* ---------- events ----------

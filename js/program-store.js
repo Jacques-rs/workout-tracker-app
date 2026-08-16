@@ -85,6 +85,24 @@
     };
   }
 
+  function sessionMatches(program, session) {
+    if (!validProgram(program) || !session || typeof session !== "object") return false;
+    const meta = program.meta || {};
+    if (text(session.block) && text(meta.block) !== text(session.block)) return false;
+    if (text(session.athlete) && text(meta.athlete) !== text(session.athlete)) return false;
+    const week = Math.max(1, Number(session.week) || 1);
+    const day = text(session.day);
+    const exercises = program.exercises.filter(exercise => {
+      if (text(exercise && exercise.day) !== day) return false;
+      return text(meta.schema) !== "tp-program-2" || Number(exercise.week) === week;
+    });
+    if (!exercises.length) return false;
+    const ids = new Set(exercises.map(exercise => text(exercise && exercise.id)).filter(Boolean));
+    const loggedIds = session.entries && typeof session.entries === "object"
+      ? Object.keys(session.entries) : [];
+    return loggedIds.every(id => ids.has(text(id)));
+  }
+
   function createProgramStore(deps) {
     deps = deps || {};
     const auth = deps.auth;
@@ -327,6 +345,25 @@
       backUpCached,
       activate,
       remove,
+      getActiveIdentity() {
+        return active ? { id: active.id, revision: active.revision, pending: active.pending } : null;
+      },
+      isRemoteAvailable(id) {
+        if (!text(id)) return false;
+        if (active && active.id === id && !active.pending) return true;
+        return rows.some(row => row.id === id);
+      },
+      resolveSessionProgram(session) {
+        const cached = options.getCachedProgram && options.getCachedProgram();
+        const matches = rows.filter(row => sessionMatches(row.payload, session))
+          .map(row => ({ id: row.id, pending: false, payload: row.payload }));
+        if (active && sessionMatches(cached, session) && !matches.some(match => match.id === active.id)) {
+          matches.push({ id: active.id, pending: active.pending, payload: cached });
+        }
+        return matches.length === 1
+          ? matches[0]
+          : null;
+      },
       getState: publicState,
       subscribe(listener) {
         listeners.add(listener);
@@ -341,5 +378,6 @@
     };
   }
 
-  return { createProgramStore, safeActive, normalizeRow, validProgram, isNetworkError, ACTIVE_KEY };
+  return { createProgramStore, safeActive, normalizeRow, validProgram, isNetworkError,
+    sessionMatches, ACTIVE_KEY };
 });

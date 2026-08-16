@@ -2,7 +2,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { createProgramStore, ACTIVE_KEY } = require("../js/program-store.js");
+const { createProgramStore, sessionMatches, ACTIVE_KEY } = require("../js/program-store.js");
 
 function memoryStorage() {
   const values = new Map();
@@ -111,6 +111,7 @@ function fakeAuth(client) {
   await store.refresh();
   assert.deepEqual(store.getState().items.map(item => item.title), ["Existing cloud block"]);
   assert.equal(store.getState().items[0].programVersion, 2);
+  assert.deepEqual(store.getActiveIdentity(), null, "no cloud identity is invented before activation");
 
   console.log("\nimport is local first and then backed up");
   const imported = programme("Imported block", 3);
@@ -121,6 +122,8 @@ function fakeAuth(client) {
   assert.deepEqual(JSON.parse(storage.getItem(ACTIVE_KEY)), { id: importedId, revision: 1, pending: false });
   assert.equal(store.getState().items.find(item => item.id === importedId).active, true);
   assert.equal(store.getState().items.find(item => item.id === importedId).current, true);
+  assert.deepEqual(store.getActiveIdentity(), { id: importedId, revision: 1, pending: false },
+    "session sync can read the stable active programme identity");
 
   console.log("\nactivation uses a fetched payload without another network write");
   const activated = store.activate(firstId);
@@ -153,6 +156,16 @@ function fakeAuth(client) {
   assert.equal(cached, null, "removing the active programme clears only the active device payload");
   assert.equal(clears, 1);
   assert.equal(store.getState().items.some(item => item.id === offlineId), false);
+
+  console.log("\nlocal session programme matching");
+  const matchable = programme("Matching block", 1);
+  matchable.exercises = [{ id: "w1d1e1", week: 1, day: "Day 1" }];
+  assert.equal(sessionMatches(matchable, { block: "Matching block", athlete: "Test Athlete",
+    week: 1, day: "Day 1", entries: { w1d1e1: {} } }), true,
+  "a stored session matches the programme that supplied its exercise ids");
+  assert.equal(sessionMatches(matchable, { block: "Matching block", athlete: "Test Athlete",
+    week: 1, day: "Day 1", entries: { another: {} } }), false,
+  "an exercise-id mismatch blocks unsafe history backfill");
 
   console.log("\nall passed\n");
 })().catch(error => {

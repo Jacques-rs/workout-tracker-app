@@ -69,6 +69,9 @@ node samples/profiletest.js
 echo "==> Running programme library tests"
 node samples/programstoretest.js
 
+echo "==> Running session synchronization tests"
+node samples/sessionstoretest.js
+
 echo "==> Running service-worker boundary tests"
 node samples/swtest.js
 

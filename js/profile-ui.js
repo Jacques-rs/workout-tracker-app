@@ -5,7 +5,9 @@
     module.exports = exported;
     return;
   }
-  root.TPProfileUI = exported.createProfileUI(root.document, root.TPAuth, root.TPAuthUI, root.TPPrograms);
+  root.TPProfileUI = exported.createProfileUI(
+    root.document, root.TPAuth, root.TPAuthUI, root.TPPrograms, root.TPSessions
+  );
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
@@ -39,7 +41,7 @@
     };
   }
 
-  function createProfileUI(document, auth, authUI, programs) {
+  function createProfileUI(document, auth, authUI, programs, sessions) {
     let options = {};
     let initialized = false;
     let unsubscribe = null;
@@ -67,7 +69,7 @@
       return async () => {
         try { await action(); }
         catch (error) {
-          if (options.onNotice) options.onNotice(error && error.message || "Programme action failed.");
+          if (options.onNotice) options.onNotice(error && error.message || "Account action failed.");
         }
       };
     }
@@ -121,6 +123,108 @@
           button("Try sign-in", "primary", () => openAuth("sign-in")),
           button("View sample", "ghost", () => { if (options.onOpenSample) options.onOpenSample(); })
         ]), "profile-error"));
+    }
+
+    function historyDetail(payload) {
+      if (!payload) return node(document, "p", { className: "profile-copy",
+        textContent: "The original programme is not available, so this local workout cannot be reconstructed for cloud history yet." });
+      const wrap = node(document, "div", { className: "profile-history-detail" });
+      const checkin = payload.session || {};
+      const labels = {
+        amPainOnWaking: "Pain on waking", readiness: "Readiness", sleep: "Sleep",
+        bodyweightKg: "Bodyweight", hrvNote: "HRV / notes", overall: "Overall notes"
+      };
+      const checkinFacts = Object.keys(labels).filter(key => text(checkin[key]))
+        .map(key => `${labels[key]}: ${text(checkin[key])}`);
+      if (checkinFacts.length) wrap.append(node(document, "p", {
+        className: "profile-history-checkin", textContent: checkinFacts.join(" · ")
+      }));
+      (Array.isArray(payload.entries) ? payload.entries : []).forEach(entry => {
+        const sets = Array.isArray(entry.sets) ? entry.sets : [];
+        const headline = [text(entry.load), text(entry.reps), text(entry.rpe) ? `RPE ${text(entry.rpe)}` : "",
+          text(entry.painDuring) ? `Pain ${text(entry.painDuring)}` : ""].filter(Boolean).join(" · ");
+        const setCopy = sets.map(row => {
+          const facts = [text(row.load), text(row.reps), text(row.rpe) ? `RPE ${text(row.rpe)}` : "",
+            text(row.painDuring) ? `Pain ${text(row.painDuring)}` : "", text(row.note)]
+            .filter(Boolean).join(" · ");
+          return `Set ${row.set}: ${facts || "logged"}`;
+        }).join(" | ");
+        wrap.append(node(document, "div", { className: "profile-history-exercise" }, [
+          node(document, "div", { className: "profile-history-exercise-title",
+            textContent: `${entry.done ? "✓" : "○"} ${text(entry.exercise) || "Exercise"}` }),
+          node(document, "div", { className: "profile-history-exercise-copy",
+            textContent: [headline, setCopy, text(entry.notes)].filter(Boolean).join(" · ") ||
+              (entry.done ? "Completed without logged values" : "Not completed") })
+        ]));
+      });
+      return wrap;
+    }
+
+    function historySection(host, accountState) {
+      const history = sessions && sessions.getState ? sessions.getState()
+        : { status: "offline", items: [], pending: 0, conflicts: 0, localOnly: 0,
+            syncing: false, hasMore: false, error: null };
+      const bits = [];
+      if (history.syncing) bits.push("Syncing…");
+      else if (history.status === "offline") bits.push("Offline");
+      else if (history.status === "loading") bits.push("Loading cloud history…");
+      else bits.push("Cloud history ready");
+      if (history.pending) bits.push(`${history.pending} ${history.pending === 1 ? "change" : "changes"} queued`);
+      if (history.conflicts) bits.push(`${history.conflicts} conflict ${history.conflicts === 1 ? "copy" : "copies"} kept`);
+      if (history.localOnly) bits.push(`${history.localOnly} local-only`);
+      const children = [];
+      const items = Array.isArray(history.items) ? history.items : [];
+      const groups = new Map();
+      items.forEach(item => {
+        const key = item.programId || `local:${item.block}`;
+        if (!groups.has(key)) groups.set(key, { title: item.block, items: [] });
+        groups.get(key).items.push(item);
+      });
+      groups.forEach(group => {
+        const groupNode = node(document, "div", { className: "profile-history-group" },
+          node(document, "h3", { className: "profile-history-group-title", textContent: group.title }));
+        group.items.forEach(item => {
+          const stateLabel = item.syncState === "conflict" ? "Conflict copy"
+            : item.syncState === "queued" ? "Sync queued"
+              : item.syncState === "local-only" ? "Local only" : "Synced";
+          const progress = item.totalExercises
+            ? `${item.completedExercises}/${item.totalExercises} exercises`
+            : "Workout saved";
+          const details = node(document, "details", { className: "profile-history-item" });
+          details.append(node(document, "summary", {}, [
+            node(document, "span", { className: "profile-history-date", textContent: item.date }),
+            node(document, "span", { className: "profile-history-day", textContent: item.day }),
+            node(document, "span", { className: `profile-history-state ${item.syncState}`,
+              textContent: `${stateLabel} · ${progress}` })
+          ]));
+          const payload = sessions && sessions.getPayload ? sessions.getPayload(item.id) : null;
+          details.append(historyDetail(payload));
+          if (payload) details.append(actionRow([
+            button("Download JSON", "ghost", run(async () => {
+              if (options.onDownloadHistory) await options.onDownloadHistory(payload);
+            })),
+            button("Copy JSON", "ghost", run(async () => {
+              if (options.onCopyHistory) await options.onCopyHistory(payload);
+            }))
+          ]));
+          groupNode.append(details);
+        });
+        children.push(groupNode);
+      });
+      if (!items.length && history.status !== "loading") children.push(node(document, "p", {
+        className: "profile-copy",
+        textContent: accountState.status === "authenticated"
+          ? "No personal workouts have been saved yet. Your first logged change will appear here."
+          : "No workout history from this installation is available while offline."
+      }));
+      if (history.hasMore) children.push(button("Load older workouts", "ghost profile-wide", run(async () => {
+        if (sessions && sessions.loadMore) await sessions.loadMore();
+      })));
+      if (history.status === "error") children.push(button("Retry sync", "ghost profile-wide", run(async () => {
+        if (sessions && sessions.retry) await sessions.retry();
+      })));
+      host.append(card("Recent workouts", bits.join(" · "), children,
+        history.status === "error" ? "profile-error" : ""));
     }
 
     function ownerProfile(host, state) {
@@ -221,8 +325,7 @@
       host.append(card("Programmes", libraryCopy, programmeChildren,
         library.status === "error" ? "profile-error" : ""));
 
-      host.append(card("Recent workouts",
-        "Cloud history is not connected yet. Current workout data still autosaves on this device and remains available through session export."));
+      historySection(host, state);
     }
 
     function render() {
@@ -250,6 +353,11 @@
         const stopPrograms = programs.subscribe(render);
         const stopAuth = unsubscribe;
         unsubscribe = () => { if (stopAuth) stopAuth(); stopPrograms(); };
+      }
+      if (sessions && sessions.subscribe) {
+        const stopSessions = sessions.subscribe(render);
+        const previous = unsubscribe;
+        unsubscribe = () => { if (previous) previous(); stopSessions(); };
       }
       render();
     }

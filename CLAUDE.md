@@ -144,6 +144,12 @@ Both are git worktrees of the same clone, so `athlete/` exists only in the workt
 release-smoke gate: if no controllable browser is connected, report only that release smoke as
 pending; do not describe the implementation as unverified or repeat completed implementation work.
 
+Hosted Supabase Auth email is also approval-gated. Before triggering an administrator invite,
+password recovery/reset email, signup confirmation, email change or resend against the hosted
+project, ask Jacques for explicit approval and warn that it consumes the project's shared hourly
+Auth-email allowance. A general request to test authentication is not approval to spend that
+allowance. Local Supabase/Mailpit tests are exempt and remain part of `./scripts/verify.sh`.
+
 The repository uses dependency-light verification rather than framework-managed browser E2E tests.
 After edits, at minimum:
 

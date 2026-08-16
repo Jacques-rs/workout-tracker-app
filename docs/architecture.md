@@ -7,14 +7,15 @@
 | `index.html` | The app shell, workout markup, inline styles and device-first workout logic. No build step. |
 | `js/auth-config.js`, `js/auth-client.js`, `js/auth-ui.js` | Environment selection, Supabase session boundary and authentication dialogs. Kept outside the workout script. |
 | `js/program-store.js` | Private programme-library boundary. Owns `programs` reads/writes, local-first import retry, activation identity and revision-checked soft deletion. |
-| `js/profile-ui.js` | Account-first profile and programme-library states/actions. It receives callbacks and makes no backend call. |
+| `js/session-store.js` | Device-first session queue and the sole `session_logs` Data API boundary. Owns retry, revision checks, conflict copies, backfill and history paging. |
+| `js/profile-ui.js` | Account-first profile, programme-library and readable-history states/actions. It receives stores/callbacks and makes no backend call. |
 | `vendor/supabase-js-2.111.0.min.js` | Pinned browser SDK; origin and checksum are recorded in `vendor/README.md`. |
 | `sw.js` | Service worker. Caches the app shell for offline use. |
 | `manifest.webmanifest` | PWA manifest — name, colours, icons, `display: standalone`. |
 | `icon-192.png`, `icon-512.png`, `icon-512-maskable.png` | App icons (barbell glyph on dark background). |
 | `program.json` | Bundled **sample** programme (`tp-program-2`, 6 weeks × 4 days), opened only through **View sample programme**. |
 | `samples/apptest.js` | Dependency-free smoke test of account entry, local namespaces, workout logging and export. |
-| `samples/authtest.js`, `samples/profiletest.js`, `samples/programstoretest.js`, `samples/swtest.js` | Dependency-free tests for auth ownership, profile/library states, programme storage and the service-worker boundary. |
+| `samples/authtest.js`, `samples/profiletest.js`, `samples/programstoretest.js`, `samples/sessionstoretest.js`, `samples/swtest.js` | Dependency-free tests for auth ownership, profile/history states, cloud stores and the service-worker boundary. |
 | `supabase/` | Repo-managed backend config, migrations, fake seed data, pgTAP access-policy tests and a local Auth/Mailpit integration test. |
 | `scripts/verify.sh` | One local command for the database security suite and all existing contract/app checks. |
 
@@ -22,7 +23,7 @@
 
 Four surfaces, and which one a thing belongs on is the main design rule here:
 
-- **Profile home** — the cold-start surface. Signed-out visitors get sign-in/recovery and the explicit sample action. An authenticated owner sees the private cloud programme library and the active device cache; an offline-known owner keeps the active cached workout and may queue one imported replacement for reconnect. History still says plainly that session sync is not connected. Explicit sign-out hides personal cache metadata without deleting it.
+- **Profile home** — the cold-start surface. Signed-out visitors get sign-in/recovery and the explicit sample action. An authenticated owner sees the private cloud programme library, the active device cache and readable workout history grouped by programme. An offline-known owner keeps cached training plus this installation's local/queued history; cloud-only history returns when connected. Explicit sign-out hides personal cache metadata without deleting it.
 - **Header** (sticky, two rows) — the ≡ button and a tappable context line (`Week 3 · Tue 5 Aug` over the day's theme — the date lives on this line, not its own row) on row 1; a worded Overview/Log toggle and `n/m done` on row 2, with either the progress bar (Overview) or the pip strip (Log) beneath. Nothing here is an input. The progress bar has **two fill layers** (`#pbarDone`, and the dimmer `#pbarPart` behind it) so a session with four exercises half-logged doesn't read as 0% through, and the pips carry **three** states, not two (`data-done`, `data-part`).
 - **`<main>`** — exercise cards, and nothing else. In Overview, every card for the day, read-only; in Log, exactly one, with a set editor.
   - **Log card order is load-bearing**: name → prescription → the `Capture` chips → **the set editor** → coach notes / progression rule / Summary & notes. The reference material sits *below* the editor because three collapsibles above the fields pushed the primary action off a 320×568 screen.
@@ -37,10 +38,10 @@ The vendored Supabase SDK loads first, followed by the auth and profile modules.
 selects the local stack only for localhost/loopback and the hosted project elsewhere.
 `auth-client.js` owns Supabase Auth calls and exposes state/actions to the rest of the app.
 `auth-ui.js` renders sign-in, recovery and password-setup dialogs. `program-store.js` owns every
-Data API call to `programs`; `profile-ui.js` renders account/library states from `TPAuth`,
-`TPPrograms` and local callbacks, and never calls Supabase itself. Nothing in the client queries
-`session_logs` yet. The workout script makes no direct backend call: it asks whether personal
-cache/import access is allowed and hands programme operations to the store boundary.
+Data API call to `programs`; `session-store.js` owns every Data API call to `session_logs`.
+`profile-ui.js` renders account/library/history states from those stores and local callbacks, and
+never calls Supabase itself. The workout script makes no direct backend call: after device autosave
+it hands an immutable `tp-session-3` snapshot to the synchronous queue boundary.
 
 The inline workout script is organised in labelled sections, in this order. Keep additions in the matching section.
 
@@ -50,10 +51,10 @@ The inline workout script is organised in labelled sections, in this order. Keep
 2c. **Drawer** — `renderDrawer()` builds the whole panel: the week/date/day controls (and wires them, because they only exist once it has rendered), the check-in accordion, the data buttons, and the two settings accordions. `renderCheckin()` rebuilds *only* the check-in — day and date changes switch which session is open, and a full rebuild would throw away the scroll position and open/closed state of the sections below it. `accordion(key, title, build, statId)` remembers open/closed in the in-memory `ACC`. `checkinSummary()`/`checkinFilled()` drive the closed-state summary and the dot on the ≡. `openDrawer()`/`closeDrawer()`/`toggleDrawer()`/`drawerOpen()`.
 3. **Categories** — `CATS`, `CAT_ALIASES`, `CAT_RULES`, `catOf(ex)`. Resolves an exercise's rail colour + tag; see `docs/data-contracts.md` for the fallback ladder.
 4. **Program loading** — `isV2()` and `dayExercises()` (the schema fork; see quirks), `athleteId()`, `loadProgram(obj)` validates and persists a personal import. `boot()` loads settings and the profile; it does not silently enter a programme. `openCachedWorkout()` restores `tp_program_v1`, while `openSampleWorkout()` fetches the pre-cached sample without replacing it. Also the four **read-only readers of the prescription**, which turn what the generator wrote into what the UI asks for: `prescribedSets(ex)`/`targetSets(ex, e)` (how many set slots), `metricOf(ex)` (what the reps field measures — see below), `parseHints(ex)` (the `Capture` chips), and `painAsked(ex)`/`programPainSite()` (which exercises want a pain reading, and which body part this block monitors). All pure, all derived from the opened programme.
-5. **Session persistence** — `sessionKey()`, `getSession()` (also runs `normalizeEntry()` over every entry — see "Migrating a stored entry" below), `saveSession()`; the set model itself: `blankEntry()`, `blankDraft()`/`seedDraft()`/`draftEmpty()`/`draftDirty()`, `entryState()`, `renumber()`, `deriveSummary()`/`deriveReps()`/`withUnit()`/`pickMode()`/`pickMax()`/`applyDerivedSummary()`, `normalizeEntry()`, `commitSet()`, `deleteSet()`, and the three that make a typed set unloseable: `commitDraftIfDirty()`, `flushDraft()`.
+5. **Session persistence** — `sessionKey()`, `getSession()` (also runs `normalizeEntry()` over every entry — see "Migrating a stored entry" below), `saveSession()`; device storage always completes before `TPSessions.stage()` snapshots personal work for asynchronous sync. The set model itself: `blankEntry()`, `blankDraft()`/`seedDraft()`/`draftEmpty()`/`draftDirty()`, `entryState()`, `renumber()`, `deriveSummary()`/`deriveReps()`/`withUnit()`/`pickMode()`/`pickMax()`/`applyDerivedSummary()`, `normalizeEntry()`, `commitSet()`, `deleteSet()`, and the three that make a typed set unloseable: `commitDraftIfDirty()`, `flushDraft()`.
 6. **Rendering** — `renderAll()` = `renderHeader()` + `renderDrawer()` + `renderMain()`. Also `dayParts()`, `dayTheme()`, `fmtDate()`/`fmtDateShort()`, `sessionCard()` (the check-in, rendered into the drawer), `field(label, node, unit, labelClass)`, `updateProgress()`, and the card builders: `exerciseHead(ex)` (shared), `hintChips()`, `overviewCard(ex, s, idx)`, `logCard(ex, s, idx)`, `buildSetEditor()` (recap + chips + count control + fields + actions), `buildSummaryPanel()` (the collapsed, editable flat fields), `summaryText()`, `statusLine()`, `setRecap()`, `painLogged()`, `collapse()`.
 6b. **View mode** — `viewMode()`, `setView()`, `syncView()` (toggle state, footer/header visibility, and capture/restore of the runtime-only Overview scroll position), `firstUndone()`, `resetFocus()`, `clampFocus()`, `goFocus(i)`, `stepFocus(d)`, `renderNav()` (rebuilds the pips) and `paintNav()` (repaints their state, the counter and the prev/next disabled flags on every save, without touching structure — and scrolls the pip strip only when `STATE.focus` actually changed).
-7. **Export** — `exportSets()`, `exportEntry()` (a named whitelist, not a rest-spread — see "State model" below), `buildSessionExport()`, `exportSession()`, `copyJSON()`.
+7. **Export** — `exportSets()`, `exportEntry()` (a named whitelist, not a rest-spread — see "State model" below), pure `buildSessionPayload(stored, program)` for export/backfill, `buildSessionExport()`, `exportSession()`, `copyJSON()`.
 8. **Events** — wiring for the markup that exists for the whole life of the page, a guarded `keydown` listener (Escape closes the drawer, arrows page the focus view), service-worker registration, `boot()` call. The week/date/day controls are wired in `renderDrawer()` instead, because they are built there.
 
 ## State model
@@ -73,6 +74,7 @@ APP = { surface: "profile" | "workout", source: null | "personal" | "sample" }
 | `tp_active_program_v1` | Stable cloud UUID, last known row revision and a `pending` retry marker for the active personal programme. It never contains the programme payload; that remains in `tp_program_v1`. |
 | `tp_pos_v1` | The selected week/day for the personal cached programme. |
 | `tp_sess_v1::<date>::<day>` | One session's logged data. |
+| `tp_session_sync_v1` | Per-local-session cloud identity, last seen revision, dirty generation and—only while dirty—the complete `tp-session-3` retry snapshot. Clean mappings drop the duplicate payload. Never used for sample sessions. |
 | `tp_demo_pos_v1` | Sample-only week/day position. Never used for personal training. |
 | `tp_demo_sess_v1::<date>::<day>` | Sample-only session data. Same local shape and export contract, separate namespace. |
 | `tp_settings_v1` | Which optional fields are shown, plus `painLabel`, plus appearance (`palette`: `a`\|`b`, `mode`: `auto`\|`light`\|`dark`), `view` (`list`\|`focus`, meaning Overview\|Log) and `sv`, a one-shot settings-migration marker (see below). Defaults are all-on / `a` / `auto` / `focus`. Appearance and view are cosmetic and deliberately **not** part of the session export — `tracking` is built from `FIELD_DEFS` alone, so nothing added here can leak into a log file. |
@@ -102,6 +104,28 @@ Remove is a soft delete (`deleted_at`) guarded by the row's last-seen `revision`
 means another device changed it, so the library refreshes and asks the athlete to review rather than
 overwriting. Removing the active programme clears `tp_program_v1`, `tp_pos_v1` and its active marker,
 but deliberately retains local session keys. No programme action writes `session_logs`.
+
+## Session synchronization and history
+
+`saveSession()` remains the first and only immediate workout write. Once that local write succeeds,
+personal sessions synchronously stage a full `tp-session-3` snapshot in `tp_session_sync_v1`; the
+store debounces and serializes Data API work later. A pending programme's stable UUID is retained,
+but its session waits until the programme row exists so the owner-scoped foreign key cannot race.
+Transport failures retain the dirty snapshot and retry with bounded backoff. A queue/storage failure
+is surfaced without undoing the original workout save.
+
+The canonical cloud identity is owner + programme + date + day, matching the local session key's
+intentional omission of week. Inserts use a stable UUID and adopt an identical existing record after
+an uncertain retry. Updates compare the last-seen `revision`; a stale whole-session write never
+overwrites remote work. Instead it receives a new stable UUID and is inserted with `conflict_of`
+pointing to the canonical row. The profile labels both versions and lets the athlete read, download
+or copy them; promotion/merging is deliberately deferred.
+
+On authenticated refresh, existing personal keys are backfilled only when their block, athlete,
+week/day and logged exercise ids identify one known programme safely. Ambiguous records stay local
+and are labelled local-only. Remote history is paged 20 rows at a time and held in memory; an offline
+cold start shows only this installation's reconstructable local/queued sessions. Explicit sign-out
+hides queue and history state without deleting either. `tp_demo_*` sessions never enter this path.
 
 A stored session looks like:
 
@@ -178,7 +202,9 @@ Every input has an `oninput`/`onchange` handler that mutates the session object 
 
 `exportSession()` builds the `tp-session-3` object, serialises it, and triggers a download via a `Blob` + object URL + synthetic `<a download>` click. Both it and `copyJSON()` are wrapped in `try/catch` that toasts the error: a throw here would look like the button doing nothing, at the one moment the session has to leave the phone.
 
-Why a download rather than writing to the athlete's Drive folder directly: the File System Access API isn't available on iOS Safari, and session synchronization is not connected yet. On iPhone the download goes through the share sheet → *Save to Files* → the Drive folder. `copyJSON()` is the fallback path — clipboard, then paste into chat. The staged replacement is tracked in `docs/backend-launch-plan.md`.
+Downloads remain available because they are the portable coaching hand-off and the recovery path for
+conflict copies. On iPhone the download goes through the share sheet → *Save to Files* → the Drive
+folder. `copyJSON()` is the fallback path — clipboard, then paste into chat.
 
 ## Styling
 
@@ -202,11 +228,10 @@ Layout rules that are load-bearing on a phone, and easy to undo by accident:
 ## Current client boundary
 
 No framework, bundler, npm runtime, TypeScript, runtime CDN dependency, analytics or multi-athlete
-profile switching. Supabase Auth and the private `programs` library are the only remote client
-integrations. Programme payloads are cloud-backed, while the selected one remains in the existing
-device cache. Session reads/writes remain local and the history card states plainly that cloud
-history is not connected yet. Offline autosave remains the source of truth for in-progress training
-and never waits for the backend.
+profile switching. Supabase Auth, the private `programs` library and revision-checked `session_logs`
+are the remote client integrations. Programme payloads are cloud-backed, while the selected one
+remains in the existing device cache. Session edits still write locally first; the sync queue and
+history are additive, and in-progress training never waits for the backend.
 
 **One installation belongs to one beta account.** The first accepted or signed-in account writes a
 small owner marker. A later attempt by a different account is signed out locally and rejected without

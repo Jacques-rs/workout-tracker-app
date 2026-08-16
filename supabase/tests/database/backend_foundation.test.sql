@@ -121,6 +121,20 @@ select is((select count(*) from public.programs), 1::bigint,
 select is((select count(*) from public.session_logs), 1::bigint,
   'user one sees only their session');
 
+select throws_ok(
+  $$insert into public.session_logs (
+      owner_id, program_id, session_date, day, week, schema_version, payload
+    ) values (
+      '00000000-0000-0000-0000-000000000101',
+      '10000000-0000-0000-0000-000000000101',
+      '2026-01-01', 'Day 1', 1, 'tp-session-3',
+      '{"schema":"tp-session-3"}'::jsonb
+    )$$,
+  '23505',
+  'duplicate key value violates unique constraint "session_logs_canonical_identity_unique"',
+  'a programme date and day has only one live canonical session'
+);
+
 select lives_ok(
   $$insert into public.programs (
       id, owner_id, title, schema_version, payload
@@ -212,6 +226,26 @@ select lives_ok(
       '{"schema":"tp-session-3"}'::jsonb
     )$$,
   'a recoverable conflict can reference the same owner canonical session'
+);
+
+update public.session_logs
+set payload = '{"schema":"tp-session-3","marker":"current"}'::jsonb
+where id = '20000000-0000-0000-0000-000000000101';
+
+select is(
+  (select revision from public.session_logs
+   where id = '20000000-0000-0000-0000-000000000101'),
+  2::bigint,
+  'a session update increments the revision'
+);
+
+select results_eq(
+  $$update public.session_logs
+    set payload = '{"schema":"tp-session-3","marker":"stale"}'::jsonb
+    where id = '20000000-0000-0000-0000-000000000101' and revision = 1
+    returning id$$,
+  $$select null::uuid where false$$,
+  'a stale session compare-and-swap changes no row'
 );
 
 update public.programs

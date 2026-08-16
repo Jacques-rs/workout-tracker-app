@@ -264,6 +264,33 @@ console.log("\nauthenticated programme import boundary");
   sandbox.TPAuth = auth; sandbox.window.TPAuth = auth;
 }
 
+console.log("\ndevice-first session synchronization boundary");
+{
+  loadFixture("program.v2.sample.json");
+  app.APP.source = "personal";
+  const staged = [];
+  const programStore = { getActiveIdentity(){ return { id: "program-cloud-id", revision: 1, pending: false }; } };
+  const sessionStore = { stage(key, programId, payload){
+    staged.push({ key, programId, payload, localAlreadySaved: store.has(key) });
+  }};
+  sandbox.TPPrograms = programStore; sandbox.window.TPPrograms = programStore;
+  sandbox.TPSessions = sessionStore; sandbox.window.TPSessions = sessionStore;
+  const session = app.getSession();
+  session.session.overall = "Saved locally before cloud staging";
+  app.saveSession(session);
+  is(staged.length, 1, "a personal autosave stages one cloud snapshot");
+  assert(staged[0].localAlreadySaved, "the local session write completes before cloud staging begins");
+  is(staged[0].programId, "program-cloud-id", "the snapshot uses the stable programme identity");
+  is(staged[0].payload.schema, "tp-session-3", "the cloud payload is the existing export contract");
+  is(staged[0].payload.session.overall, "Saved locally before cloud staging",
+    "the queued snapshot contains the just-saved keystroke");
+  app.APP.source = "sample";
+  app.saveSession(app.getSession());
+  is(staged.length, 1, "sample sessions never cross the personal sync boundary");
+  sandbox.TPPrograms = undefined; sandbox.window.TPPrograms = undefined;
+  sandbox.TPSessions = undefined; sandbox.window.TPSessions = undefined;
+}
+
 console.log("\ntp-program-2 — week-aware filtering");
 {
   const prog = loadFixture("program.v2.sample.json");

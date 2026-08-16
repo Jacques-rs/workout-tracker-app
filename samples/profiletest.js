@@ -66,10 +66,29 @@ const programs = {
   getState: () => programState,
   subscribe(next) { next(programState); return () => {}; }
 };
+const historyPayload = {
+  schema: "tp-session-3", block: "Private strength block", athlete: "Sample Athlete",
+  week: 2, date: "2026-08-14", day: "Day 1 - Strength", session: { readiness: "Green" },
+  entries: [{ exercise: "Squat", done: true, load: "80", reps: "5", rpe: "7",
+    painDuring: "", notes: "Moved well", sets: [{ set: 1, load: "80", reps: "5", rpe: "7", painDuring: "", note: "" }] }]
+};
+let sessionState = { status: "ready", error: null, syncing: false, pending: 0,
+  conflicts: 0, localOnly: 0, hasMore: false, items: [{
+    id: "session-one", programId: "program-one", conflictOf: null,
+    block: "Private strength block", date: "2026-08-14", day: "Day 1 - Strength", week: 2,
+    completedExercises: 1, totalExercises: 1, complete: true, syncState: "synced", detailAvailable: true
+  }] };
+const sessions = {
+  getState: () => sessionState,
+  getPayload: id => id === "session-one" ? historyPayload : null,
+  subscribe(next) { next(sessionState); return () => {}; },
+  async loadMore() {}, async retry() {}
+};
 let cachedReads = 0, sampleOpens = 0, workoutOpens = 0, imports = 0, signedOutCallbacks = 0;
 let activations = 0, backups = 0, removals = 0;
+let historyDownloads = 0, historyCopies = 0;
 const personal = { meta: { block: "Private strength block", athlete: "Sample Athlete", weeks: 6, version: 3 }, exercises: [] };
-const ui = profileModule.createProfileUI(document, auth, authUI, programs);
+const ui = profileModule.createProfileUI(document, auth, authUI, programs, sessions);
 ui.init({
   getCachedProgram() { cachedReads++; return personal; },
   onOpenSample() { sampleOpens++; },
@@ -78,6 +97,8 @@ ui.init({
   onActivateProgram() { activations++; },
   onBackUpCached() { backups++; },
   onRemoveProgram() { removals++; },
+  onDownloadHistory() { historyDownloads++; },
+  onCopyHistory() { historyCopies++; },
   onSignedOut() { signedOutCallbacks++; }
 });
 
@@ -103,9 +124,13 @@ copy = render({ status: "authenticated", user: { email: "one@example.invalid", v
   owner: { email: "one@example.invalid", signedOut: false }, error: null });
 ok(/Private strength block/.test(copy), "the authenticated owner sees the cached active programme");
 ok(/Cloud backup current/.test(copy), "the active programme is identified as backed up");
-ok(/Cloud history is not connected yet/.test(copy), "history is an honest not-yet-connected state");
+ok(/Cloud history ready/.test(copy), "the connected history state is explicit");
+ok(/2026-08-14/.test(copy) && /Squat/.test(copy) && /Moved well/.test(copy),
+  "history is grouped with readable workout detail");
+button("Download JSON").onclick(); button("Copy JSON").onclick();
 button("Start workout").onclick(); button("Import programme JSON…").onclick(); button("Remove").onclick();
 same([workoutOpens, imports], [1, 1], "programme actions enter training or request a library import");
+same([historyDownloads, historyCopies], [1, 1], "history export actions stay behind profile callbacks");
 
 programState = { ...programState, items: [...programState.items,
   { id: "program-two", title: "Cloud conditioning block", athlete: "Sample Athlete", weeks: 4,
@@ -118,6 +143,13 @@ copy = render({ status: "offline-owner", user: null,
   owner: { email: "one@example.invalid", signedOut: false }, error: null });
 ok(/Offline · cached training available/.test(copy), "a known owner gets a clear offline state");
 ok(/Private strength block/.test(copy), "offline ownership retains cached programme access");
+
+sessionState = { ...sessionState, status: "offline", pending: 1, conflicts: 1,
+  items: [{ ...sessionState.items[0], syncState: "conflict", conflictOf: "canonical-one" }] };
+copy = render({ status: "offline-owner", user: null,
+  owner: { email: "one@example.invalid", signedOut: false }, error: null });
+ok(/1 change queued/.test(copy), "offline history reports queued local work");
+ok(/Conflict copy/.test(copy), "recoverable conflicts are clearly labelled");
 
 programState = { ...programState, activeId: "program-one", items: [
   { ...programState.items[0], active: true, current: false }

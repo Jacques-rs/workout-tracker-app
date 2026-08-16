@@ -72,6 +72,7 @@ for (const asset of [
   "./js/auth-client.js",
   "./js/auth-ui.js",
   "./js/program-store.js",
+  "./js/session-store.js",
   "./js/profile-ui.js",
   "./program.json"
 ]) {

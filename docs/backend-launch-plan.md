@@ -1,7 +1,8 @@
 # Backend launch plan
 
-**Status:** programme library implemented locally; hosted profile and library smoke are next
-**Last updated:** 2026-08-15
+**Status:** session synchronization/history implemented locally; hosted phase-5 and Auth-email
+smokes pending
+**Last updated:** 2026-08-16
 **Owner:** Jacques makes the product calls below; implementation choices default to established
 engineering conventions.
 
@@ -136,30 +137,45 @@ Postgres JSON queries or derived views before the storage model is normalized.
 1. **Foundation — complete:** confirmed the blocking decisions; added the Supabase project layout,
    migration, sanitized seed data, row-level-security tests and CI; and deployed the reviewed
    migration and auth configuration to the hosted beta project.
-2. **Authentication — complete:** invite acceptance, verified email/password
-   setup, sign-in, recovery, device-local sign-out and offline-safe auth state are integrated without
-   changing workout persistence. A first successful account binds the installation; a different
-   account is rejected without deleting local data. Personal programme import requires that account,
-   while the bundled sample and cached workouts remain usable. Hosted invitation, sign-in, recovery,
-   local sign-out and offline-owner flows passed the beta smoke. Public sign-up remains deferred.
-3. **Account entry and profile — implemented locally, hosted smoke pending:** sign-in/profile is the
+2. **Authentication — implemented locally; hosted Auth-email smoke pending:** invite acceptance,
+   verified email/password setup, sign-in, recovery, device-local sign-out and offline-safe auth
+   state are integrated without changing workout persistence. A first successful account binds the
+   installation; a different account is rejected without deleting local data. Personal programme
+   import requires that account, while the bundled sample and cached workouts remain usable. Local
+   automated verification covers
+   invitation, recovery, sign-in, local sign-out and offline-owner behavior. Hosted invitation and
+   recovery delivery/callback smoke has **not** been completed because each send consumes the shared
+   Supabase Auth-email allowance. Public sign-up remains deferred.
+3. **Account entry and profile — complete:** sign-in/profile is the
    cold-start surface; the sample is an explicit, labelled action with isolated local storage; and a
    known owner can reach cached training offline. Explicit sign-out preserves but hides personal data.
-   The profile keeps the existing JSON import as device-only and gives programmes/history honest
-   not-yet-connected states. No workout payload is sent to Supabase in this phase.
-4. **Programme library — implemented locally, hosted smoke pending:** list, import, activate and
+   Hosted account/profile entry, sample isolation, cached offline access and sign-out hiding passed
+   the beta smoke.
+4. **Programme library — complete:** list, import, activate and
    soft-remove user-owned programmes from the profile. Imports write the active device cache first;
    an offline attempt keeps one stable UUID and retries after authenticated reconnect. Existing
    device-only programmes require an explicit backup action rather than uploading silently. The
    active programme remains in the existing local key for offline training, and no session payload
-   is sent in this phase.
-5. **Session synchronization and history — next after programme-library smoke:** keep local autosave, add a dirty queue and retryable
-   remote upserts, then show previous logs on the profile grouped with their programme. Expose a small
-   honest sync status and test offline/reconnect/conflict behavior.
+   is sent in this phase. Hosted list/import/activate/remove and reconnect behavior passed the beta smoke.
+5. **Session synchronization and history — implemented locally, hosted smoke pending:** local autosave
+   remains first; personal changes stage complete `tp-session-3` retry snapshots under stable UUIDs,
+   then revision-check remote writes. Stale device writes become labelled whole-session conflict copies
+   instead of overwriting. Eligible existing logs backfill automatically; unmatched logs remain local.
+   The profile groups readable/exportable history by programme, pages cloud rows, and reports queued,
+   conflict and local-only states. Offline cold starts show this installation's logs only.
 6. **Launch hardening:** data export/deletion, privacy copy, recovery testing, backups, operational
    monitoring that excludes health payloads, and a private beta.
 
 ## Guardrails for AI-assisted maintenance
+
+- **Hosted Auth-email budget requires approval.** Supabase's built-in email provider is currently
+  documented as allowing two project-wide Auth emails per hour across email-triggering endpoints,
+  and Supabase may change that value. Before an agent triggers a hosted administrator invite,
+  password recovery/reset email, signup confirmation, email change or resend, it must ask Jacques
+  for explicit approval and warn that the action consumes that hourly allowance. General permission
+  to test authentication is not sufficient. Check the live project rate-limit/SMTP configuration
+  when available rather than assuming the documented default. Local Supabase/Mailpit email tests do
+  not consume the hosted allowance and remain safe to run through `./scripts/verify.sh`.
 
 - Keep one canonical architecture description and link to it from both `CLAUDE.md` and `AGENTS.md`;
   do not maintain divergent instructions for Claude and Codex.
