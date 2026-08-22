@@ -1,12 +1,16 @@
 # CLAUDE.md — Workout Tracker App
 
-Context for working on this repo. Read this first.
+Context for working on this repo. `docs/architecture.md` is the canonical implementation
+description; `docs/backend-launch-plan.md` is authoritative for the staged account and sync work.
 
 ## What this is
 
 A single-purpose **installable PWA** that displays one athlete's training programme and logs each session **offline in the gym**, then exports the session as a JSON file for review by an AI coach in a separate Claude project.
 
-It is a personal tool. There are no accounts, no backend, and no plan to add any. Do not build for scale or public distribution.
+The shipped client is an invite-only, account-backed personal tool. Supabase Auth and the private
+programme library are integrated; workout logs remain device-first and are not synchronized yet.
+Continue only in the phases defined in `docs/backend-launch-plan.md`; do not bypass the offline-first
+boundaries or broaden the beta into a public platform.
 
 ### More than one athlete — where the line is
 
@@ -15,11 +19,14 @@ Two people use this: Jacques and his partner. They are handled at **two differen
 - **Coaching side (`athlete/`) is genuinely multi-athlete.** One folder per person — `athlete/<slug>/` holding `personal-profile.md`, `plans/`, `programs/`, `logs/`. The `program-planner` and `program-builder` skills take the athlete as an input and read only that person's profile. Injury protocols, pain-monitoring rules and readiness hard stops are per-athlete data, never hardcoded in a skill. See `athlete/README.md`.
 - **The app is per-device, not multi-profile.** A second athlete installs the PWA on her own phone, which gives her her own `localStorage`, settings, programme and logs. One programme is stored at a time (`tp_program_v1`). Which optional fields appear, and what the pain field is called, is a per-device preference in the drawer's Tracked fields section (`tp_settings_v1`) — that is how athlete-specific needs reach the UI.
 
-So: **no profile switching, no account, nothing keyed by person inside the app.** If you find yourself adding a person dimension to a `localStorage` key, stop — that is tenancy, and it was rejected. The one exception is `athleteId`, which the app *carries through* from `program.json` into the session export purely so a log file says which `athlete/<slug>/logs/` folder it belongs in. It is a label, not a selector.
+So, in the current client: **no profile switching and nothing keyed by person inside the workout
+autosave path.** Remote ownership lives at the auth/programme-store boundaries rather than by
+rewriting the existing session `localStorage` keys. `athleteId` remains a contract label carried from the
+programme into session export; it is not an authorization identifier.
 
 ## The wider workflow this app sits in
 
-This repo is **step 3** of a four-step loop. Steps 1, 2 and 4 are done by a Claude coaching project whose data now lives **inside this repo, under `athlete/`** (see Repo layout). The app and the coaching project still never talk to each other — the only integration is JSON files on disk.
+This repo is **step 3** of a four-step loop. Steps 1, 2 and 4 are done by a Claude coaching project whose data now lives **inside this repo, under `athlete/`** (see Repo layout). Cloud backup does not connect the production app to the AI coaching tools: their integration remains the versioned JSON contracts.
 
 1. **Plan** — a `program-planner` skill reads `athlete/<slug>/personal-profile.md`, interviews the athlete, and writes a Program Planning Doc into `athlete/<slug>/plans/`, which the athlete approves.
 2. **Build** — a `program-builder` skill turns the approved plan into three artefacts in `athlete/<slug>/programs/`: a Markdown phase map, a colour-banded `.xlsx` with one tab per week, and **`program.json`** (schema `tp-program-2`). **Every week of the block is authored explicitly** — see below.
@@ -42,7 +49,7 @@ The two sides version independently. Current: **`tp-program-2` in, `tp-session-3
 
 ## Architecture in one paragraph
 
-`index.html` is the entire app — markup, CSS, and JS inline, no build step, no framework, no npm. `sw.js` caches the app shell for offline use. `manifest.webmanifest` plus three PNG icons make it installable. `program.json` at the repo root is a bundled **sample** so the app runs on first open; the athlete's real programme is loaded at runtime via Import and persisted in `localStorage`. Full detail in `docs/architecture.md`.
+`index.html` is the current app — markup, CSS, and JS inline, no build step, framework or npm runtime. `sw.js` caches the app shell. `program.json` is a bundled **sample**; `js/program-store.js` backs private programmes with the repo-managed Supabase backend while the active payload remains in `localStorage`. Full detail in `docs/architecture.md`.
 
 ### Where a thing goes on screen
 
@@ -133,7 +140,18 @@ Both are git worktrees of the same clone, so `athlete/` exists only in the workt
 
 ## Verifying changes
 
-There is no test suite. After edits, at minimum:
+`./scripts/verify.sh` is the repository implementation gate. Deployed browser testing is a separate
+release-smoke gate: if no controllable browser is connected, report only that release smoke as
+pending; do not describe the implementation as unverified or repeat completed implementation work.
+
+Hosted Supabase Auth email is also approval-gated. Before triggering an administrator invite,
+password recovery/reset email, signup confirmation, email change or resend against the hosted
+project, ask Jacques for explicit approval and warn that it consumes the project's shared hourly
+Auth-email allowance. A general request to test authentication is not approval to spend that
+allowance. Local Supabase/Mailpit tests are exempt and remain part of `./scripts/verify.sh`.
+
+The repository uses dependency-light verification rather than framework-managed browser E2E tests.
+After edits, at minimum:
 
 ```bash
 python3 -m http.server 8000        # then open http://localhost:8000
@@ -243,4 +261,6 @@ Alternatives if the repo ever needs to go private: **Cloudflare Pages** (private
 
 ## Roadmap
 
-See `docs/roadmap.md` for known gaps and candidate features, each with the reasoning. Don't add features not listed there without discussing the trade-off first — the athlete values reliability and speed in the gym over functionality.
+See `docs/roadmap.md` for ordinary feature candidates and `docs/backend-launch-plan.md` for the
+approved backend sequence. Don't jump phases or add unlisted scope: reliability and speed in the
+gym remain more important than functionality.

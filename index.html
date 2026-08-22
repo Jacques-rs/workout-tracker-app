@@ -125,7 +125,64 @@
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     font-size:16px;line-height:1.45;overflow-wrap:break-word;-webkit-font-smoothing:antialiased}
   body{padding:0 var(--s3) calc(92px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto}
+  body.profile-active{padding-bottom:calc(var(--s5) + env(safe-area-inset-bottom))}
   .tnum{font-variant-numeric:tabular-nums}
+
+  /* ---------- account/profile home ----------
+     This is the cold-start surface. Programme calls stay behind program-store.js;
+     session history remains an honest not-yet-connected state until the next phase. */
+  .profile-view{min-height:100vh;padding:calc(var(--s5) + env(safe-area-inset-top)) 0 var(--s5)}
+  .profile-hero{padding:var(--s3) var(--s1) var(--s5)}
+  .profile-kicker{font-size:var(--t-xs);font-weight:800;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--accent-ink)}
+  .profile-title{font-size:clamp(1.75rem,8vw,2.5rem);line-height:1.05;margin:var(--s2) 0 0;
+    letter-spacing:-.035em}
+  .profile-lead{color:var(--muted);font-size:var(--t-md);line-height:1.5;margin:var(--s3) 0 0;
+    max-width:36rem}
+  .profile-body{display:grid;gap:var(--s3)}
+  .profile-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+    padding:var(--s4)}
+  .profile-card-title{font-size:var(--t-md);line-height:1.25;margin:0}
+  .profile-copy{color:var(--muted);font-size:var(--t-sm);line-height:1.5;margin:var(--s2) 0 0}
+  .profile-status{display:inline-flex;margin:var(--s3) 0 0;padding:5px 9px;border-radius:999px;
+    background:var(--accent-soft);color:var(--accent-ink);font-size:var(--t-xs);font-weight:800}
+  .profile-actions{display:flex;gap:var(--s2);align-items:stretch;margin-top:var(--s3);flex-wrap:wrap}
+  .profile-actions>button{flex:1 1 150px}
+  .profile-wide{width:100%;margin-top:var(--s3)}
+  .profile-programme{margin-top:var(--s3);padding:var(--s3);border-radius:var(--r-sm);
+    border:1px solid var(--line-soft);background:var(--well)}
+  .profile-programme-title{font-size:var(--t-base);font-weight:800;line-height:1.35}
+  .profile-programme-meta{font-size:var(--t-xs);color:var(--muted);margin-top:3px}
+  .profile-loading{border-style:dashed}
+  .profile-error{border-left:3px solid var(--bad)}
+  .profile-history-group{margin-top:var(--s4)}
+  .profile-history-group:first-of-type{margin-top:var(--s3)}
+  .profile-history-group-title{font-size:var(--t-base);margin:0 0 var(--s2)}
+  .profile-history-item{margin-top:var(--s2);border:1px solid var(--line-soft);
+    border-radius:var(--r-sm);background:var(--well);overflow:hidden}
+  .profile-history-item>summary{display:grid;grid-template-columns:auto 1fr auto;gap:2px var(--s2);
+    padding:var(--s3);cursor:pointer;list-style:none}
+  .profile-history-item>summary::-webkit-details-marker{display:none}
+  .profile-history-item>summary::after{content:"›";grid-column:3;grid-row:1/3;align-self:center;
+    color:var(--muted);font-size:var(--t-lg);transition:transform .16s}
+  .profile-history-item[open]>summary::after{transform:rotate(90deg)}
+  .profile-history-date{font-size:var(--t-sm);font-weight:800}
+  .profile-history-day{font-size:var(--t-sm);font-weight:700;min-width:0;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  .profile-history-state{grid-column:1/-1;font-size:var(--t-xs);color:var(--muted)}
+  .profile-history-state.conflict{color:var(--warn);font-weight:800}
+  .profile-history-state.queued{color:var(--accent);font-weight:700}
+  .profile-history-detail{padding:0 var(--s3) var(--s2);border-top:1px solid var(--line-soft)}
+  .profile-history-checkin{font-size:var(--t-xs);line-height:1.5;color:var(--ink-dim)}
+  .profile-history-exercise{padding:var(--s2) 0;border-top:1px solid var(--line-soft)}
+  .profile-history-exercise-title{font-size:var(--t-sm);font-weight:750}
+  .profile-history-exercise-copy{font-size:var(--t-xs);line-height:1.45;color:var(--muted);
+    margin-top:2px}
+  .profile-history-item>.profile-actions{padding:0 var(--s3) var(--s3);margin-top:var(--s2)}
+  .demo-banner{display:flex;align-items:center;gap:var(--s2);padding:7px var(--s3);
+    margin:calc(var(--s4) * -1) 0 var(--s2);border-radius:0 0 var(--r-sm) var(--r-sm);
+    background:var(--accent-soft);color:var(--accent-ink);font-size:var(--t-xs);font-weight:800}
+  .demo-banner[hidden]{display:none}
 
   /* ---------- header ----------
      Two rows only. Everything that is decided once a session — week, day, date, the
@@ -521,6 +578,39 @@
   .dnote{color:var(--muted);font-size:var(--t-sm);margin:var(--s3) 0 0;line-height:1.5}
   body.noscroll{overflow:hidden}
 
+  /* ---------- account dialog ----------
+     Authentication is deliberately outside the workout renderer. It can open from an
+     invite/recovery link or from the drawer without becoming a prerequisite for local
+     autosave, and it has its own keyboard-friendly dialog rather than reusing the
+     finite-choice sheet. */
+  .auth-wrap{position:fixed;inset:0;z-index:110;display:none;align-items:flex-end}
+  .auth-wrap.in{display:flex}
+  .auth-bg{position:absolute;inset:0;background:var(--scrim)}
+  .auth-dialog{position:relative;width:100%;max-width:520px;margin:0 auto;background:var(--panel);
+    border:1px solid var(--line);border-bottom:0;border-radius:20px 20px 0 0;
+    padding:var(--s4) var(--s4) calc(var(--s4) + env(safe-area-inset-bottom));
+    max-height:min(92vh,720px);overflow-y:auto;overscroll-behavior:contain}
+  .auth-head{display:flex;align-items:flex-start;gap:var(--s3);margin-bottom:var(--s4)}
+  .auth-title{font-size:var(--t-lg);font-weight:800;line-height:1.2}
+  .auth-copy{font-size:var(--t-sm);color:var(--muted);line-height:1.45;margin-top:3px}
+  .auth-close{flex:0 0 auto;width:40px;height:40px;padding:0;border-radius:50%}
+  .auth-form{display:flex;flex-direction:column;gap:var(--s3)}
+  .auth-field{display:flex;flex-direction:column;gap:var(--s1);font-size:var(--t-sm);
+    color:var(--muted);font-weight:700}
+  .auth-field input{width:100%;min-height:var(--h-field);font-size:16px;color:var(--ink)}
+  .auth-form>.primary,.auth-message+.primary{width:100%;min-height:var(--h-primary)}
+  .auth-error{padding:var(--s2) var(--s3);border:1px solid var(--bad);
+    border-radius:var(--r-sm);background:color-mix(in srgb,var(--bad) 10%,transparent);
+    color:var(--bad);font-size:var(--t-sm);line-height:1.4}
+  .auth-error[hidden]{display:none}
+  .auth-rule,.auth-message{color:var(--muted);font-size:var(--t-sm);line-height:1.5;
+    margin:0 0 var(--s3)}
+  .auth-status{margin-top:0}
+  @media (min-width:560px){
+    .auth-wrap{align-items:center;padding:var(--s4)}
+    .auth-dialog{border-bottom:1px solid var(--line);border-radius:20px;
+      padding-bottom:var(--s4)}}
+
   /* Accordion sections. `details.acc` deliberately outguns the generic `details` rules
      used for coach notes — same element, different job. */
   details.acc{margin:var(--s3) 0 0;padding:0;background:var(--well);
@@ -621,8 +711,19 @@
 }catch(e){document.documentElement.dataset.theme="a-dark";}})();
 </script>
 </head>
-<body>
+<body class="profile-active">
+<div class="profile-view" id="profileView">
+  <div class="profile-hero">
+    <div class="profile-kicker">Training Tracker</div>
+    <h1 class="profile-title" id="profileTitle" tabindex="-1">Your training, ready when you are.</h1>
+    <p class="profile-lead">Open a cached programme, import one for this device, or explore the sample. <a href="./privacy.html">Privacy</a></p>
+  </div>
+  <main class="profile-body" id="profileBody" aria-live="polite"></main>
+</div>
+
+<div id="workoutView" hidden>
 <header>
+  <div class="demo-banner" id="demoBanner" hidden>Sample programme · demo activity is kept separate</div>
   <div class="row">
     <button class="iconbtn" id="menuBtn" aria-label="Session menu and settings"
             aria-expanded="false" aria-controls="drawer">
@@ -673,6 +774,7 @@
     <div class="drawer-body" id="drawerBody"></div>
   </aside>
 </div>
+</div>
 
 <div class="sheet-wrap" id="sheetWrap" aria-hidden="true">
   <div class="sheet-bg" id="sheetBg"></div>
@@ -689,9 +791,32 @@
   </section>
 </div>
 
+<div class="auth-wrap" id="authWrap" aria-hidden="true">
+  <div class="auth-bg" id="authBg"></div>
+  <section class="auth-dialog" id="authDialog" role="dialog" aria-modal="true"
+           aria-labelledby="authTitle">
+    <div class="auth-head">
+      <div class="grow">
+        <div class="auth-title" id="authTitle"></div>
+        <div class="auth-copy" id="authCopy"></div>
+      </div>
+      <button class="ghost auth-close" id="authClose" aria-label="Close account dialog">×</button>
+    </div>
+    <div id="authBody"></div>
+  </section>
+</div>
+
 <div class="toast" id="toast"></div>
 <input type="file" id="fileInp" accept="application/json,.json" style="display:none" />
 
+<script src="./vendor/supabase-js-2.111.0.min.js"></script>
+<script src="./js/auth-config.js"></script>
+<script src="./js/auth-client.js"></script>
+<script src="./js/auth-ui.js"></script>
+<script src="./js/program-store.js"></script>
+<script src="./js/session-store.js"></script>
+<script src="./js/account-data.js"></script>
+<script src="./js/profile-ui.js"></script>
 <script>
 "use strict";
 /* ---------- helpers ---------- */
@@ -703,7 +828,9 @@ const el = (t,props={},kids=[])=>{const n=document.createElement(t);
   return n;};
 
 const LS = { prog:"tp_program_v1", set:"tp_settings_v1", pos:"tp_pos_v1",
-  sess:(d,day)=>`tp_sess_v1::${d}::${day}` };
+  demoPos:"tp_demo_pos_v1",
+  sess:(d,day)=>`tp_sess_v1::${d}::${day}`,
+  demoSess:(d,day)=>`tp_demo_sess_v1::${d}::${day}` };
 /* `week` and `day` ARE persisted (LS.pos) — see restorePos(). `focus` is not: it is the
    index of the exercise shown in the Log view, and on a cold start it is derived from
    what is already ticked off, which lands you on the first exercise you haven't done.
@@ -713,6 +840,10 @@ const LS = { prog:"tp_program_v1", set:"tp_settings_v1", pos:"tp_pos_v1",
    The Overview scroll position is also runtime-only: it survives a trip into Log, but
    resets when the programme, week, day or date changes. */
 let PROGRAM=null, STATE={week:1,day:null,date:todayISO(),focus:0,setEdit:null};
+/* Cold starts always land on the profile. `source` changes the local position/session
+   namespace while a workout is open; it is runtime-only and never reaches an export. */
+const APP={surface:"profile",source:null};
+let SAMPLE_PROGRAM=null;
 let OVERVIEW_SCROLL=0;
 
 function todayISO(){const d=new Date();const z=n=>String(n).padStart(2,"0");
@@ -726,6 +857,67 @@ function hideToast(){const t=$("#toast");t.classList.remove("show","action");t.i
 function slug(s){return (s||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"").slice(0,40);}
 const txt=v=>String(v??"").trim();
 function parseNum(s){const n=parseFloat(s);return Number.isFinite(n)?n:null;}
+
+function cachedProgram(){
+  try{
+    const value=JSON.parse(localStorage.getItem(LS.prog)||"null");
+    return value&&value.meta&&Array.isArray(value.exercises)?value:null;
+  }catch(e){return null;}
+}
+function readPersonalSessions(){
+  const sessions=[];
+  for(let i=0;i<localStorage.length;i++){
+    const key=localStorage.key(i);
+    if(!key||!key.startsWith("tp_sess_v1::"))continue;
+    try{
+      const value=JSON.parse(localStorage.getItem(key)||"null");
+      if(value&&typeof value==="object")sessions.push({key,session:value});
+    }catch(e){}
+  }
+  return sessions;
+}
+function cachedAccess(){return !!window.TPAuth&&!!window.TPAuth.canAccessCached&&window.TPAuth.canAccessCached();}
+function showSurface(surface){
+  APP.surface=surface==="workout"?"workout":"profile";
+  const profile=APP.surface==="profile";
+  $("#profileView").hidden=!profile;$("#workoutView").hidden=profile;
+  document.body.classList.toggle("profile-active",profile);
+  if(profile){
+    if(window.TPProfileUI)TPProfileUI.render();
+    setTimeout(()=>{const h=$("#profileTitle");if(h&&h.focus)h.focus();},0);
+  }
+}
+function openProfile(){
+  if(APP.surface==="workout")flushDraft();
+  if(drawerOpen())closeDrawer();
+  showSurface("profile");scrollTop();
+}
+function openWorkout(source){
+  APP.source=source;
+  $("#demoBanner").hidden=source!=="sample";
+  showSurface("workout");renderAll();scrollTop();
+}
+function openCachedWorkout(){
+  if(!cachedAccess()){showSurface("profile");if(window.TPAuthUI)TPAuthUI.open("sign-in");return;}
+  const value=cachedProgram();
+  if(!value){toast("Import a programme first");showSurface("profile");return;}
+  PROGRAM=value;APP.source="personal";STATE={week:1,day:null,date:todayISO(),focus:0,setEdit:null};
+  restorePos();resetFocus();openWorkout("personal");
+}
+async function openSampleWorkout(){
+  try{
+    if(!SAMPLE_PROGRAM){
+      const response=await fetch("./program.json",{cache:"no-store"});
+      if(!response.ok)throw new Error("sample unavailable");
+      SAMPLE_PROGRAM=await response.json();
+    }
+    if(!SAMPLE_PROGRAM||!SAMPLE_PROGRAM.meta||!Array.isArray(SAMPLE_PROGRAM.exercises))
+      throw new Error("invalid sample");
+    PROGRAM=SAMPLE_PROGRAM;APP.source="sample";
+    STATE={week:1,day:null,date:todayISO(),focus:0,setEdit:null};
+    restorePos();resetFocus();openWorkout("sample");
+  }catch(e){toast("Sample programme is unavailable offline. Try again when connected.");}
+}
 
 /* One reusable finite-choice sheet. The card never rebuilds while a keyboard is open;
    opening and closing this only follows a deliberate tap. */
@@ -1024,16 +1216,28 @@ function selectWeek(w){
 function renderDataSection(host){
   host.innerHTML="";
   const imp=el("button",{className:"ghost"},"Import program…");
-  imp.onclick=()=>$("#fileInp").click();
+  imp.onclick=()=>requestProgramImport();
   const copy=el("button",{className:"ghost"},"Copy JSON");copy.onclick=copyJSON;
   const exp=el("button",{className:"primary"},"Export session");exp.onclick=exportSession;
   host.append(el("div",{className:"btnrow"},[imp]));
   host.append(el("div",{className:"btnrow"},[copy,exp]));
 }
 
+function authCanImport(){
+  return !!window.TPAuth&&window.TPAuth.canImport();
+}
+function requestProgramImport(){
+  if(authCanImport()){$("#fileInp").click();return;}
+  openProfile();
+  if(window.TPAuthUI)TPAuthUI.open("sign-in");
+  toast("Sign in to import a personal program");
+}
+
 function renderDrawer(){
   const host=$("#drawerBody");if(!host)return;
   host.innerHTML="";DAYBTNS=[];
+  const home=el("button",{className:"ghost",style:"width:100%"},"← Profile home");
+  home.onclick=openProfile;host.append(home);
   if(PROGRAM){
     host.append(weekStepper());
     const days=el("div",{className:"daylist"});
@@ -1341,13 +1545,14 @@ function programPainSite(){
    NOT restored: it keys the stored session, so reopening the app the next morning must
    start a new day rather than reopen yesterday's file. */
 function firstDay(){return (PROGRAM&&PROGRAM.meta&&PROGRAM.meta.days&&PROGRAM.meta.days[0])||null;}
+function positionKey(){return APP.source==="sample"?LS.demoPos:LS.pos;}
 function savePos(){
-  try{localStorage.setItem(LS.pos,JSON.stringify({week:STATE.week,day:STATE.day}));}catch(e){}
+  try{localStorage.setItem(positionKey(),JSON.stringify({week:STATE.week,day:STATE.day}));}catch(e){}
 }
 function restorePos(){
   STATE.day=firstDay();
   let p=null;
-  try{p=JSON.parse(localStorage.getItem(LS.pos)||"null");}catch(e){}
+  try{p=JSON.parse(localStorage.getItem(positionKey())||"null");}catch(e){}
   if(!p||typeof p!=="object")return;
   /* Clamp against the programme actually loaded, not against what was saved. A saved week
      can point past the end of a shorter block imported since, and a saved day can name a
@@ -1360,7 +1565,8 @@ function restorePos(){
 
 function loadProgram(obj){
   if(!obj||!obj.meta||!Array.isArray(obj.exercises))throw new Error("Not a valid program.json (need meta + exercises).");
-  PROGRAM=obj; localStorage.setItem(LS.prog,JSON.stringify(obj));
+  PROGRAM=obj;APP.source="personal";localStorage.setItem(LS.prog,JSON.stringify(obj));
+  const demo=$("#demoBanner");if(demo)demo.hidden=true;
   /* A fresh import starts at the top of the block — and that reset has to be persisted,
      or the next refresh would restore the position from the programme just replaced. */
   STATE.week=1; STATE.day=(obj.meta.days&&obj.meta.days[0])||null; STATE.date=todayISO();
@@ -1368,14 +1574,94 @@ function loadProgram(obj){
   resetFocus();
   renderAll();resetViewScroll();
 }
+function acceptProgramImport(obj,fromProfile=APP.surface==="profile"){
+  if(window.TPPrograms&&TPPrograms.importProgram){
+    const pending=TPPrograms.importProgram(obj);
+    return Promise.resolve(pending).then(result=>{
+      if(fromProfile)showSurface("profile");else closeDrawer();
+      if(result&&result.ok){
+        toast(result.pending?"Programme ready · cloud backup queued":"Programme added to your library");
+      }else{
+        const message=result&&result.error&&result.error.message||"Cloud backup failed";
+        toast("Programme ready on this device · "+message);
+      }
+      return result;
+    });
+  }
+  loadProgram(obj);
+  if(fromProfile){showSurface("profile");if(window.TPProfileUI)TPProfileUI.render();}
+  else closeDrawer();
+  toast(fromProfile?"Programme ready on this device":"Program loaded");
+}
+function clearCachedProgram(){
+  localStorage.removeItem(LS.prog);localStorage.removeItem(LS.pos);
+  if(APP.source==="personal"||APP.surface==="profile")PROGRAM=null;
+  if(window.TPProfileUI)TPProfileUI.render();
+}
 async function boot(){
   loadSettings();
   applyTheme();          /* head script already painted it; this keeps meta + state in sync */
-  const saved=localStorage.getItem(LS.prog);
-  if(saved){try{PROGRAM=JSON.parse(saved);}catch(e){}}
-  if(!PROGRAM){try{const r=await fetch("./program.json",{cache:"no-store"});if(r.ok)PROGRAM=await r.json();}catch(e){}}
-  if(PROGRAM){restorePos();resetFocus();}
-  renderAll();
+  if(window.TPAuthUI)TPAuthUI.init({toast});
+  if(window.TPPrograms)TPPrograms.init({
+    getCachedProgram:cachedProgram,
+    onActivate:loadProgram,
+    onClearActive:clearCachedProgram
+  });
+  if(window.TPSessions)TPSessions.init({
+    readLocalSessions:readPersonalSessions,
+    buildPayload:(session,program)=>buildSessionPayload(session,program)
+  });
+  if(window.TPProfileUI)TPProfileUI.init({
+    getCachedProgram:cachedProgram,
+    onOpenCached:openCachedWorkout,
+    onImport:requestProgramImport,
+    onActivateProgram:id=>{
+      const result=window.TPPrograms&&TPPrograms.activate(id);
+      if(!result||!result.ok)toast(result&&result.error&&result.error.message||"Programme unavailable");
+    },
+    onBackUpCached:async()=>{
+      const result=await TPPrograms.backUpCached();
+      toast(result.ok?(result.pending?"Cloud backup queued":"Programme backed up"):
+        result.error&&result.error.message||"Cloud backup failed");
+    },
+    onRemoveProgram:async item=>{
+      const label=item&&item.title||"this programme";
+      if(window.confirm&&!window.confirm(`Remove ${label} from your library? The workout logs on this device will be kept.`))return;
+      const result=await TPPrograms.remove(item.id);
+      toast(result.ok?"Programme removed":result.error&&result.error.message||"Remove failed");
+    },
+    onNotice:toast,
+    onExportAccount:async()=>{
+      if(!window.TPAccountData)throw new Error("Account export is unavailable.");
+      await TPAccountData.exportAccountData();
+      toast("Account data downloaded");
+    },
+    onDeleteAccount:async()=>{
+      if(!window.TPAccountData)throw new Error("Account deletion is unavailable.");
+      const approved=window.confirm&&window.confirm(
+        "Delete this account permanently? Cloud programmes and workout history will be deleted. " +
+        "This device’s personal data will be cleared after deletion succeeds. Offline data on other devices and managed backups may remain temporarily. Choose Export account data first if you want a copy."
+      );
+      if(!approved)return;
+      const password=window.prompt&&window.prompt("Enter your current password to confirm account deletion:");
+      if(password==null)return;
+      await TPAccountData.deleteAccount(password);
+      toast("Account deleted on this device");
+      if(window.location&&window.location.reload)setTimeout(()=>window.location.reload(),300);
+    },
+    onDownloadHistory:downloadSessionPayload,
+    onCopyHistory:copySessionPayload,
+    onOpenSample:openSampleWorkout,
+    onSignedOut:()=>showSurface("profile")
+  });
+  if(window.TPAuth){
+    TPAuth.subscribe(()=>{
+      if(APP.surface==="workout"&&APP.source==="personal"&&!cachedAccess())openProfile();
+      else if(drawerOpen())renderDrawer();
+    });
+    TPAuth.init();
+  }
+  showSurface("profile");
 }
 
 /* ---------- session persistence ---------- */
@@ -1517,7 +1803,7 @@ function normalizeEntry(e){
   return changed;
 }
 
-function sessionKey(){return LS.sess(STATE.date,STATE.day);}
+function sessionKey(){return APP.source==="sample"?LS.demoSess(STATE.date,STATE.day):LS.sess(STATE.date,STATE.day);}
 function getSession(){
   const raw=localStorage.getItem(sessionKey());
   let s=null;
@@ -1547,7 +1833,17 @@ function saveSession(s){
   s.week=STATE.week;s.day=STATE.day;s.date=STATE.date;
   /* localStorage can throw (quota, private mode) — never let a keystroke's autosave
      take the rest of the app down with it. */
-  try{localStorage.setItem(sessionKey(),JSON.stringify(s));}catch(e){}
+  let saved=false;
+  try{localStorage.setItem(sessionKey(),JSON.stringify(s));saved=true;}catch(e){}
+  /* The remote path begins only after the device write succeeds. stage() is synchronous:
+     it snapshots the contract into a durable queue and schedules network work elsewhere,
+     so a keystroke never waits for Supabase. Demo sessions never cross this boundary. */
+  if(saved&&APP.source==="personal"&&PROGRAM&&window.TPSessions&&window.TPPrograms){
+    const active=TPPrograms.getActiveIdentity&&TPPrograms.getActiveIdentity();
+    if(active&&active.id){
+      try{TPSessions.stage(sessionKey(),active.id,buildSessionPayload(s,PROGRAM));}catch(e){}
+    }
+  }
   updateProgress(s);
 }
 
@@ -2553,9 +2849,28 @@ function exportEntry(e){
   return {done:!!e.done,load:txt(e.load),reps:txt(e.reps),rpe:txt(e.rpe),
           painDuring:txt(e.painDuring),notes:txt(e.notes)};
 }
-function buildSessionExport(){
-  const s=getSession();
-  const exs=dayExercises();
+function programVersionOf(program){
+  const value=Number(program&&program.meta&&program.meta.version);
+  return Number.isFinite(value)&&value>0?Math.floor(value):0;
+}
+function sessionExercises(program,week,day){
+  if(!program||!Array.isArray(program.exercises))return [];
+  const v2=program.meta&&program.meta.schema==="tp-program-2";
+  return program.exercises.filter(ex=>ex.day===day&&(!v2||Number(ex.week)===Number(week)));
+}
+/* Pure enough for queue backfill: it receives the stored session and the programme that
+   authored it rather than reading whichever workout happens to be open now. The returned
+   wire shape is exactly the existing tp-session-3 export contract. */
+function buildSessionPayload(stored,program){
+  const s=JSON.parse(JSON.stringify(stored||{}));
+  s.session={...BLANK_SESSION,...(s.session||{})};
+  if(!s.entries||typeof s.entries!=="object")s.entries={};
+  Object.keys(s.entries).forEach(id=>{
+    const e={...blankEntry(),...s.entries[id]};normalizeEntry(e);s.entries[id]=e;
+  });
+  const week=Math.max(1,Math.floor(Number(s.week)||1));
+  const day=txt(s.day);
+  const exs=sessionExercises(program,week,day);
   /* `tracking` is additive metadata: it tells the coach whether an empty pain value means
      "no pain logged" or "this athlete doesn't track pain". Every other key keeps its shape
      so the review step never sees a missing field. See docs/data-contracts.md. */
@@ -2566,12 +2881,13 @@ function buildSessionExport(){
   tracking.perSetLogging=true;
   return {
     schema:"tp-session-3",
-    block:PROGRAM.meta.block,athlete:PROGRAM.meta.athlete,athleteId:athleteId(),
+    block:program.meta.block,athlete:program.meta.athlete,
+    athleteId:txt(program.meta.athleteId)||slug(program.meta.athlete),
     /* Which revision of the programme this was actually trained off. Without it the coach
        has to diff the denormalised `prescribed` values against the current program.json to
        spot an athlete who never re-imported. 0 means the programme predates versioning. */
-    programVersion:progVersion(),
-    week:STATE.week,day:STATE.day,date:STATE.date,
+    programVersion:programVersionOf(program),
+    week,day,date:txt(s.date),
     exportedAt:new Date().toISOString(),
     tracking,
     /* Merged, like entries: a session stored before a check-in field existed must
@@ -2587,6 +2903,23 @@ function buildSessionExport(){
     })
   };
 }
+function buildSessionExport(){return buildSessionPayload(getSession(),PROGRAM);}
+function sessionFilename(data){return `session-${data.date}-${slug(data.day)||"day"}.json`;}
+function downloadSessionPayload(data){
+  if(!data||!data.schema)throw new Error("Workout details are unavailable on this device.");
+  const name=sessionFilename(data);
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=el("a",{href:url,download:name});document.body.append(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);toast("Exported "+name);
+}
+async function copySessionPayload(data){
+  if(!data||!data.schema)throw new Error("Workout details are unavailable on this device.");
+  const json=JSON.stringify(data,null,2);
+  try{await navigator.clipboard.writeText(json);toast("Session JSON copied");}
+  catch(e){const ta=el("textarea",{value:json});document.body.append(ta);ta.select();
+    document.execCommand("copy");ta.remove();toast("Session JSON copied");}
+}
 /* Both export paths are wrapped: a throw here would look like the button doing
    nothing, at the one moment the session has to leave the phone. Better to say so —
    the data is still in localStorage and Copy JSON is the fallback. */
@@ -2597,11 +2930,8 @@ function exportSession(){
   if(flushDraft())renderMain();
   try{
     const data=buildSessionExport();
-    const name=`session-${STATE.date}-${slug(STATE.day)||"day"}.json`;
-    const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
-    const url=URL.createObjectURL(blob);
-    const a=el("a",{href:url,download:name});document.body.append(a);a.click();a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url),1500);
+    const name=sessionFilename(data);
+    downloadSessionPayload(data);
     const who=athleteId();
     toast("Exported "+name+" — save into athlete/"+(who||"<you>")+"/logs/");
   }catch(err){toast("Export failed: "+err.message+" — try Copy JSON");}
@@ -2609,12 +2939,8 @@ function exportSession(){
 async function copyJSON(){
   if(!PROGRAM){toast("Load a program first");return;}
   if(flushDraft())renderMain();
-  let json;
-  try{json=JSON.stringify(buildSessionExport(),null,2);}
-  catch(err){toast("Copy failed: "+err.message);return;}
-  try{await navigator.clipboard.writeText(json);toast("Session JSON copied");}
-  catch(e){const ta=el("textarea",{value:json});document.body.append(ta);ta.select();
-    document.execCommand("copy");ta.remove();toast("Session JSON copied");}
+  try{await copySessionPayload(buildSessionExport());}
+  catch(err){toast("Copy failed: "+err.message);}
 }
 
 /* ---------- events ----------
@@ -2635,7 +2961,13 @@ $("#prevBtn").onclick=()=>stepFocus(-1);
 $("#nextBtn").onclick=()=>stepFocus(1);
 $("#fileInp").onchange=async e=>{
   const f=e.target.files[0];if(!f)return;
-  try{const txt=await f.text();loadProgram(JSON.parse(txt));closeDrawer();toast("Program loaded");}
+  if(!authCanImport()){
+    e.target.value="";requestProgramImport();return;
+  }
+  const fromProfile=APP.surface==="profile";
+  try{
+    const txt=await f.text();await acceptProgramImport(JSON.parse(txt),fromProfile);
+  }
   catch(err){toast("Import failed: "+err.message);}
   e.target.value="";
 };
@@ -2644,6 +2976,7 @@ $("#fileInp").onchange=async e=>{
    Suppressed while editing a set: an arrow key while STATE.setEdit is set would jump
    exercises with a chip (not an INPUT) focused mid-edit. */
 if(document.addEventListener)document.addEventListener("keydown",e=>{
+  if(window.TPAuthUI&&TPAuthUI.handleKeydown(e))return;
   if(e.key==="Escape"&&$("#sheetWrap").classList.contains("in")){sheetClose();return;}
   if(e.key==="Tab"&&$("#sheetWrap").classList.contains("in")){
     const nodes=Array.from($("#sheet").querySelectorAll("button,input,textarea,select"))

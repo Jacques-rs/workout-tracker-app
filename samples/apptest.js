@@ -105,7 +105,16 @@ const sandbox = {
   },
   matchMedia: () => ({ matches: false, addEventListener(){}, addListener(){} }),
   getComputedStyle: () => ({ getPropertyValue: () => "" }),
-  navigator: { clipboard: { writeText: async () => {} } },
+  navigator: { onLine: true, clipboard: { writeText: async () => {} } },
+  TPAuth: {
+    init(){}, subscribe(){ return () => {}; }, canImport(){ return true; }, canAccessCached(){ return true; },
+    getState(){ return { status: "authenticated", user: { email: "test@example.invalid", verified: true } }; }
+  },
+  TPAuthUI: {
+    init(){}, open(){}, renderAccount(host){ host.append(textNode("Test account")); },
+    handleKeydown(){ return false; }
+  },
+  TPProfileUI: { init(){}, render(){} },
   window: {
     scrollY: 0, pageYOffset: 0,
     addEventListener(){},
@@ -121,9 +130,12 @@ const sandbox = {
 sandbox.window = Object.assign(sandbox.window, sandbox);
 vm.createContext(sandbox);
 
-/* Load the app's main <script> block (index 1; index 0 is the head theme script). */
+/* Load the last inline <script> block. External browser dependencies are tested
+   separately and must not make this harness execute a vendored bundle. */
 const html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
-const blocks = [...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+const blocks = [...html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)]
+  .filter(m => !/\bsrc\s*=/.test(m[1]))
+  .map(m => m[2]);
 if(blocks.length < 2){ console.error("expected two <script> blocks in index.html, found " + blocks.length); process.exit(1); }
 /* `function` declarations land on the sandbox global by themselves, but the module
    state is `let`/`const`, which does not. Bind it explicitly rather than loosening
@@ -137,8 +149,11 @@ Object.defineProperties(globalThis, {
   FIELD_DEFS:   {get:()=>FIELD_DEFS},
   NAV_AT:       {get:()=>NAV_AT},
   OVERVIEW_SCROLL: {get:()=>OVERVIEW_SCROLL, set:v=>{OVERVIEW_SCROLL=v}}
+  ,APP:          {get:()=>APP}
+  ,LS:           {get:()=>LS}
+  ,SAMPLE_PROGRAM:{get:()=>SAMPLE_PROGRAM,set:v=>{SAMPLE_PROGRAM=v}}
 });`;
-vm.runInContext(blocks[1] + EPILOGUE, sandbox, { filename: "index.html<script>" });
+vm.runInContext(blocks[blocks.length - 1] + EPILOGUE, sandbox, { filename: "index.html<script>" });
 
 /* ---------- harness ---------- */
 let failures = 0;
@@ -209,6 +224,73 @@ function setLabel(c){ const n = c.findAll(x => x.classList.contains("setlabel"))
 function type(inp, v){ inp.value = v; inp.oninput(); }
 
 /* ---------- tests ---------- */
+console.log("\naccount-first entry and isolated sample storage");
+{
+  is(app.APP.surface, "profile", "a cold boot lands on the account/profile home");
+  assert(stubFor("#workoutView").hidden, "the personal workout is hidden during account entry");
+
+  const personal = loadFixture("program.v2.sample.json");
+  const personalJson = store.get("tp_program_v1");
+  app.APP.surface = "profile";
+  app.SAMPLE_PROGRAM = personal;
+  app.openSampleWorkout();
+  is(app.APP.source, "sample", "the deliberate sample action opens demo mode");
+  assert(!stubFor("#demoBanner").hidden, "sample mode is labelled persistently in the workout header");
+  assert(/^tp_demo_sess_v1::/.test(app.sessionKey()), "sample sessions use their own storage namespace");
+  app.savePos();
+  assert(store.has("tp_demo_pos_v1"), "sample week/day position is stored separately too");
+  is(store.get("tp_program_v1"), personalJson, "opening the sample never replaces the cached personal programme");
+
+  app.openProfile();
+  is(app.APP.surface, "profile", "the workout can return to profile home");
+  app.openCachedWorkout();
+  is(app.APP.source, "personal", "the known owner can reopen cached personal training");
+  assert(/^tp_sess_v1::/.test(app.sessionKey()), "personal sessions retain their existing keys");
+  assert(!/^tp_demo_/.test(app.sessionKey()), "personal and sample session keys cannot collide");
+
+  app.openProfile();
+  app.acceptProgramImport(personal,true);
+  is(app.APP.surface, "profile", "an import started from the profile stays on the profile");
+}
+
+console.log("\nauthenticated programme import boundary");
+{
+  const auth = sandbox.TPAuth;
+  assert(app.authCanImport(), "an authenticated account may import a personal programme");
+  sandbox.TPAuth = undefined; sandbox.window.TPAuth = undefined;
+  assert(!app.authCanImport(), "a missing auth client fails closed instead of bypassing the account gate");
+  sandbox.TPAuth = { canImport(){ return false; } }; sandbox.window.TPAuth = sandbox.TPAuth;
+  assert(!app.authCanImport(), "a signed-out account may not import a personal programme");
+  sandbox.TPAuth = auth; sandbox.window.TPAuth = auth;
+}
+
+console.log("\ndevice-first session synchronization boundary");
+{
+  loadFixture("program.v2.sample.json");
+  app.APP.source = "personal";
+  const staged = [];
+  const programStore = { getActiveIdentity(){ return { id: "program-cloud-id", revision: 1, pending: false }; } };
+  const sessionStore = { stage(key, programId, payload){
+    staged.push({ key, programId, payload, localAlreadySaved: store.has(key) });
+  }};
+  sandbox.TPPrograms = programStore; sandbox.window.TPPrograms = programStore;
+  sandbox.TPSessions = sessionStore; sandbox.window.TPSessions = sessionStore;
+  const session = app.getSession();
+  session.session.overall = "Saved locally before cloud staging";
+  app.saveSession(session);
+  is(staged.length, 1, "a personal autosave stages one cloud snapshot");
+  assert(staged[0].localAlreadySaved, "the local session write completes before cloud staging begins");
+  is(staged[0].programId, "program-cloud-id", "the snapshot uses the stable programme identity");
+  is(staged[0].payload.schema, "tp-session-3", "the cloud payload is the existing export contract");
+  is(staged[0].payload.session.overall, "Saved locally before cloud staging",
+    "the queued snapshot contains the just-saved keystroke");
+  app.APP.source = "sample";
+  app.saveSession(app.getSession());
+  is(staged.length, 1, "sample sessions never cross the personal sync boundary");
+  sandbox.TPPrograms = undefined; sandbox.window.TPPrograms = undefined;
+  sandbox.TPSessions = undefined; sandbox.window.TPSessions = undefined;
+}
+
 console.log("\ntp-program-2 — week-aware filtering");
 {
   const prog = loadFixture("program.v2.sample.json");
@@ -688,6 +770,13 @@ console.log("\na typed set is never lost — flushed on End, navigation and expo
   app.selectWeek(2);
   app.selectWeek(1);
   is(entry(ex).sets.length, 1, "changing week commits it");
+
+  ex = setup();
+  app.openWorkout("personal");
+  C = logCardNode();
+  type(setInputs(C)[0], "80");
+  app.openProfile();
+  is(entry(ex).sets.length, 1, "returning to profile home commits the set in progress");
 
   ex = setup();
   C = logCardNode();

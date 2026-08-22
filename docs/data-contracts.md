@@ -560,3 +560,12 @@ The coach reads the newest `athlete/<slug>/logs/*.json` and compares logged load
 - Review the athlete whose folder the file is in. `athleteId` (v2) confirms it; a file that
   landed in the wrong folder is a filing mistake, not a licence to apply another athlete's
   loading rules.
+
+## Account portability file (`tp-account-export-1`)
+
+This is deliberately not a coaching contract and cannot be imported or restored. It is an
+owner-access export with `schema`, `exportedAt`, an `account` identity, cloud `programmes` (including
+30-day tombstones), cloud `sessions` (canonical and conflicts), and `device` state for the current
+installation (`activeProgram`, position, settings, local sessions and dirty sync queue). It must not
+contain Supabase sessions/tokens, the installation owner marker, credentials, or any `tp_demo_*`
+data. Sanitized examples belong in `samples/`; real exports must never be committed.

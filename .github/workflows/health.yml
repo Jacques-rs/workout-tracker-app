@@ -1,0 +1,32 @@
+name: Public availability check
+
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check public shell, privacy page and service worker
+        run: |
+          set -euo pipefail
+          base='https://jacques-rs.github.io/workout-tracker-app'
+          curl --fail --silent --show-error --max-time 20 "$base/" >/dev/null
+          curl --fail --silent --show-error --max-time 20 "$base/privacy.html" >/dev/null
+          curl --fail --silent --show-error --max-time 20 "$base/sw.js" >/dev/null
+      - name: Check Supabase Auth and Data API availability without user data
+        run: |
+          set -euo pipefail
+          base='https://oaogomaucuzaelxhogce.supabase.co'
+          curl --fail --silent --show-error --max-time 20 "$base/auth/v1/health" >/dev/null
+          code=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 20 "$base/rest/v1/")
+          test "$code" != '000'
+          test "$code" != '500'
+          test "$code" != '502'
+          test "$code" != '503'
+          test "$code" != '504'
