@@ -86,6 +86,7 @@ Everything autosaves on device as you go.
 | `docs/architecture.md` | File layout, state model, service worker, export flow, known quirks. |
 | `docs/backend-launch-plan.md` | Live, concise decision register and delivery plan for accounts, saved programmes and cloud-synced logs. |
 | `docs/roadmap.md` | Known gaps and candidate features, with rationale. |
+| `docs/date-first-revamp.md` | Agreed design for the date-first revamp: the home hub, calendar-driven sessions, focus logger. Not implemented. |
 | `samples/README.md` | Development fixtures, v1 and v2 of both schemas. |
 | `athlete/README.md` | Coaching-project layout: the planner/builder skills, shared research, and one gitignored folder per athlete. |
 
