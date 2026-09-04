@@ -12,6 +12,11 @@ __pycache__/
 # personal details
 docs/athlete-context.md
 
+# Local credentials for scripts/pull_logs.py (Supabase URL/keys, login).
+# NEVER commit — this repo is public.
+.env
+.env.*
+
 # --- Athlete data: NEVER commit. The GitHub repo is public. ---
 # Deny-by-default: EVERYTHING under athlete/ is ignored, and only the shared,
 # non-personal parts are named back in. A new athlete folder is covered the
