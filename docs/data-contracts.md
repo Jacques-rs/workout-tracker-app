@@ -121,8 +121,8 @@ it is *not collected*. Distinguishing those two is the whole reason `tracking` e
 programme side, `meta.weeks` and `exercises[].week`. Everything else is a string, including
 every prescription — never assume one parses numerically.
 
-**Keys never disappear.** Switching a field off in the drawer's Tracked fields section flips a `tracking`
-flag; the key stays and its value is `""`. That is what lets a reader tell *not logged* from
+**Keys never disappear.** Switching a field off in the Account screen's Tracked fields section flips a
+`tracking` flag; the key stays and its value is `""`. That is what lets a reader tell *not logged* from
 *not tracked*, and it means the review step never probes for missing keys.
 
 ---
@@ -473,12 +473,14 @@ prescribed per-set array only if that stops being expressive enough.
 ### Field notes
 
 - `tracking` — **additive; added when optional fields became switchable in the app's
-  Tracked fields section.** It disambiguates an empty value: `painDuring: ""` with
+  Tracked fields section, which is now account-scoped rather than device-local.** It disambiguates an empty value: `painDuring: ""` with
   `tracking.painPerExercise: true` means *no pain logged*, whereas `false` means *this
   athlete does not track pain at all*. Without it the coach cannot tell silence from
   absence. Older session files predate the key — treat a missing `tracking` as all-true.
   - `painLabel` is the body part the athlete named (`"Knee"`, `"Shoulder"`, or `""` for a
-    generic "Pain"). It affects labels only; the stored keys never change.
+    generic "Pain"). It affects labels only; the stored keys never change. It follows the
+    athlete's *account*, so the same block logged on a second device carries the same
+    label — the export shape is unchanged either way.
   - **The keys in `session` and `entries[]` never change shape**, whether a field is
     switched on or not — the review step never has to probe for missing keys.
   - A value logged *before* a field was switched off is still exported as-is. The app does

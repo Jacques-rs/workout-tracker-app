@@ -75,6 +75,9 @@ node samples/programstoretest.js
 echo "==> Running session synchronization tests"
 node samples/sessionstoretest.js
 
+echo "==> Running account-scoped settings tests"
+node samples/settingsstoretest.js
+
 echo "==> Running service-worker boundary tests"
 node samples/swtest.js
 

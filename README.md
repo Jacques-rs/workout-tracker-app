@@ -62,18 +62,20 @@ Launch from the home-screen icon — it runs full-screen and works with no signa
 ## Using it
 
 1. Sign in from the account home, or choose **View sample programme** for the isolated demo. A known owner can also open cached training while offline.
-2. On the profile, import a personal programme JSON, activate one from the private library, or tap **Start workout** on the cached programme. Signing out preserves local data but hides it until that owner signs in again.
-3. Tap **≡** (or the `Week 1 · Mon` line next to it) to open the workout drawer. Set week, day and date, or use **Profile home** to leave training.
-4. Fill the **session check-in** — pain on waking, readiness, sleep, bodyweight, HRV note. Do it before you start: pain on waking describes how the tissue responded to your *last* session, not this one.
-5. Train and log each set. Everything autosaves locally first, then queues a private cloud snapshot when an account programme is active. Returning home commits a typed set in progress before leaving the workout.
-6. Review synced or queued workouts under **Recent workouts** on the profile. History stays readable and exportable; a stale second-device edit is kept as a clearly labelled conflict copy.
-7. Tap **Export session** to keep the portable coaching file flow, or **Copy JSON** and paste it into chat. Both are also in the drawer and available from history.
-8. While signed in online, use **Export account data** for the complete cloud-plus-current-device access file, or **Delete account…** to permanently remove the cloud account and this installation’s personal data after password confirmation.
+2. Import a personal programme JSON from the **Programme** screen, or activate one from your private library. Signing out preserves local data but hides it until that owner signs in again.
+3. **Home** answers "what am I doing today" first: today's date, what is on it, and one action — **Start session**, **Resume**, **Review**, or nothing at all on a rest day (with a quiet line pointing at the next session). The last few sessions sit below it, then rows to **Calendar**, **Programme** and **Account**.
+4. Every date carries a state, and **Calendar** shows the whole block that way: finished, logged-but-not-finished, started, or scheduled-and-not-done. Tap any date to open it.
+5. Training a different day from the one the plan suggests needs no special feature — open the date and tap **Doing a different day?** to pick the week *and* day. The session you create is what that date holds; nothing is moved.
+6. Fill the **session check-in** — pain on waking, readiness, sleep, bodyweight, HRV note. It sits above the exercise list and never blocks Start: pain on waking describes how the tissue responded to your *last* session, not this one.
+7. Train and log each set. The logger shows the rest clock counting up with your prescribed rest marked, and what you lifted for this exercise last time. Everything autosaves locally first, then queues a private cloud snapshot when an account programme is active.
+8. **Finish session** at the end of the list records that you finished, rather than leaving it to be guessed from what is logged. It works offline. Editing a sealed session never un-seals it — it just marks the exported file stale.
+9. Tap **Export session** to keep the portable coaching file flow, or **Copy JSON** and paste it into chat. Export is per-session and reachable from any past date.
+10. **Account** holds your sign-in, one line of sync state, the tracked fields that follow your account to any device, and the appearance settings that stay on this phone. While signed in online, **Export account data** gives the complete cloud-plus-current-device access file, and **Delete account…** permanently removes the cloud account and this installation's personal data after password confirmation.
 
-Two ways to see the exercises, switched with the toggle at the top right and remembered on the device:
+Two ways to see a date's exercises, switched with the toggle at the top and remembered on the device:
 
-- **All** — every exercise for the day in one scrolling list.
-- **Focus** — one exercise at a time. **Prev** / **Next** are in the footer, the numbered pips in the header jump straight to any exercise, and marking one done moves you to the next.
+- **Overview** — every exercise for the day, read-only, each with its status.
+- **Log** — one exercise at a time. **Prev** / **Next** are in the action bar, the numbered pips in the header jump straight to any exercise, and finishing one moves you to the next.
 
 Everything autosaves on device as you go.
 
@@ -86,6 +88,7 @@ Everything autosaves on device as you go.
 | `docs/architecture.md` | File layout, state model, service worker, export flow, known quirks. |
 | `docs/backend-launch-plan.md` | Live, concise decision register and delivery plan for accounts, saved programmes and cloud-synced logs. |
 | `docs/roadmap.md` | Known gaps and candidate features, with rationale. |
+| `docs/date-first-revamp.md` | The design record for the date-first revamp — the home hub, calendar-driven sessions, sealing, focus logger. Implemented; still authoritative for *why*. |
 | `samples/README.md` | Development fixtures, v1 and v2 of both schemas. |
 | `athlete/README.md` | Coaching-project layout: the planner/builder skills, shared research, and one gitignored folder per athlete. |
 

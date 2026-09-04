@@ -127,9 +127,9 @@ copy = render({ status: "authenticated", user: { email: "one@example.invalid", v
   owner: { email: "one@example.invalid", signedOut: false }, error: null });
 ok(/Private strength block/.test(copy), "the authenticated owner sees the cached active programme");
 ok(/Cloud backup current/.test(copy), "the active programme is identified as backed up");
-ok(/Cloud history ready/.test(copy), "the connected history state is explicit");
+ok(/Cloud history ready/.test(copy), "sync state is one explicit line, not a browser");
 ok(/2026-08-14/.test(copy) && /Squat/.test(copy) && /Moved well/.test(copy),
-  "history is grouped with readable workout detail");
+  "a copy that is not on this device stays readable");
 button("Download JSON").onclick(); button("Copy JSON").onclick();
 button("Export account data").onclick(); button("Delete account…").onclick();
 button("Start workout").onclick(); button("Import programme JSON…").onclick(); button("Remove").onclick();
@@ -196,6 +196,42 @@ setTimeout(() => {
     title: "Private strength block", athlete: "Sample Athlete", weeks: 6, version: 3
   }, "programme metadata is reduced to the profile's display-only summary");
   same(profileModule.programSummary({}), null, "invalid cached programmes produce no profile summary");
+
+  console.log("\nthe hub's two screens render on their own");
+  state = { status: "authenticated", user: { email: "one@example.invalid", verified: true },
+    owner: { email: "one@example.invalid", signedOut: false }, error: null };
+  /* Own preconditions: earlier blocks deliberately left the sync state offline and
+     conflicted. */
+  sessionState = { status: "ready", error: null, syncing: false, pending: 0, conflicts: 0,
+    localOnly: 0, hasMore: false, items: [{ id: "session-one", programId: "program-one",
+      conflictOf: null, block: "Private strength block", date: "2026-08-14",
+      day: "Day 1 - Strength", week: 2, completedExercises: 1, totalExercises: 1,
+      complete: true, syncState: "synced", detailAvailable: true }] };
+  const accountHost = new Element("div"), programmeHost = new Element("div");
+  ui.renderAccount(accountHost);
+  ui.renderProgramme(programmeHost);
+  ok(/Your account/.test(accountHost.textContent), "Account renders the account section alone");
+  ok(!/Programmes/.test(accountHost.textContent), "…without the programme library");
+  ok(/Cloud history ready/.test(accountHost.textContent), "carrying sync state as one line");
+  ok(/Programmes/.test(programmeHost.textContent), "Programme renders the library alone");
+  ok(!/Your account/.test(programmeHost.textContent), "…without the account controls");
+
+  /* The workout browser is gone: a session that IS on this device is a date on the
+     calendar, which is a better index than a flat list ever was. Only what the calendar
+     cannot show stays reachable in Account. */
+  ui.init({ hasLocalSession: (date, day) => date === "2026-08-14" && day === "Day 1 - Strength" });
+  const filtered = new Element("div");
+  ui.renderAccount(filtered);
+  ok(!/2026-08-14/.test(filtered.textContent),
+    "a cloud session already on this device is not listed a second time");
+  sessionState = { ...sessionState, conflicts: 1,
+    items: [{ ...sessionState.items[0], syncState: "conflict", conflictOf: "canonical-one" }] };
+  const conflicted = new Element("div");
+  ui.renderAccount(conflicted);
+  ok(/Conflict copy/.test(conflicted.textContent),
+    "but a conflict copy is always listed, however local the date looks");
+  ok(/1 conflict copy kept/.test(conflicted.textContent), "and counted in the sync line");
+
   console.log(failures ? `\n${failures} FAILED\n` : "\nall passed\n");
   process.exit(failures ? 1 : 0);
 }, 0);

@@ -17,7 +17,11 @@ boundaries or broaden the beta into a public platform.
 Two people use this: Jacques and his partner. They are handled at **two different layers**, and conflating them is the mistake to avoid.
 
 - **Coaching side (`athlete/`) is genuinely multi-athlete.** One folder per person — `athlete/<slug>/` holding `personal-profile.md`, `plans/`, `programs/`, `logs/`. The `program-planner` and `program-builder` skills take the athlete as an input and read only that person's profile. Injury protocols, pain-monitoring rules and readiness hard stops are per-athlete data, never hardcoded in a skill. See `athlete/README.md`.
-- **The app is per-device, not multi-profile.** A second athlete installs the PWA on her own phone, which gives her her own `localStorage`, settings, programme and logs. One programme is stored at a time (`tp_program_v1`). Which optional fields appear, and what the pain field is called, is a per-device preference in the drawer's Tracked fields section (`tp_settings_v1`) — that is how athlete-specific needs reach the UI.
+- **The app is per-device, not multi-profile.** A second athlete installs the PWA on her own phone and signs in as herself, which gives her her own `localStorage`, programme and logs. One programme is stored at a time (`tp_program_v1`).
+  **Settings have two scopes, and which one owns a key is decided in exactly one place** (`ACCOUNT_KEYS` / `DEVICE_KEYS`, and `setSetting()` is the only way to write one):
+  - **Account-scoped** (`tp_account_settings_v1`, synced by `js/settings-store.js`) — which optional fields are tracked and what the pain field is called. These are about *who you are*, so they follow the athlete to any device they sign in on: an athlete who tracks a tendon reading on one phone must not silently stop collecting it on another. Conflict rule is **last write wins, per field** — nothing is lost by resolving it, and it can be re-set in one tap.
+  - **Device-scoped** (`tp_settings_v1`) — palette, light/dark, and which view the app opens on. These are about *where you are standing*: a basement at 6 a.m. and a kitchen at noon want different things. The rest clock is device behaviour too — always on, and it hides itself once you have left the gym.
+  The Account screen shows the split with explicit labels rather than one undifferentiated list.
 
 So, in the current client: **no profile switching and nothing keyed by person inside the workout
 autosave path.** Remote ownership lives at the auth/programme-store boundaries rather than by
@@ -49,24 +53,49 @@ The two sides version independently. Current: **`tp-program-2` in, `tp-session-3
 
 ## Architecture in one paragraph
 
-`index.html` is the current app — markup, CSS, and JS inline, no build step, framework or npm runtime. `sw.js` caches the app shell. `program.json` is a bundled **sample**; `js/program-store.js` backs private programmes with the repo-managed Supabase backend while the active payload remains in `localStorage`. Full detail in `docs/architecture.md`.
+`index.html` is the current app — markup, CSS, and JS inline, no build step, framework or npm runtime. `sw.js` caches the app shell. `program.json` is a bundled **sample**; `js/program-store.js` backs private programmes with the repo-managed Supabase backend while the active payload remains in `localStorage`, and `js/settings-store.js` does the same for the account-scoped settings. Full detail in `docs/architecture.md`.
 
 ### Where a thing goes on screen
 
-There are three surfaces, and putting something on the wrong one is the mistake that made the old layout cluttered:
+**The heart is a home page and tracking is date-first.** Everything below follows from those two ideas; the full reasoning is in `docs/date-first-revamp.md`, which is the durable record of the design conversation and should be read before changing any of it.
 
-- **Header** — a two-row strip: ≡ and a tappable context line (`Week 3 · Tue 5 Aug` over the day's theme — the date lives here, not in its own row) on row 1; a worded Overview/Log toggle and the done count on row 2, with the progress bar (or, in Log, the exercise pips) beneath. **No inputs.**
-- **`<main>`** — exercise cards, and nothing else.
-- **Drawer** — week (a stepper, not a `<select>`), day, date, the session check-in, import/export, settings. Everything entered once per session and then only read.
+There are **five surfaces**, one visible at a time, and `showRoute()` is the only thing that touches their `hidden` flags. Toggling a surface from a handler is how the old layout ended up with no flow:
+
+| Route | Surface | Holds |
+|---|---|---|
+| `entry` | `#profileView` | Sign-in, the sample, the honest blocked states. A known owner never sees it. |
+| `home` | `#homeView` | The hub: today first and largest, the last few sessions inline, one row each to Calendar / Programme / Account. |
+| `calendar` | `#pageView` | A continuous vertical scroll of weeks. |
+| `date` | `#workoutView` | The date view and the focus logger — the old workout surface. |
+| `programme` / `account` | `#pageView` | The private library and the block anchor; the account, its sync line, and the settings. |
+
+**Every calendar date carries a workout state, and opening one resolves to exactly one of five things** — that is the whole navigation model. `dateStateOf(iso)` decides:
+
+| | |
+|---|---|
+| `resume` | an open (unsealed) session exists on this date |
+| `review` | a sealed session exists — viewable, and editable |
+| `start` | scheduled, nothing stored yet (worded "Log it late" once the date has passed) |
+| `rest` | nothing scheduled and nothing stored — notes only |
+| `noprogram` | nothing imported |
+
+**The schedule is a suggestion, not a commitment.** `tp-program-2` carries no dates: a programme is `(week, day)`, and the weekday exists only as prose in the day label. `scheduleFor(program)` derives dates from one anchor Monday plus each day's weekday, with three fallbacks in order — a structured field if one ever exists, the label's `(Mon)`, then distribute from Monday. A **claim** is simply a stored session carrying a date, and **claims always win**. So there is no "move session" operation, no cascade, and no schedule state that can drift out of sync: training Tuesday's session on Wednesday means opening Wednesday, picking a different day in the claim picker, and the session you create *is* the claim. `saveSession()` writes `week`/`day` from `STATE` on every keystroke, so **`STATE.week`/`STATE.day` must always be read off the claim, never re-derived from the schedule** — that is the subtlest way to break this.
+
+**Sealing.** `Finish session` sets `status:"sealed"`, which is what distinguishes "I finished" from "I did four of six and walked out". It is local and works with the radio off. **Editing a sealed session does not un-seal it** — un-sealing because a typo was fixed would flip the calendar back to "unfinished", which is a lie about that day; an edit sets the edited-since-export flag instead. Export stays manual and per-session.
+
+The **date view** is list-first, focus-second: the date and one action, then the check-in, then the exercise list, then the session footer. **The check-in never gates Start** — the data matters, but a form standing between the athlete and a warm-up gets skipped, or worse, filled with whatever number ends it fastest. A skipped check-in is honest missing data; a faked one is poison.
 
 `<main>` has two views, chosen by the header toggle and remembered per device:
 
 - **Overview** — every exercise for the day, **read-only, zero inputs.** Name, prescription, and **always** a status line plus a `○ / ◐ / ✓` badge: "Not started", "2 of 4 sets logged", "Set 3 typed — not logged yet", or the full summary once finished. Always, because an absent line used to mean "untouched" and was indistinguishable from a status that failed to render. Tap a card to open it in Log.
-- **Log** — one exercise at a time. Ordinary work is logged **per set**: the prescribed count is already present, only one set's fields are visible, and the full-width primary commits it. The final planned set completes and advances automatically. Adding/removing planned sets lives behind the quiet **Adjust sets** action. Before any work the explicit exit is **Skip exercise**; after partial work it is **End after N of M**, with a confirmation that says exactly what will be kept. A completed card offers Reopen / Add another set.
+- **Log — the focus logger.** One exercise at a time, with the exercise name, its prescription, the committed sets, the current set's fields, the **rest clock** and **what was lifted for this exercise last time** all visible at once. Big tabular numerals on a rule with tiny letterspaced labels, and one full-width action. Ordinary work is logged **per set**: the prescribed count is already present, only one set's fields are visible, and the full-width primary commits it. The final planned set completes and advances automatically. Adding/removing planned sets lives behind the quiet **Adjust sets** action. Before any work the explicit exit is **Skip exercise**; after partial work it is **End after N of M**, with a confirmation that says exactly what will be kept. A completed card offers Reopen / Add another set.
+  - **The rest clock counts up**, from `lastSetAt`, with the prescribed rest marked — not a countdown that expires and then means nothing. Passive: no sound, no buzz, no notification permission. It cannot get buggy by construction — the display is always `now − lastSetAt`, recomputed by one interval that only repaints, so there is no timer state to drift, corrupt or desynchronise, and it survives a reload, a backgrounded tab and a killed PWA. Nothing in the log path reads it.
+  - **"Last time"** matches on exercise `id`, then on a normalised name so it keeps working across blocks. Same set number where it exists, else the top set, always with how long ago. Silent when there is nothing to show, and **never coloured as a target** — it is a fact about the past, and making it green would quietly turn it into a prescription.
   - Circuit prescriptions use an adaptive logger instead of generic kg/result fields. Fixed rounds default to one large **Complete round N** tap; AMRAP, EMOM, for-time work and ladders default to a tailored final-result form. **Quick rounds / Round details / Final result** is always available as a quiet mode override. The last prescribed quick round opens one compact finish sheet for optional time/result, final RPE, pain and a note.
   - **RPE is a bottom-sheet picker**, 1–10 in 0.5 steps, everywhere it is captured. Stored values remain strings, and legacy prose remains visible until the athlete replaces it.
   - The **reps field is whatever the exercise measures** — `metricOf()` reads the prescription and gives it a label, unit, keyboard and placeholder (`Hold (s)`, `Time (min)`, `Dist (m)`, `Work (cal)`, `Reps`, `Result`). Never re-hardcode `inputmode="numeric"` there: two prescriptions in five are a duration, a distance or prose, and a digits-only keypad made a 45-second hold untypeable.
   - **Upcoming set chips are inert.** They are a plan, not a destination and not a delete button. The Adjust sets sheet can never reduce the plan below the current set.
+  - **Amber means *now*** — the primary action, the rest clock while you are still resting, the current pip, today on the calendar. Green means *logged*. A secondary action that borrows either is competing with the one tap that matters, so quiet actions are muted and underlined.
   - **A typed set is never lost.** `flushDraft()` commits a draft the athlete has typed into when they end early, page away, change day/week/view, export, or background the app. This includes a detailed circuit round. Only a *dirty* draft — a seeded copy of the last set is not a set that happened. **Anything that flushes must re-render**, or a card holding the older session object autosaves over the commit.
 
 The two views do **not** render the same card builder any more — one is read-only, one is an editor, and forcing them through one branchy function invites more drift than it prevents. What they must still share, and do, is `exerciseHead()`: the rail colour, name and prescription line. If you touch how an exercise's identity is displayed, change it there so Overview and Log cannot show two different prescriptions for the same row.
@@ -128,12 +157,12 @@ Both are git worktrees of the same clone, so `athlete/` exists only in the workt
 
 - Plain ES5/ES6-compatible vanilla JS. Small helpers (`$`, `el`) already exist at the top of the script — use them rather than adding a library.
 - Mobile-first, single 720px-max column. Touch targets ≥26px; inputs must be reachable one-handed with a chalked-up thumb.
-- **Themed via CSS variables — never hardcode a colour.** Two palettes (Amber / Mint) × light/dark are declared as four `html[data-theme]` blocks at the top of the `<style>`; the Appearance section of the drawer picks palette + mode (Auto follows the device). Every colour in a rule below those blocks must be a `var(--…)`, or it will survive a theme switch and look broken in one of the four. The only exceptions are two neutral greys (a `color-mix` fallback and a swatch hairline). Category rail colours live in `--cat-*`, so `CATS` in the JS holds `var()` references, not hex.
+- **Themed via CSS variables — never hardcode a colour.** Two palettes (Amber / Mint) × light/dark are declared as four `html[data-theme]` blocks at the top of the `<style>`; the Appearance section of the Account screen picks palette + mode (Auto follows the device). Every colour in a rule below those blocks must be a `var(--…)`, or it will survive a theme switch and look broken in one of the four. The only exceptions are two neutral greys (a `color-mix` fallback and a swatch hairline). Category rail colours live in `--cat-*`, so `CATS` in the JS holds `var()` references, not hex.
 - `type="number"` for **integer** fields with no partial-invalid state (pain scores, 0–10). For a field that can hold a decimal mid-type (RPE: `"7.5"`) or non-numeric prose (Load: `"BW+20"`), use `type="text" inputmode="decimal|numeric"` instead — a real `type="number"` input reports `.value === ""` while the text isn't yet a valid number (typing the `.` in `7.5`), so the autosaved value would flicker blank. Text + `inputmode` still gets the right keyboard and keeps the value exactly as typed, which is also what the export contract requires (every prescription and logged value is a string).
 - **`inputmode="numeric"` is a digits-only keypad on iOS** — there is no way to type a letter or a decimal point. Use it only where the value genuinely cannot be anything but whole digits, and never as a *default*: the fallback for a field whose content you can't predict is a full keyboard. This is what `metricOf()` decides for the reps field.
 - **Field labels are `nowrap` + ellipsis, so keep them short.** A label that wraps to two lines drops its own input below the others in the same grid row. The metric column is ~68px at 360px, which is why the metric labels are `Dist` and `Work` rather than `Distance` and `Calories`.
 - **Put a unit in the label, not as an overlay inside a narrow field.** `.fld .unit` is fine for `/10` and `kg`; a 3-character suffix like `min` alongside a 4-character value clips the value in a 68px column.
-- Keep the JS organised in the existing sections: settings → theme → drawer → categories → program loading → session persistence → rendering → view mode → export → events.
+- Keep the JS organised in the existing sections, in this order: helpers → local calendar days → settings → theme → what a session says about itself → moving around the block → exercise categories → programme loading → the derived schedule → what a date is → sealing → session persistence → session lifecycle state → the session index → set mutation → rendering → view mode → the session check-in → the date view → the hub and the calendar → Programme → Account → exercise head → Overview card → the focus logger's instruments → the set editor → circuits → Log card → export → events.
 - **Repaint, don't rebuild, on autosave.** `saveSession()` runs on every keystroke and calls `updateProgress()`. Anything reached from there must set attributes and text on nodes that already exist (`paintNav()` is the model). Rebuilding a strip or a card that often fights the scroll position and can steal focus mid-word. The set editor in Log view follows the same rule: an input's `oninput` writes into the row/draft and saves, never rebuilds its own container — that rebuild-on-keystroke was the cause of the old "RPE field escapes after one character" bug. A deliberate button tap may rebuild the editor, but set transitions remain passive and never focus a field; only an action explicitly targeting an input, such as **+ note**, may focus the new node.
 - `paintNav()` scrolls the pip strip into view **only when `STATE.focus` changes**, and never while an input has focus — doing it on every autosave (which used to run on every keystroke, anywhere in the app) was the other half of the reported screen-jumping bug.
 - Bump the `CACHE` constant in `sw.js` whenever shell files change, or returning users get a stale app.
@@ -175,14 +204,17 @@ python3 -m py_compile athlete/skills/program-builder/scripts/*.py
 python3 athlete/skills/program-builder/scripts/validate_program.py \
   program.json samples/program.sample.json samples/program.v2.sample.json
 
-# app logic: week filtering, per-set round-trip, export shape, v1 + v2
+# app logic: schedule derivation, date resolution, per-set round-trip, export shape, v1 + v2
 node samples/apptest.js
+
+# account-scoped settings: per-field last-write-wins, offline queue, no network as a guest
+node samples/settingsstoretest.js
 
 # the validator itself: fixtures pass, 23 known breakages are rejected
 python3 samples/validatortest.py
 ```
 
-Two test files, and they check opposite directions. `samples/apptest.js` proves the app reads
+`samples/apptest.js` and `samples/validatortest.py` check opposite directions. `apptest.js` proves the app reads
 a **good** programme correctly — dependency-free, it stubs enough DOM to load the inline script
 and drive it. `samples/validatortest.py` proves the builder refuses to emit a **bad** one.
 Neither tests rendering, layout or offline behaviour. Extend `apptest.js` when you touch
@@ -191,22 +223,27 @@ filtering, logging or export; extend `validatortest.py` when you add a rule to
 false confidence.
 
 Then manually, **against both fixture versions** (`samples/program.sample.json` and
-`samples/program.v2.sample.json`): import it, log some sets, reload the page (state must
-survive — including the week and day, not just the log itself), toggle airplane mode (app
-must still open), and export a session. Check the layout on a narrow screen — 320px is the
-real floor. A v1 programme must keep working; that's the whole point of keeping both
-fixtures.
+`samples/program.v2.sample.json`): import it, log some sets, reload the page (**the open
+date and the claimed `(week, day)` must both come back — off the claim, not off the
+schedule**), toggle airplane mode (app must still open), and export a session. Check the
+layout on a narrow screen — 320px is the real floor. A v1 programme must keep working;
+that's the whole point of keeping both fixtures.
 
-Since the UI is Overview/Log plus a drawer, also: open the drawer and change week (the
-stepper), day and date (the check-in must reload with the session, and the day list's
-pressed state must follow); in Log, page through with Prev/Next and the pips, log a few sets
-one at a time — type a full RPE like `7.5` and confirm focus never leaves the field and the
-page never jumps — edit a past set from its chip, and Finish an exercise both with and
-without every prescribed set logged; then switch back to Overview and confirm it shows the
-right status with no inputs anywhere on it. Do it in at least one light theme — a rule that
-hardcodes a colour looks fine in the palette you wrote it in.
+Then walk the five surfaces: from the hub, open the calendar and confirm every date resolves
+to exactly one state and that sessions already in `localStorage` sit on their correct dates;
+open a scheduled date and Start it, a claimed date and Resume it, a sealed one and Review it,
+and a rest day (which offers the next session and the claim picker, and no session action);
+use **Doing a different day?** to claim a different week *and* day and confirm the
+prescriptions follow the week; **Finish session** and confirm an edit afterwards leaves the
+date sealed but marks the file stale. In Log, page through with Prev/Next and the pips, log a
+few sets one at a time — type a full RPE like `7.5` and confirm focus never leaves the field
+and the page never jumps — edit a past set from its chip, and Finish an exercise both with
+and without every prescribed set logged; then switch back to Overview and confirm it shows
+the right status with no inputs anywhere on it. Do it in at least one light theme — a rule
+that hardcodes a colour looks fine in the palette you wrote it in.
 
-Four more, all of them things that have actually been reported:
+Six more. The first four have actually been reported; the last two are the properties the
+date-first model rests on:
 
 1. **The metric field.** `Spanish squat isometric` (`3 × 45 sec`) must read `Hold (s)` with
    placeholder `45`; the warm-up (`8-10 min`) `Time (min)`; `Backward sled drag` (`20 m`)
@@ -219,7 +256,15 @@ Four more, all of them things that have actually been reported:
 4. **Check 320px as well as 390px, and check for horizontal overflow, not just for looks.**
    Chrome clamps its window width, so a `--window-size=320` screenshot is a *crop* of a wider
    layout and will hide the very thing you are looking for. Load the app in a 320-wide
-   `<iframe>` and compare `documentElement.scrollWidth` against `clientWidth`.
+   `<iframe>` and compare `documentElement.scrollWidth` against `clientWidth`. Do it for every
+   surface, including the focus logger and the claim picker sheet.
+5. **The claim survives an autosave.** Claim a week the schedule does not suggest, log a set,
+   reload, and confirm the stored session still carries the claimed week. `saveSession()`
+   writes `week`/`day` from `STATE` on every keystroke, so a `STATE` re-derived from the
+   schedule would silently rewrite the claim — and you would train off the wrong week.
+6. **Nothing renders a tracked field that is switched off.** Turn `Pain on waking` off in
+   Account and confirm there is no check-in column, no calendar mark and no legend entry —
+   not a greyed one — while a reading already logged is still in storage and still exported.
 
 Before committing anything under `athlete/`, also run `git status` and
 `git check-ignore -v athlete/<slug>/personal-profile.md athlete/<slug>/logs/`.
@@ -261,6 +306,27 @@ Alternatives if the repo ever needs to go private: **Cloudflare Pages** (private
 
 ## Roadmap
 
-See `docs/roadmap.md` for ordinary feature candidates and `docs/backend-launch-plan.md` for the
-approved backend sequence. Don't jump phases or add unlisted scope: reliability and speed in the
-gym remain more important than functionality.
+See `docs/roadmap.md` for ordinary feature candidates, `docs/backend-launch-plan.md` for the
+approved backend sequence, and `docs/date-first-revamp.md` for the date-first design and what it
+deliberately deferred (off-programme workouts, an active rest countdown with sound or haptics, and
+structured schedule fields in the programme schema). Don't jump phases or add unlisted scope:
+reliability and speed in the gym remain more important than functionality.
+
+## Local storage keys
+
+`localStorage` is the source of truth for an in-progress log; the remote stores are queues behind
+it, never in front of it.
+
+| Key | Holds |
+|---|---|
+| `tp_program_v1` | the active programme payload |
+| `tp_sess_v1::<date>::<day>` | one session. **The date is in the key**, which is why every session already on a phone lands on the correct calendar date with no migration |
+| `tp_schedule_v1` | `{programKey, anchorMonday}` — the block anchor, one date per programme. The only stored state the schedule needs, because claims live in the sessions |
+| `tp_settings_v1` | the **device** half of the settings |
+| `tp_account_settings_v1` | the **account** half, as `{values, at}` with one timestamp per field |
+| `tp_active_program_v1` | the programme library's active-row marker (`js/program-store.js`) |
+| `tp_demo_*` | the bundled sample's own namespace, so it can never touch personal data |
+
+`tp_pos_v1` is **retired**: week and day are derived from the open date, and a separate stored
+position could disagree with the claim — which is how the wrong week's prescriptions got on screen.
+It is removed when a programme is cleared.

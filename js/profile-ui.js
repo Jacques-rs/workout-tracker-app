@@ -160,74 +160,74 @@
       return wrap;
     }
 
-    function historySection(host, accountState) {
-      const history = sessions && sessions.getState ? sessions.getState()
+    function historyState() {
+      return sessions && sessions.getState ? sessions.getState()
         : { status: "offline", items: [], pending: 0, conflicts: 0, localOnly: 0,
             syncing: false, hasMore: false, error: null };
+    }
+    /* Sync is ONE LINE, and it lives here rather than as a badge on the home, so it
+       cannot compete with today's session for attention. */
+    function syncLine(history) {
       const bits = [];
       if (history.syncing) bits.push("Syncing…");
       else if (history.status === "offline") bits.push("Offline");
       else if (history.status === "loading") bits.push("Loading cloud history…");
+      else if (history.status === "error") bits.push(history.error && history.error.message || "Sync unavailable");
       else bits.push("Cloud history ready");
       if (history.pending) bits.push(`${history.pending} ${history.pending === 1 ? "change" : "changes"} queued`);
       if (history.conflicts) bits.push(`${history.conflicts} conflict ${history.conflicts === 1 ? "copy" : "copies"} kept`);
       if (history.localOnly) bits.push(`${history.localOnly} local-only`);
-      const children = [];
-      const items = Array.isArray(history.items) ? history.items : [];
-      const groups = new Map();
+      return bits.join(" · ");
+    }
+    /* The workout browser is gone: every session on this device is a date on the
+       calendar, which is a better index than a flat list ever was. What the calendar
+       cannot show is a copy that is NOT on this device — a conflict copy, or a session
+       logged on another install — so those, and only those, stay reachable here.
+       Collapsed, in Account, and never on the home: "far less invasive" is the point. */
+    function offDeviceSection(host, accountState) {
+      const history = historyState();
+      const items = (Array.isArray(history.items) ? history.items : [])
+        .filter(item => item.syncState === "conflict" ||
+          !(options.hasLocalSession && options.hasLocalSession(item.date, item.day)));
+      if (!items.length) return;
+      const children = [node(document, "p", { className: "profile-copy",
+        textContent: "These are not on this device, so they do not appear on the calendar. Nothing here is applied to your training — it is kept so it can be read and exported." })];
       items.forEach(item => {
-        const key = item.programId || `local:${item.block}`;
-        if (!groups.has(key)) groups.set(key, { title: item.block, items: [] });
-        groups.get(key).items.push(item);
+        const stateLabel = item.syncState === "conflict" ? "Conflict copy"
+          : item.syncState === "queued" ? "Sync queued"
+            : item.syncState === "local-only" ? "Local only" : "Synced elsewhere";
+        const progress = item.totalExercises
+          ? `${item.completedExercises}/${item.totalExercises} exercises`
+          : "Workout saved";
+        const details = node(document, "details", { className: "profile-history-item" });
+        details.append(node(document, "summary", {}, [
+          node(document, "span", { className: "profile-history-date", textContent: item.date }),
+          node(document, "span", { className: "profile-history-day", textContent: item.day }),
+          node(document, "span", { className: `profile-history-state ${item.syncState}`,
+            textContent: `${stateLabel} · ${progress}` })
+        ]));
+        const payload = sessions && sessions.getPayload ? sessions.getPayload(item.id) : null;
+        details.append(historyDetail(payload));
+        if (payload) details.append(actionRow([
+          button("Download JSON", "ghost", run(async () => {
+            if (options.onDownloadHistory) await options.onDownloadHistory(payload);
+          })),
+          button("Copy JSON", "ghost", run(async () => {
+            if (options.onCopyHistory) await options.onCopyHistory(payload);
+          }))
+        ]));
+        children.push(details);
       });
-      groups.forEach(group => {
-        const groupNode = node(document, "div", { className: "profile-history-group" },
-          node(document, "h3", { className: "profile-history-group-title", textContent: group.title }));
-        group.items.forEach(item => {
-          const stateLabel = item.syncState === "conflict" ? "Conflict copy"
-            : item.syncState === "queued" ? "Sync queued"
-              : item.syncState === "local-only" ? "Local only" : "Synced";
-          const progress = item.totalExercises
-            ? `${item.completedExercises}/${item.totalExercises} exercises`
-            : "Workout saved";
-          const details = node(document, "details", { className: "profile-history-item" });
-          details.append(node(document, "summary", {}, [
-            node(document, "span", { className: "profile-history-date", textContent: item.date }),
-            node(document, "span", { className: "profile-history-day", textContent: item.day }),
-            node(document, "span", { className: `profile-history-state ${item.syncState}`,
-              textContent: `${stateLabel} · ${progress}` })
-          ]));
-          const payload = sessions && sessions.getPayload ? sessions.getPayload(item.id) : null;
-          details.append(historyDetail(payload));
-          if (payload) details.append(actionRow([
-            button("Download JSON", "ghost", run(async () => {
-              if (options.onDownloadHistory) await options.onDownloadHistory(payload);
-            })),
-            button("Copy JSON", "ghost", run(async () => {
-              if (options.onCopyHistory) await options.onCopyHistory(payload);
-            }))
-          ]));
-          groupNode.append(details);
-        });
-        children.push(groupNode);
-      });
-      if (!items.length && history.status !== "loading") children.push(node(document, "p", {
-        className: "profile-copy",
-        textContent: accountState.status === "authenticated"
-          ? "No personal workouts have been saved yet. Your first logged change will appear here."
-          : "No workout history from this installation is available while offline."
-      }));
       if (history.hasMore) children.push(button("Load older workouts", "ghost profile-wide", run(async () => {
         if (sessions && sessions.loadMore) await sessions.loadMore();
       })));
-      if (history.status === "error") children.push(button("Retry sync", "ghost profile-wide", run(async () => {
-        if (sessions && sessions.retry) await sessions.retry();
-      })));
-      host.append(card("Recent workouts", bits.join(" · "), children,
-        history.status === "error" ? "profile-error" : ""));
+      host.append(card("Copies not on this device", accountState.status === "authenticated"
+        ? "Readable and exportable, never applied" : "Kept until this device is connected", children));
     }
 
-    function ownerProfile(host, state) {
+    /* Two sections, two screens. The hub's rows are how they are reached now, so each
+       one renders on its own — the combined profile home is what the hub replaces. */
+    function accountSection(host, state) {
       const offline = state.status === "offline-owner";
       const unavailable = state.status === "unavailable";
       const email = state.user && state.user.email || state.owner && state.owner.email || "Known beta account";
@@ -250,11 +250,20 @@
       }
       host.append(card("Your account", email, [
         node(document, "p", { className: "profile-status", textContent: status }),
+        node(document, "p", { className: "profile-sync", textContent: syncLine(historyState()) }),
         ...accountActions,
+        historyState().status === "error"
+          ? button("Retry sync", "ghost profile-wide", run(async () => {
+              if (sessions && sessions.retry) await sessions.retry();
+            }))
+          : null,
         state.status === "authenticated" ? node(document, "p", { className: "profile-copy",
           textContent: "Export includes this device’s local-only and queued work. Deletion removes cloud data and this device’s personal data; other offline installations and managed backups are not erased immediately." }) : null
       ]));
+      offDeviceSection(host, state);
+    }
 
+    function programmeSection(host, state) {
       const library = programs && programs.getState ? programs.getState()
         : { status: "offline", items: [], activeId: "", pending: false, error: null };
       const summary = programSummary(options.getCachedProgram && options.getCachedProgram());
@@ -336,11 +345,19 @@
       programmeChildren.push(importButton);
       host.append(card("Programmes", libraryCopy, programmeChildren,
         library.status === "error" ? "profile-error" : ""));
-
-      historySection(host, state);
     }
 
+    function ownerProfile(host, state) {
+      accountSection(host, state);
+      programmeSection(host, state);
+    }
+
+    /* The entry gate. Once the owner is known the app routes to the hub instead, so the
+       owner branch below only ever paints while the gate is still the visible surface —
+       and `onRefresh` is what repaints whichever screen actually is. */
     function render() {
+      if (options.onRefresh) options.onRefresh();
+      if (options.isEntryVisible && !options.isEntryVisible()) return;
       const host = $("#profileBody");
       if (!host) return;
       host.innerHTML = "";
@@ -374,9 +391,28 @@
       render();
     }
 
+    /* Used by the hub's Programme and Account screens, which own their own host. */
+    function sectionRenderer(paint) {
+      return host => {
+        if (!host) return;
+        if (!auth || !auth.getState) {
+          blockedAccount(host, { status: "unavailable",
+            error: { message: "Account services are unavailable." } });
+          return;
+        }
+        const state = auth.getState();
+        if (state.status === "loading") { accountLoading(host); return; }
+        if (auth.canAccessCached && auth.canAccessCached()) { paint(host, state); return; }
+        if (state.status === "guest") { signedOut(host, state); return; }
+        blockedAccount(host, state);
+      };
+    }
+
     return {
       init,
       render,
+      renderAccount: sectionRenderer(accountSection),
+      renderProgramme: sectionRenderer(programmeSection),
       programSummary,
       destroy() {
         if (unsubscribe) unsubscribe();
