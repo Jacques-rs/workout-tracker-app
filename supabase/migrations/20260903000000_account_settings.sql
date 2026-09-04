@@ -6,7 +6,7 @@ begin;
 --
 -- Appearance and anything else about where the athlete is standing — palette, light/dark,
 -- which view the app opens on — stay device-local and are never sent here. See
--- "Tracked fields are account-scoped" in docs/date-first-revamp.md.
+-- "Tracked fields are account-scoped" in docs/design-rationale.md.
 --
 -- One row per owner, deliberately: this is a handful of preferences, not a log. The
 -- conflict rule is LAST WRITE WINS PER FIELD, which is why the timestamps live beside

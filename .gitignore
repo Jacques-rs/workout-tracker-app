@@ -9,9 +9,6 @@
 __pycache__/
 *.pyc
 
-# personal details
-docs/athlete-context.md
-
 # Local credentials for scripts/pull_logs.py (Supabase URL/keys, login).
 # NEVER commit — this repo is public.
 .env

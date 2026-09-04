@@ -51,7 +51,7 @@ every entry against a blank template at export, so on the session side "optional
 *value* may be `""`, not that the key may be missing. That is why the review step never has to
 probe.
 
-`program-builder` enforces the input table via `scripts/validate_program.py`, which runs on the
+`program-builder` enforces the input table via its own `scripts/validate_program.py`, which runs on the
 assembled programme before the file is written. **The app enforces almost none of it, on
 purpose** — a slightly-off programme must still open in a gym basement rather than hard-fail in
 front of an athlete who came to train. That leniency is only safe because something upstream is
@@ -233,7 +233,7 @@ disk for the athlete to import.
 
 ```bash
 python3 athlete/skills/program-builder/scripts/validate_program.py program.json
-python3 samples/validatortest.py     # 32 checks: fixtures pass, 23 breakages rejected
+python3 samples/validatortest.py     # fixtures pass; every known breakage is rejected
 ```
 
 | | |
@@ -398,33 +398,24 @@ v1 file). Do not average `sets` into a single load; the shape of a session (100 
 the signal. Circuit entries are the explicit exception described below: their flat result and
 round rows are complementary.
 
-**Since the app moved to logging one set at a time (no schema change, just how the app fills
-these fields):**
+**How the app fills these fields** (no schema change is involved — this is behaviour, not shape):
 
-- `sets` is now normally non-empty for any ordinary exercise that was actually trained — the
-  app logs a real set as soon as one is confirmed. For circuit prescriptions, `[]` can also
-  mean the athlete chose **Final result** and logged the outcome directly in the flat fields.
-- The flat `load`/`reps`/`rpe`/`painDuring` are **auto-filled from `sets` as each one is
-  confirmed, and stay editable.** They are still the athlete's own headline number, and a
-  reader must still not recompute them — but a disagreement with `sets` is now more likely
-  to be a *deliberate override* (the athlete corrected the headline by hand) than the
-  independent judgement call it used to be. Worth a line in the review rather than skipped.
-- For ordinary work, `sets.length` is the number of sets **actually performed.** A set the app pre-fills while
-  the athlete is mid-entry (seeded from the set before it) never reaches a log file unless
-  it was actually confirmed — the export only ever contains committed sets.
-- RPE may carry a half point (`"7.5"`) — the app's picker offers 1–10 in 0.5 increments.
-  It is still stored as a string, and legacy prose values remain readable; parse as a float
-  if you parse it at all, never as an integer.
-- `tracking.perSetLogging` is unconditionally `true` from this build on — it is no longer a
-  switch, it is how every exercise is logged. `false` still appears in older files and keeps
-  its old meaning there.
-- **A set the athlete typed but never confirmed is now committed rather than dropped.** The
-  app commits a typed-into draft when the athlete finishes the exercise, pages away, changes
-  day or week, leaves for Overview, exports, or backgrounds the app. Before this it was
-  possible to train a set, choose End after N, and have the log say the set never happened. The rule
-  in the line above still holds exactly: a draft the app merely *seeded* from the previous
-  set is not a set that happened and is never committed. **`sets.length` is still the number
-  of sets actually performed.**
+- `sets` is normally non-empty for any ordinary exercise actually trained, because the app logs
+  one set at a time. For a circuit prescription, `[]` can instead mean the athlete chose
+  **Final result** and logged the outcome directly in the flat fields.
+- The flat `load`/`reps`/`rpe`/`painDuring` are **auto-filled from `sets` as each one is confirmed
+  and stay editable.** They remain the athlete's own headline number and a reader must not
+  recompute them, but a disagreement with `sets` most often means a *deliberate override* —
+  worth a line in the review rather than skipped.
+- **`sets.length` is the number of sets actually performed.** The export contains only committed
+  sets: a draft the app seeded from the previous set is not a set that happened, and a set the
+  athlete typed but never confirmed is committed on their behalf when they finish the exercise,
+  page away, change day or week, leave for Overview, export, or background the app — so it lands
+  in the file rather than vanishing.
+- RPE may carry a half point (`"7.5"`); the picker offers 1–10 in 0.5 increments. Stored as a
+  string, and legacy prose values remain readable — parse as a float if at all, never an integer.
+- `tracking.perSetLogging` is unconditionally `true`: it is not a switch, it is how every exercise
+  is logged. `false` appears in older files and keeps its meaning there.
 
 ### Circuit logging (`rounds`, `AMRAP`, `EMOM`, `for time`, ladders)
 

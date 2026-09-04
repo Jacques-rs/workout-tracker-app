@@ -16,7 +16,7 @@
  *   - `draft` and other app-local keys never reach an export
  *   - athleteId survives, including the v1 fallback
  *   - the programme revision is displayed and stamped on the export
- *   - the check-in renders into the drawer, not the training view
+ *   - the check-in renders at the top of the date view, and never gates Start
  *   - Overview is read-only (no inputs); Log shows one exercise and pages without
  *     losing data; tapping an Overview card opens that exercise in Log and returning
  *     restores the Overview's position
@@ -215,10 +215,8 @@ function loadSynthetic(exercises){
 function cards(){ const m = stubFor("#main"); m.children = []; app.renderMain(); return m.children.filter(n => n.nodeType === 1); }
 /* Only the exercise cards — banners are element children of #main too. */
 function exCards(){ return cards().filter(c => c.classList.contains("card")); }
-/* The check-in lives in the drawer now, so it is rendered and read separately from the
-   training view. renderCheckin() clears the host itself. */
-/* The check-in lives at the top of the date view now. renderCheckin() clears its own
-   host, and only fills it when a day is claimed — a rest day holds notes, not a workout. */
+/* The check-in lives at the top of the date view. renderCheckin() clears its own host,
+   and only fills it when a day is claimed — a rest day holds notes, not a workout. */
 function checkinCard(){ stubFor("#checkinHost").children = []; app.renderCheckin();
   return stubFor("#checkinHost").children.find(c => c.nodeType === 1); }
 function labelsIn(node){ return node ? node.findAll(n => n.classList.contains("lbl")).map(n => n.text) : []; }
@@ -954,8 +952,8 @@ console.log("\nthe programme's own logHint drives what gets flagged");
   assert(painLbls(labelsOf(plain)) >= 1,
      "but the field is still there — hiding it would make an empty value unreadable");
 
-  /* The drawer offers the site the programme talks about, rather than expecting the
-     athlete to know that "Knee" is a setting. */
+  /* Account offers the site the programme talks about, rather than expecting the athlete
+     to know that "Knee" is a setting. */
   assert(["knee", "hamstring", ""].includes(app.programPainSite()),
      `programPainSite reads a site off the fixture (got ${JSON.stringify(app.programPainSite())})`);
 }
@@ -1126,10 +1124,7 @@ console.log("\npain on waking — a pre-session field, not a next-morning one");
   loadFixture("program.v2.sample.json");
   app.STATE.week = 1;
 
-  /* It has to be reachable at check-in, before a single set is logged — that is the
-     whole point of the move away from amPainNextDay. It sits near the top of the date
-     view, above the exercise list and below the primary action, so it is asked for
-     without ever standing between the athlete and a warm-up. */
+  /* Reachable at check-in, before a single set is logged, and never a gate on Start. */
   app.setView("list");
   const checkin = checkinCard();
   assert(!!checkin && checkin.classList.contains("checkin"), "the check-in renders on the date view");
@@ -1163,12 +1158,12 @@ console.log("\npain on waking — a pre-session field, not a next-morning one");
   assert(!labelsIn(checkinCard()).some(t => /on waking/i.test(t)), "and the input is not rendered");
   app.SETTINGS.painOnWaking = true;
 
-  /* With the check-in behind a tap, the drawer's closed-state summary is the only place
-     "did I fill this in?" is answered — so it has to be right in both directions. */
+  /* The check-in's own one-line summary is the only place "did I fill this in?" is
+     answered, so it has to be right in both directions. */
   is(app.checkinSummary(app.getSession()), "knee pain 4/10", "the closed summary reports the reading");
   is(app.checkinFilled(app.getSession()), true, "and the session counts as filled");
   is(app.checkinSummary({ session: {} }), "Not filled", "an untouched session says so plainly");
-  is(app.checkinFilled({ session: {} }), false, "…which is what puts the dot on the menu button");
+  is(app.checkinFilled({ session: {} }), false, "…and reports itself as unfilled");
 }
 
 console.log("\nview modes — Overview (read-only) vs Log (one exercise)");
@@ -1281,12 +1276,11 @@ console.log("\nOverview position resets when the workout context changes");
   is(app.OVERVIEW_SCROLL, 0, "importing a programme clears the Overview position");
 }
 
-console.log("\nthe drawer is gone, and nothing lost a home");
+console.log("\nthere is no drawer, and nothing lacks a home");
 {
-  /* The largest single cut against "too many loose structural parts": four accordions
-     and a hamburger disappear, and every one of the things they held has a better home.
-     What must NOT survive is a second way to change week, day or date — two independent
-     axes are exactly what could drift out of step with the claim. */
+  /* A regression guard, not history: what must never reappear is a second way to change
+     week, day or date. Two independent axes are exactly what drifts out of step with the
+     claim. Everything the old accordions held has a home named below. */
   loadFixture("program.v2.sample.json");
   ["renderDrawer", "openDrawer", "closeDrawer", "toggleDrawer", "drawerOpen",
    "weekStepper", "dateRow", "renderDayList", "paintDays", "renderDataSection",
@@ -1299,8 +1293,8 @@ console.log("\nthe drawer is gone, and nothing lost a home");
   is(typeof app.openCalendarPage, "function", "the calendar replaces the date picker");
   is(typeof app.renderAccountPage, "function", "the Account screen holds the settings");
   is(typeof app.renderProgrammePage, "function", "and the Programme screen import/export");
-  /* Appearance and Tracked fields still render — they moved two taps deeper, which is
-     right for settings touched twice a year, and they did not disappear. */
+  /* Appearance and Tracked fields live two taps deep on Account — right for settings
+     touched twice a year — but they must still render. */
   const appearance = new El("div"); app.renderAppearance(appearance);
   assert(appearance.findAll(n => n.classList.contains("pal")).length >= 2,
     "Appearance still offers its palettes");
@@ -1518,8 +1512,7 @@ console.log("\nsealing a session, and what an edit does to it afterwards");
      look like an unfinished workout. */
   is(JSON.parse(store.get(app.sessionKey())).status, "sealed", "and it is stored, not sent");
 
-  /* Editing a sealed session does not un-seal it — un-sealing because a typo was fixed
-     would flip the calendar back to "unfinished", which is a lie about that day. */
+  /* An edit must not un-seal. */
   app.markExported();
   assert(!app.editedSinceExport(app.getSession()), "exporting is not itself an edit");
   const s = app.getSession();
@@ -1577,7 +1570,7 @@ console.log("\nthe derived schedule");
 {
   /* Nothing in tp-program-2 carries a date, so the whole calendar hangs off one anchor
      plus a weekday read out of each day label. Every case below is a documented
-     fallback in docs/date-first-revamp.md, in that order. */
+     fallback in docs/design-rationale.md, in that order. */
   const prog = loadFixture("program.v2.sample.json");
   const sched = app.SCHEDULE;
   assert(!!sched, "loading a programme derives a schedule");
@@ -1687,11 +1680,9 @@ console.log("\nsession lifecycle state, read tolerantly");
   const prog = loadFixture("program.v2.sample.json");
   const day = prog.meta.days[0];
 
-  /* A record already on a phone has none of the new keys. Absent status means OPEN: a
-     session written before sealing existed cannot have been sealed, and reading it as
-     anything else would flip the calendar's account of a day already finished.
-     Written straight into storage and then OPENED by date, which is how it would really
-     arrive — and the index has to be dropped, exactly as the app's own writes do. */
+  /* A record already on a phone has none of the lifecycle keys, and absent status must
+     read as OPEN. Written straight into storage and then opened by date, which is how it
+     would really arrive — and the index has to be dropped, as the app's own writes do. */
   const legacyKey = "tp_sess_v1::2026-05-04::" + day;
   store.set(legacyKey, JSON.stringify({ block: "x", athlete: "y", week: 1, day,
     date: "2026-05-04", session: { readiness: "Green" },
@@ -1799,9 +1790,7 @@ console.log("\nthe rest clock's timestamp");
   actionBtn(c, /^Log set|^Log final/).onclick();
   const stamped = app.getSession().lastSetAt;
   assert(/^\d{4}-\d{2}-\d{2}T/.test(stamped), "committing a set stamps lastSetAt");
-  /* Session-level on purpose: the clock is "time since you last logged anything", which
-     is what you want between exercises as well as between sets. It survives a reload
-     because it is stored, and nothing in the log path reads it back. */
+  /* Session-level on purpose, and stored rather than held in memory. */
   is(app.getSession().lastSetAt, stamped, "and it is stored, so it survives a reload");
 }
 
@@ -1902,9 +1891,7 @@ console.log("\nthe date view: one date, one action, and a claim picker");
   is(app.openState(), "start", "and the new day has nothing stored yet");
   is(app.sessionsOn(today).length, 1, "while the session already on this date is untouched");
 
-  /* A scheduled date that has passed with nothing logged stays not-done: greyed and
-     quiet, never red, never rolled forward. Move the anchor back a fortnight so there
-     are passed dates inside the block at all. */
+  /* Move the anchor back a fortnight, so there are passed dates inside the block at all. */
   app.setAnchorMonday(app.addDays(app.mondayOf(today), -14));
   app.openDate(app.addDays(today, -7));
   is(head().getAttribute("data-state"), "start", "a passed scheduled date is still just 'not done'");
@@ -2137,7 +2124,7 @@ console.log("\nthe calendar: every date resolves to exactly one state");
   is(app.APP.route, "calendar", "so back returns to the calendar rather than the hub");
 }
 
-console.log("\nrouting: five surfaces, one place that decides");
+console.log("\nrouting: one place decides which surface is visible");
 {
   const seen = {};
   ["entry", "home", "calendar", "date", "programme", "account"].forEach(route => {

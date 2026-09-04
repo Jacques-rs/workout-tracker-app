@@ -19,8 +19,7 @@
     --t-lg:1.25rem; --t-hero:1.5rem;
     --r:14px; --r-sm:10px;
     /* Control heights. One scale, so a row of controls lines up and the primary action is
-       never *shorter* than the fields above it — which is most of why the old set-editor
-       button read as unfinished. */
+       never *shorter* than the fields above it, which reads as unfinished. */
     --h-field:48px; --h-tap:44px; --h-primary:52px;
   }
   /* ---------- themes ----------
@@ -185,11 +184,9 @@
   .demo-banner[hidden]{display:none}
   .profile-sync{margin:var(--s2) 0 0;font-size:var(--t-xs);color:var(--muted);line-height:1.5}
 
-  /* ---------- 1 · the hub ----------
+  /* ---------- the hub ----------
      Today first and largest, the last few sessions inline, then one row each to
-     everything else. Typographic hierarchy and hairlines carry it — the four loose
-     structural surfaces this replaces are what made the old layout cost so much to
-     read. */
+     everything else. Typographic hierarchy and hairlines carry it, not nested cards. */
   .home-view{min-height:100vh;padding:calc(var(--s5) + env(safe-area-inset-top)) 0 var(--s5)}
   .home-kicker{font-size:var(--t-xs);font-weight:800;letter-spacing:.11em;
     text-transform:uppercase;color:var(--muted);
@@ -236,8 +233,7 @@
   .hr-mark[data-state="done"]{color:var(--good)}
 
   /* ---------- one chrome for Calendar / Programme / Account ----------
-     Three screens that each used to need their own scaffolding now share a back arrow,
-     a title and a body. */
+     Three screens sharing a back arrow, a title and a body — none gets its own. */
   .page-view{min-height:100vh;padding:0 0 var(--s5)}
   .pagebar{position:sticky;top:0;z-index:20;background:var(--bg);display:flex;
     align-items:center;gap:var(--s3);
@@ -259,7 +255,7 @@
   .panel-edit{margin-top:var(--s3)}
   .panel-edit input,.panel-edit button{width:100%;min-height:var(--h-tap)}
 
-  /* ---------- 2 · the calendar ----------
+  /* ---------- the calendar ----------
      Eight columns: a week label and seven days, in one continuous scroll with no
      month/block mode switch — it reads as a timeline, which suits a block that does not
      care about month boundaries. A cell is about 37px at 320 and 47px at 390, which is
@@ -323,8 +319,8 @@
     text-align:left;border-radius:var(--r-sm)}
   .ctx-1{display:block;font-weight:700;font-size:var(--t-md);letter-spacing:-.2px;
     line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  /* Logging onto a date other than today is legitimate but silent and unrecoverable —
-     say so, in the same warm colour the old #progLabel.off used. */
+  /* Logging onto a date other than today is legitimate, but silent and unrecoverable if
+     it was a mistake — so say so, in the warn colour. */
   .ctx-1.off{color:var(--warn)}
   .ctx-2{display:block;color:var(--muted);font-size:var(--t-sm);font-weight:400;
     margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -344,7 +340,7 @@
     overflow:hidden;box-shadow:inset 0 0 0 1px var(--line-soft)}
   .pbar[hidden]{display:none}
   /* Two layers, one bar: how much is finished, and — dimmer, behind it — how much is
-     started. Four half-logged exercises used to read as 0% through the session. */
+     started. Without the second, four half-logged exercises read as 0% through. */
   .pbar i{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:999px;
     background:var(--accent);transition:width .35s cubic-bezier(.2,.8,.2,1)}
   .pbar i.part{background:var(--accent-soft)}
@@ -435,8 +431,8 @@
   /* No tick on the name: the .ov-badge glyph says done once, in the column where the eye
      is already scanning for it. Three ticks on one card was two too many. */
   /* The prescription line, and — when the generator gave tempo/rest — a second, muted
-     one under it. Folded from what used to be a hero number plus a row of pill chips:
-     one line reads faster than four separate widgets for the same three facts. */
+     one under it. One line, not a hero number plus a row of pill chips: it reads faster
+     than four separate widgets carrying the same three facts. */
   .rx{color:var(--muted);font-size:var(--t-sm);margin-top:var(--s1)}
   /* The two numbers the athlete is actually aiming at, lifted out of the prose beside
      them — everything else on the line is context. */
@@ -470,14 +466,14 @@
     font-weight:700;line-height:1.3;color:var(--muted)}
   .ov-badge[data-state="part"]{color:var(--accent-ink)}
   .ov-badge[data-state="done"]{color:var(--good)}
-  /* There is always a status line. An absent one used to mean "untouched", which is
-     indistinguishable from "it didn't render", and it left a typed-but-unlogged set
+  /* There is always a status line. An absent one would mean "untouched", which cannot be
+     told apart from "it didn't render", and would leave a typed-but-unlogged set
      invisible everywhere outside the editor. */
   .ov-status{margin-top:var(--s3);font-size:var(--t-sm);color:var(--muted)}
   .ov-status[data-state="done"]{color:var(--good);font-weight:700}
   .ov-status[data-state="part"]{color:var(--accent-ink);font-weight:600}
 
-  /* ---------- Summary & notes (collapsed flat fields, inside Log view) ---------- */
+  /* ---------- summary & notes (collapsed flat fields, inside Log view) ---------- */
   /* minmax(0,1fr) not 1fr: an input's intrinsic width exceeds a phone column and plain
      1fr refuses to shrink below it. */
   .log{margin-top:var(--s3);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s2)}
@@ -503,9 +499,9 @@
      padding clips the value itself on a 360px screen. */
   .fld.has-unit input{padding-right:31px}
   /* ---------- what the programme says to capture ----------
-     `logHint` used to render as one line of prose behind a "Log:" prefix, which the eye
-     slid straight off. One chip per instruction, and the pain-relevant ones marked in the
-     accent — the same cue that accents the pain field itself. */
+     The programme's own list of what matters for this movement: one chip per instruction,
+     not one line of prose behind a "Log:" prefix that the eye slides straight off.
+     Pain-relevant chips take the accent — the same cue that accents the pain field. */
   .hintchips{display:flex;flex-wrap:wrap;gap:var(--s1);align-items:center;margin-top:var(--s3)}
   .hintchips .hl{font-size:var(--t-xs);font-weight:700;color:var(--muted);
     text-transform:uppercase;letter-spacing:.6px;margin-right:2px}
@@ -518,7 +514,7 @@
     border-color:color-mix(in srgb,var(--accent) 35%,transparent)}
   textarea{width:100%;min-height:56px;resize:vertical;font-weight:400;line-height:1.5}
 
-  /* ---------- 6 · the focus logger's instruments ----------
+  /* ---------- the focus logger's instruments ----------
      The rest clock and "last time", side by side on one rule above the fields. Big
      tabular numerals with a tiny letterspaced label under them — an instrument reading,
      not a form field. */
@@ -550,9 +546,8 @@
      always exactly one set's worth, which is what keeps this usable one-handed and
      keeps a keystroke from ever having to rebuild the row it is happening in. */
   .setblock{margin-top:var(--s4)}
-  /* What has actually been recorded, in words. Committing a set changes little else on
-     screen — the next draft is seeded from the set just logged — so without this it never
-     felt like anything had happened. */
+  /* What has actually been recorded, in words; see buildSetEditor(). Scrolls rather than
+     wraps, so a long run of sets cannot push the fields down. */
   .setrecap{display:flex;gap:var(--s2);align-items:baseline;margin-bottom:var(--s2);
     font-size:var(--t-sm);white-space:nowrap;overflow-x:auto;scrollbar-width:none}
   .setrecap::-webkit-scrollbar{display:none}
@@ -570,9 +565,8 @@
     font-size:var(--t-xs);font-weight:700;font-variant-numeric:tabular-nums}
   .setchip[data-state="done"]{color:var(--good);border-color:var(--good-line);background:var(--good-soft)}
   .setchip[data-state="current"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
-  /* Dashed and quiet: an upcoming set is a plan, not a destination and not a delete
-     button. It used to be a live button that dropped the set on one tap, which read as
-     "jump to set 4" — set count now lives in the secondary Adjust sets sheet. */
+  /* Dashed and quiet, because an upcoming set is a plan rather than a destination. It is
+     a <span>, never a control — see buildSetEditor(). */
   .setchip[data-state="todo"]{opacity:.55;border-style:dashed;color:var(--placeholder);
     background:transparent}
   /* The set that just landed. The one bit of motion in the app, and it earns its place:
@@ -609,10 +603,8 @@
   .setgrid .big .unit{font-size:var(--t-xs)}
   .setnoteinp{margin-top:var(--s2)}
   .setnoteinp input{width:100%;min-height:var(--h-tap)}
-  /* Most sets have no note, and an always-present empty field pushed the primary action
-     down a row for nothing. Styled with the other quiet actions above. */
-  /* Two rows, neither wrapping: one unmistakable primary action, and the quieter things
-     beneath it at equal width. The planned set path stays visually dominant. */
+  /* Two non-wrapping rows; both carry .setactions so apptest's actionBtn() finds every
+     button one level deep. See buildSetEditor() for why they are split. */
   .setactions{display:flex;gap:var(--s2);margin-top:var(--s3)}
   .setactions>button{flex:1 1 0;min-width:0}
   .setactions.mainrow>button{min-height:var(--h-primary);font-size:var(--t-base)}
@@ -664,7 +656,7 @@
   .adjustvalue strong{display:block;font-size:var(--t-lg);font-variant-numeric:tabular-nums}
   .adjustvalue span{display:block;color:var(--muted);font-size:var(--t-xs);margin-top:2px}
 
-  /* ---------- 7 · circuits ----------
+  /* ---------- circuits ----------
      Its own composition: one large round counter instead of a three-numeral readout with
      two of them meaningless. */
   .roundcount{display:flex;align-items:baseline;gap:var(--s2);margin-bottom:var(--s3)}
@@ -708,8 +700,7 @@
 
   /* ---------- the date view ----------
      One date, what is on it, and one action. Structure comes from hairlines and
-     typographic weight rather than from nesting another card inside the page — the four
-     loose surfaces the old layout grew are exactly what this replaces. */
+     typographic weight, never from nesting another card inside the page. */
   .datehead{padding:var(--s4) 0 var(--s3);border-bottom:1px solid var(--line)}
   .dh-top{display:flex;align-items:baseline;gap:var(--s2);flex-wrap:wrap}
   /* The one genuinely large thing on the screen: which day you are looking at. Tabular
@@ -893,8 +884,7 @@
   <main class="home-body" id="homeBody" aria-live="polite"></main>
 </div>
 
-<!-- One chrome for Calendar, Programme and Account: a back arrow, a title, a body.
-     Three screens that each used to need their own scaffolding now share one. -->
+<!-- One chrome for Calendar, Programme and Account: a back arrow, a title, a body. -->
 <div class="page-view" id="pageView" hidden>
   <header class="pagebar">
     <button class="iconbtn" id="pageBack" aria-label="Back to home">
@@ -1010,8 +1000,8 @@ const LS = { prog:"tp_program_v1", set:"tp_settings_v1",
    thing", because a screen that silently shows another day gets you doing the wrong
    session. `week` and `day` are DERIVED from it: read off the claim when a session is
    stored on that date, else the schedule's suggestion. Nothing about the position is
-   stored separately any more; the old tp_pos_v1 could disagree with the claim, and when
-   it did it showed the wrong week's prescriptions. `focus` is the index of the exercise
+   stored separately: a stored position can disagree with the claim, and when it does it
+   shows the wrong week's prescriptions. `focus` is the index of the exercise
    shown in the Log view, derived on a cold start from what is already ticked off, which
    lands you on the first exercise you haven't done. `setEdit` is the index of a
    committed set being re-edited from its chip, or null while typing the next new one —
@@ -1028,7 +1018,7 @@ let PROGRAM=null, STATE={week:1,day:null,date:todayISO(),focus:0,setEdit:null};
      entry      the sign-in / sample gate, owned by profile-ui
      home       the hub — today first, the last few sessions, rows to everything else
      calendar   a continuous scroll of weeks
-     date       the date view and the focus logger (the old workout surface)
+     date       the date view and the focus logger
      programme  the private library, the block anchor, import
      account    the account, sync state, and the device/account settings split
    `from` is where a jump to the date view came from, so back returns there rather than
@@ -1105,7 +1095,8 @@ const PAGE_TITLES={calendar:"Calendar",programme:"Programme",account:"Account"};
 function showRoute(route){
   const known=["entry","home","calendar","date","programme","account"];
   APP.route=known.indexOf(route)>=0?route:"entry";
-  /* Kept in step for every caller that still asks the older question. */
+  /* Derived, not stored: the import and clear paths ask whether we came from a page or
+     from the date view, and this is the one place that answer is computed. */
   APP.surface=APP.route==="date"?"workout":"profile";
   const page=!!PAGE_TITLES[APP.route];
   $("#profileView").hidden=APP.route!=="entry";
@@ -1124,8 +1115,8 @@ function showRoute(route){
   if(APP.route==="programme")renderProgrammePage();
   if(APP.route==="account")renderAccountPage();
 }
-/* Kept as the old name so every existing caller reads the same, but it now routes to
-   the hub for a known owner: the entry gate is the sign-in surface, not the home. */
+/* Surface-level entry point: "workout" is the date view, anything else resolves to the
+   hub for a known owner and the sign-in gate otherwise. The gate is not the home. */
 function showSurface(surface){
   if(surface==="workout"){showRoute("date");return;}
   showRoute(cachedAccess()&&PROGRAM?"home":"entry");
@@ -1222,12 +1213,10 @@ function rpeButton(value,prescribed,onpick,label="RPE"){
    depends on the pain fields behaves as expected out of the box; an athlete without knee
    issues turns them off once.
 
-   TWO SCOPES, one read model. Which optional fields you track and what you call them are
-   about WHO YOU ARE, so they follow the account to any device you sign in on. Appearance
-   and which view the app opens on are about WHERE YOU ARE STANDING — a basement at 6 a.m.
-   and a kitchen at noon want different things — so they stay on the device. The Account
-   screen shows the split explicitly rather than presenting one undifferentiated list.
-   See docs/date-first-revamp.md. */
+   TWO SCOPES, one read model: tracked fields and their labels follow the ACCOUNT, while
+   appearance and the opening view stay on the DEVICE. ACCOUNT_KEYS/DEVICE_KEYS below is
+   the only place that split is decided. See docs/design-rationale.md for why it falls
+   there. */
 const FIELD_DEFS=[
   {key:"painPerExercise",name:"Pain per exercise",
    desc:"A 0–10 pain box on every set. Knee load varies hugely between movements, so this is what identifies which movement to regress."},
@@ -1260,9 +1249,9 @@ function loadSettings(){
     if(raw)stored=JSON.parse(raw);
   }catch(e){}
   SETTINGS={...SET_DEFAULTS,...(stored||{})};
-  /* An install from before Log became the default view has no `sv` and its stored `view`
-     is the old all-exercises default — opening straight onto the read-only Overview
-     would look like logging had vanished. One-shot fix-up. */
+  /* An install predating Log-as-default has no `sv` and a stored `view` of "list", which
+     would open straight onto the read-only Overview and look like logging had vanished.
+     One-shot fix-up. */
   const needsView=!stored||!stored.sv;
   if(needsView){SETTINGS.view="focus";SETTINGS.sv=1;}
   ACCOUNT_SETTINGS=readAccountSettings();
@@ -1455,11 +1444,10 @@ function checkinFilled(s){
 }
 
 /* ---------- moving around the block ----------
-   The drawer is gone, and with it the week stepper, the day list and the standalone date
-   picker: everything they did has a better home. Week and day are a CLAIM on the open
-   date, made in one picker; the date itself is the calendar. Both of these are what the
-   claim picker calls, and each is either a write (a claim) or a re-resolve (a date) —
-   never an independent axis that can drift out of step with reality. */
+   Week and day are a CLAIM on the open date, made in one picker; the date itself is the
+   calendar. Both functions below are what that picker calls, and each is either a write
+   (a claim) or a re-resolve (a date) — never an independent axis that can drift out of
+   step with reality. */
 function selectDay(d){
   if(d===STATE.day)return;
   /* A session already stored for this day on this date carries its own week — that is
@@ -1498,8 +1486,7 @@ function renderCheckin(){
      3. nothing — neutral rail (never assert a category we don't have)
    Colours are CSS variables, not hex: each theme picks rail colours from its own
    palette, so a category keeps its *slot* across themes rather than its exact hue.
-   The uppercase tag chip that used to sit on every card is gone — the rail alone
-   carries the category now; see CLAUDE.md. */
+   The rail alone carries the category — no per-card tag chip. */
 /* `key` is carried through by catOf() so a caller can ask which slot resolved without
    string-matching the display label — painAsked() treats tendon work as pain-relevant
    even when the generator wrote no logHint. */
@@ -1602,7 +1589,7 @@ function prescribedSets(ex){
   if(plain)return clamp(parseInt(plain[1],10));
   const range=/^(\d+)\s*[-–—]\s*(\d+)$/.exec(s);
   if(range)return clamp(parseInt(range[1],10));
-  /* "4 rounds" is four sets, and used to collapse to one. Deliberately tight — an
+  /* "4 rounds" is four sets, not one. Deliberately tight — an
      integer, whitespace, then a *word*: "8-10 min" has no space after the 8 and
      "1 + 3" has no word after it, so both still mean "one set", which is right. */
   const counted=/^(\d+)\s+[a-z]/i.exec(s);
@@ -1660,9 +1647,9 @@ function circuitModeName(mode){return mode==="quick"?"Quick rounds":mode==="deta
 /* ---------- what the "reps" field actually measures ----------
    `reps` is prose, and in a real block roughly two rows in five prescribe something
    that is not a rep count: "45 sec", "8-10 min", "20 m", "45 sec hard / 75 sec easy".
-   The input used to be inputmode="numeric" — a digits-only keypad on iOS — which made
-   a 45-second hold literally untypeable. So the one field becomes whatever that
-   exercise measures: label, unit suffix, keyboard and placeholder all come from here.
+   Never `inputmode="numeric"` here: it is a digits-only keypad on iOS, which makes a
+   45-second hold literally untypeable. The one field becomes whatever that exercise
+   measures — label, unit suffix, keyboard and placeholder all come from here.
 
    Nothing about the stored value changes. It is still exactly what the athlete typed,
    in `reps`, as a string, with `prescribed.reps` beside it in the export to say what
@@ -1709,8 +1696,7 @@ function metricOf(ex){
 
 /* ---------- what the programme says to capture ----------
    `logHint` is the generator's own list of what matters for this movement ("Top load;
-   RPE-1; depth owned Y/N; knee pain during + next AM"). It used to render as one line
-   of blue prose the eye slides straight off. Split on the semicolons only — "knee pain
+   RPE-1; depth owned Y/N; knee pain during + next AM"). Split on the semicolons only — "knee pain
    during + next AM" is one instruction, and cutting it at the + leaves "next AM"
    standing on its own meaning nothing. */
 function parseHints(ex){
@@ -1745,11 +1731,9 @@ function programPainSite(){
 }
 
 /* ---------- where the athlete is in the block ----------
-   Tracking is date-first, so `STATE.date` is primary and (week, day) are DERIVED from it:
-   read off the claim when a session is stored on that date, otherwise the schedule's
-   suggestion. There is no separate stored position any more — the old `tp_pos_v1` could
-   disagree with the claim, and when it did it silently showed the wrong week's
-   prescriptions. Claims live in the sessions; see "what a date is" below. */
+   Tracking is date-first: `STATE.date` is primary and (week, day) are derived from it —
+   see the STATE comment above for why the position is never stored separately. Claims
+   live in the sessions; see "what a date is" below. */
 /* `STATE.day` is a LABEL STRING everywhere — it is half of the stored session key and
    what every exercise row's own `day` is compared against. dayLabels() is the only
    correct way to read meta.days, because a structured day is an object and letting one
@@ -1764,12 +1748,7 @@ function firstDay(){return dayLabels()[0]||null;}
    by validate_program.py. Tracking is date-first, so exactly one function turns that
    into calendar dates, with three fallbacks in the documented order.
 
-   The schedule is a SUGGESTION, not a commitment. A stored session carrying a date is a
-   claim, and claims always win: the content of a date is any stored session on it, else
-   this suggestion. That is why there is no "move session" operation, no cascade, and no
-   schedule state that can drift out of sync with reality — training Tuesday's session on
-   Wednesday needs no feature at all. See docs/date-first-revamp.md.
-
+   Everything below is only ever a SUGGESTION — claims win over it; see "what a date is".
    Nothing here is a lookup the render path pays for: SCHEDULE is computed when the
    programme or the anchor changes, and read from memory after that. */
 const WEEKDAYS=[
@@ -1803,7 +1782,7 @@ function normWeekday(v){
 /* meta.days is a list of label strings today. A future generator may emit
    {label, weekday} objects instead — accepting both here is what makes adding the
    structured fields a no-op in the app rather than a migration. Nothing emits them yet;
-   see "Deliberately deferred" in docs/date-first-revamp.md. */
+   see "Deferred on purpose" in docs/roadmap.md. */
 function dayEntries(program){
   const days=(program&&program.meta&&program.meta.days)||[];
   if(!Array.isArray(days))return [];
@@ -1921,10 +1900,9 @@ function scheduleForDate(date,sched){
      review     a sealed session exists — viewable, and editable
 
    A CLAIM is any stored session carrying this date, and claims always win over the
-   schedule's suggestion. That is the whole reason there is no "move session" operation:
-   training Tuesday's session on Wednesday means opening Wednesday, picking a different
-   day, and the session you create IS the claim. A scheduled date that passes with
-   nothing logged simply stays not-done — never red, never auto-rolled forward. */
+   schedule's suggestion — which is why there is no "move session" operation at all. A
+   scheduled date that passes with nothing logged stays not-done: never red, never
+   auto-rolled forward. See docs/design-rationale.md. */
 function sortClaims(list){
   const order=dayLabels();
   /* An open session first: if a date holds two, the one still being logged is the one
@@ -2025,8 +2003,8 @@ function startSession(){
   return s;
 }
 /* ---------- sealing ----------
-   "Complete" used to be inferred from the entries, which cannot tell "I finished" from
-   "I did four of six and walked out" — a difference the coaching side cares about.
+   Inferring "complete" from the entries cannot tell "I finished" from "I did four of six
+   and walked out" — a difference the coaching side cares about, hence an explicit seal.
    Sealing is LOCAL and works with the radio off: tying it to sync or export would make a
    dropped connection look like an unfinished workout. */
 function sealSession(){
@@ -2070,10 +2048,9 @@ function loadProgram(obj){
      opened. The session index belongs to the previous programme's namespace. */
   refreshSchedule();
   invalidateSessionIndex();
-  /* A fresh import lands on TODAY, like every other entry point — the app never opens
-     "the next thing", because a screen that silently shows another day gets you doing
-     the wrong session. Today may well be a rest day, and the date view says so and
-     offers both the next session and the claim picker. */
+  /* A fresh import lands on TODAY, like every other entry point (see STATE). Today may
+     well be a rest day, and the date view says so, offering the next session and the
+     claim picker. */
   adoptDate(todayISO());
   renderAll();resetViewScroll();
 }
@@ -2570,10 +2547,10 @@ function deleteSet(e,idx,unit){
   e.sets.splice(idx,1);renumber(e);
   applyDerivedSummary(e,unit);
 }
-/* A set the athlete typed but never confirmed used to vanish: ending set `done` without
-   touching the draft, and only committed rows are exported. So anything that ends the
-   athlete's time on an exercise commits a dirty draft first. Only *dirty* — a draft
-   still showing the previous set's values is not a set that happened. */
+/* Only committed rows are exported, so a set the athlete typed but never confirmed would
+   vanish. Anything that ends the athlete's time on an exercise must therefore commit a
+   dirty draft first. Only *dirty* — a draft still showing the previous set's values is
+   not a set that happened. */
 function commitDraftIfDirty(e,unit,s){
   return draftDirty(e)?commitSet(e,unit,s):false;
 }
@@ -2665,9 +2642,7 @@ function fmtDateLong(iso){
     return d.toLocaleDateString(undefined,{weekday:"short",day:"numeric",month:"short"});
   }catch(e){return txt(iso);}
 }
-/* How far from today, in words. A date that isn't today is legitimate — it is how a
-   session gets completed after the fact — but it is otherwise silent, and logging onto
-   the wrong day cannot be undone. */
+/* How far from today, in words — the other half of the not-today cue on fmtDate(). */
 function relDay(iso){
   const n=daysBetween(todayISO(),iso);
   if(n==null)return "";
@@ -2704,8 +2679,7 @@ function setView(v){
   if(next===current)return;
   if(current==="list")OVERVIEW_SCROLL=currentScrollY();
   if(next==="list")flushDraft();      /* leaving the editor ends the set in progress */
-  /* The header now reads differently in each view — the date view states the date
-     itself, so the context line only carries it in the logger. */
+  /* renderHeader() reads the view, so it has to run again — see its own note. */
   setSetting("view",next);renderHeader();renderMain();
   if(next==="list")restoreOverviewScroll();else scrollTop();
 }
@@ -2858,8 +2832,8 @@ function updateProgress(sess){
      as 0% through. Same bar, two truths: finished, and started. */
   part.style.width=pct(touched);
   cnt.textContent=`${done}/${exs.length} done`;
-  /* The check-in is on screen now rather than behind the ≡, so its own status line is
-     the nag and a dot on the hamburger would point at nothing. */
+  /* The check-in is on screen rather than behind a tap, so its own status line is the
+     only nag it needs. */
   const stat=$("#checkinStat");
   if(stat)stat.textContent=checkinSummary(s);
   paintNav(s);
@@ -2874,11 +2848,9 @@ function field(labelText,node,unit,labelClass){
 }
 
 /* ---------- the session check-in ----------
-   It sits near the top of the date view and NEVER gates Start. The data matters — it is
-   the tendon protocol, and `amPainOnWaking` describes the response to the PREVIOUS
-   session — but a form standing between the athlete and a warm-up gets skipped, or
-   worse, filled with whatever number ends it fastest. A skipped check-in is honest
-   missing data; a faked one is poison. */
+   Sits near the top of the date view and NEVER gates Start — the primary action stays
+   above it. `amPainOnWaking` describes the response to the PREVIOUS session, not this
+   one. See docs/design-rationale.md for why it is never a gate. */
 function sessionCard(s){
   const c=el("div",{className:"checkin"});
   c.dataset.readiness=SETTINGS.readiness?(s.session.readiness||""):"";
@@ -2893,7 +2865,7 @@ function sessionCard(s){
     return field(label,inp,unit);
   };
   /* First in the grid on purpose: for a tendon block this is the highest-value number in
-     the file, it is only true before training, and it used to be the one that got missed. */
+     the file, and it is only true before training — asked late, it gets missed. */
   if(SETTINGS.painOnWaking)
     wrap.append(mk("amPainOnWaking",painLbl(" on waking"),"number",{min:0,max:10},"/10"));
   if(SETTINGS.readiness){
@@ -2940,7 +2912,7 @@ function sealLine(s){
   else bits.push(editedSinceExport(s)?"edited since export":"exported");
   return bits.join(" · ");
 }
-/* Screen 9. Week AND day together, with the schedule's guess preselected — day-only
+/* Week AND day together, with the schedule's guess preselected — day-only
    would quietly serve the wrong week's prescription, which is worse than any navigation
    problem, because you would train off it. */
 function openClaimPicker(){
@@ -3078,11 +3050,11 @@ function dateFoot(s){
   return box;
 }
 
-/* ---------- the hub and the calendar ----------
-   Two screens, one visual system. The hub answers "what am I doing today" before
-   anything else and links to everything; the calendar is the timeline the hub's Recent
-   rows are a shortcut into. Neither reads STATE — they are about dates other than the
-   one open — so everything below takes a stored record or an ISO date. */
+/* ---------- the hub ----------
+   The hub answers "what am I doing today" before anything else and links to everything;
+   the calendar below is the timeline its Recent rows are a shortcut into. Neither reads
+   STATE — they are about dates other than the one open — so everything in both sections
+   takes a stored record or an ISO date. */
 /* Progress for a session we are not standing in, so it cannot call dayExercises(). */
 function recordProgress(rec){
   const exs=sessionExercises(PROGRAM,rec.week,rec.day);
@@ -3228,12 +3200,10 @@ function renderHome(){
   host.append(rows);
 }
 
-/* ---------- 2 · Calendar ----------
-   A continuous vertical scroll of weeks: the block's weeks labelled W1–Wn, dates outside
-   it still present but plain. One calendar, no month/block mode switch, so it reads as a
-   timeline — which suits a block that does not care about month boundaries. At seven
-   columns a cell is roughly 48px, so it holds the date number and one state mark and
-   nothing more. */
+/* ---------- the calendar ----------
+   The block's weeks labelled W1–Wn, dates outside it present but plain. A cell holds the
+   date number and one state mark and nothing more — see .cal for the width budget that
+   forces that. */
 const CAL_DOW=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 function calendarRange(){
   const today=todayISO();
@@ -3329,7 +3299,7 @@ function renderCalendar(){
 const CAL_STATE_WORDS={sealed:"finished",part:"logged, not finished",claimed:"started",
   scheduled:"scheduled, not done",none:"nothing scheduled"};
 
-/* ---------- 10 · Programme ----------
+/* ---------- the programme screen ----------
    The private library, and the one date the whole calendar hangs off. */
 let anchorEditing=false;
 function anchorPanel(){
@@ -3375,7 +3345,7 @@ function renderProgrammePage(){
   host.append(anchorPanel());
   if(window.TPProfileUI&&TPProfileUI.renderProgramme)TPProfileUI.renderProgramme(host);
 }
-/* ---------- 11 · Account ----------
+/* ---------- the account screen ----------
    The account itself, then the settings — shown as two explicitly labelled scopes rather
    than one undifferentiated list, because the difference matters: tracked fields follow
    you to any device you sign in on, and appearance does not. */
@@ -3471,10 +3441,10 @@ function summaryText(e){
   }
   return b.join(" · ");
 }
-/* What this exercise's card says about itself. There is always a line — an absent one
-   used to mean "untouched", which is indistinguishable from "the status didn't render",
-   and it left a typed-but-uncommitted set completely invisible outside the editor. That
-   silence is the likeliest cause of "I did that set and Overview shows nothing". */
+/* What this exercise's card says about itself. There is always a line: an absent one
+   reads as "untouched", which cannot be told apart from "the status didn't render", and
+   it would leave a typed-but-uncommitted set completely invisible outside the editor —
+   the likeliest cause of "I did that set and Overview shows nothing". */
 function statusLine(ex,e){
   const st=entryState(e),n=(e.sets||[]).length;
   /* No tick in the text either — the badge beside it carries that, and the line is better
@@ -3495,8 +3465,8 @@ function statusLine(ex,e){
 }
 const STATE_BADGE={done:"✓",part:"◐",todo:"○"};
 
-/* ---------- Overview card (read-only) ----------
-   Zero inputs — the whole point of splitting this out of the old all-in-one card. Tap
+/* ---------- overview card (read-only) ----------
+   Zero inputs — that is the whole point of it being separate from the Log card. Tap
    anywhere on it to open the exercise in Log view. */
 function overviewCard(ex,s,idx){
   const e=entryFor(s,ex);
@@ -3584,7 +3554,7 @@ function confirmEndExercise(ex,e,s,idx,onchange,metric){
   sheetOpen(title,copy,body);
 }
 
-/* ---------- 6 · the focus logger's instruments ----------
+/* ---------- the focus logger's instruments ----------
    One exercise, one set, and — visible at the same time — the exercise name, its
    prescription, the sets already committed, the current set's fields, the rest clock,
    and what was lifted for this exercise last time. Legibility is the binding constraint
@@ -3592,18 +3562,14 @@ function confirmEndExercise(ex,e,s,idx,onchange,metric){
    pain at once, and all of it has to be readable at arm's length, one-handed, with
    chalked hands. */
 
-/* The rest clock counts UP from the last logged set, with the prescribed rest marked on
-   it — not a countdown that expires and then means nothing. Passive: no sound, no buzz,
-   no notification permission, all of which fight the offline/no-dependency constraint
-   and behave badly in an installed iOS PWA. It hides itself past about a quarter of an
-   hour, when you have left the gym and a large number is just noise.
+/* The rest clock counts UP from the last logged set, hiding itself past a quarter of an
+   hour. Passive by design — see docs/design-rationale.md.
 
-   It cannot get buggy, by construction. Committing a set writes `lastSetAt`; the display
-   is always now − lastSetAt, recomputed on render by a single interval that only
-   repaints. There is no timer state to drift, corrupt or desynchronise — it survives a
-   reload, a backgrounded tab and an iOS PWA being killed, and the worst case is a stale
-   number for one repaint. Nothing in the log path reads it, so it can never interfere
-   with logging. */
+   It cannot get buggy, by construction, and that must stay true: committing a set writes
+   `lastSetAt`, and the display is always now − lastSetAt, recomputed by a single interval
+   that ONLY repaints. There is no timer state to drift, corrupt or desynchronise, so it
+   survives a reload, a backgrounded tab and an iOS PWA being killed, and the worst case
+   is a stale number for one repaint. Nothing in the log path may read it. */
 const REST_HIDE_S=15*60;
 let REST_TICK=null,REST_NODE=null;
 /* The prescribed rest in seconds, when the generator gave something countable. A UNIT IS
@@ -3745,9 +3711,9 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
   const curNum=curPos+1;
   const total=Math.max(target,curNum,rows.length+(draftMode?1:0));
 
-  /* What has actually gone in, spelled out. Committing used to change almost nothing on
-     screen — the next draft is seeded from the set just logged, so the fields read the
-     same — which is why it never felt like anything had been recorded. */
+  /* What has actually gone in, spelled out. Without it, committing changes almost nothing
+     on screen — the next draft is seeded from the set just logged, so the fields read the
+     same — and nothing feels recorded. */
   if(rows.length){
     host.append(el("div",{className:"setrecap"},[
       el("span",{className:"rl"},"Logged"),
@@ -3770,10 +3736,10 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
       chips.append(el("span",{className:"setchip",
         attrs:{"data-state":"current","aria-label":"Set "+(i+1)+", in progress"}},String(i+1)));
     }else{
-      /* An upcoming slot is a plan, not a destination and not a delete button. It used to
-         be a live button that dropped the set on one unconfirmed tap, which read as
-         "jump to set 4" — so it is a plain placeholder now, and the count is changed in
-         the secondary Adjust sets sheet, where it cannot be hit by accident. */
+      /* An upcoming slot is a plan, not a destination and not a delete button. It must
+         stay a plain placeholder: it reads as "jump to set 4", so a live control here
+         would drop sets on one unconfirmed tap. The count is changed in the secondary
+         Adjust sets sheet, where it cannot be hit by accident. */
       chips.append(el("span",{className:"setchip",
         attrs:{"data-state":"todo","aria-hidden":"true"}},String(i+1)));
     }
@@ -3876,7 +3842,7 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
     const commit=el("button",{className:"primary"},finalPlanned?"Log final set":
       (rows.length<target?`Log set ${curNum} of ${target}`:"Log another set"));
     commit.onclick=()=>{
-      /* Silence used to be the answer here, which is indistinguishable from a dead app. */
+      /* Say why nothing happened — silence here cannot be told apart from a dead app. */
       if(!commitSet(e,metric.unit,s)){toast("Nothing to log yet — add a load, "+
         metric.label.toLowerCase()+" or RPE");return;}
       const n=e.sets.length;
@@ -3901,7 +3867,7 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
 
 }
 
-/* ---------- Summary & notes (collapsed, inside Log view) ----------
+/* ---------- summary & notes (collapsed, inside Log view) ----------
    The flat load/reps/RPE/pain fields, auto-filled from the sets and editable — editing
    one here is a deliberate override and stops it following future sets (summaryAuto).
    Kept collapsed: the athlete never has to open it, but it is theirs to correct. */
@@ -3938,10 +3904,8 @@ function buildSummaryPanel(host,ex,e,s){
   };
 }
 
-/* The programme's own list of what matters for this movement, one chip per instruction
-   instead of a single line of prose the eye slides off. Parenthetical asides move to the
-   title so a chip stays one short phrase; the pain-relevant ones are marked, which is the
-   same cue that accents the pain field. */
+/* Parenthetical asides move to the `title` attribute so a chip stays one short phrase.
+   See .hintchips for why these are chips at all. */
 function hintChips(hints){
   const wrap=el("div",{className:"hintchips"});
   wrap.append(el("span",{className:"hl"},"Capture"));
@@ -4187,7 +4151,7 @@ function buildCircuitEditor(host,ex,e,s,idx,onchange){
   else buildFinalCircuit(body,ex,e,s,idx,onchange);
 }
 
-/* ---------- Log card ----------
+/* ---------- log card ----------
    One exercise, worked one set at a time. The set editor rebuilds itself on a commit /
    edit / delete / finish tap (never on a keystroke); the summary panel is repainted in
    place afterwards rather than rebuilt, so an open "Summary & notes" section doesn't
@@ -4284,8 +4248,8 @@ function buildSessionPayload(stored,program){
      so the review step never sees a missing field. See docs/data-contracts.md. */
   const tracking={painLabel:(SETTINGS.painLabel||"").trim()};
   FIELD_DEFS.forEach(f=>tracking[f.key]=!!SETTINGS[f.key]);
-  /* Per-set logging is no longer a switch — it is how every exercise is logged now — but
-     the key stays so a reader built against tp-session-3's contract still gets it. */
+  /* Per-set logging is not a switch — it is how every exercise is logged — but the key
+     stays so a reader built against tp-session-3's contract still gets it. */
   tracking.perSetLogging=true;
   return {
     schema:"tp-session-3",
@@ -4362,15 +4326,13 @@ async function copyJSON(){
 }
 
 /* ---------- events ----------
-   Everything wired here is markup present for the whole life of the page. The week, day
-   and date controls no longer exist as standing widgets: they are the claim picker and
-   the calendar, built on demand. */
+   Everything wired here is markup present for the whole life of the page. Week, day and
+   date are not standing widgets — they are the claim picker and the calendar, built on
+   demand — so nothing below wires them. */
 $("#exportBtn").onclick=exportSession;
 $("#copyBtn").onclick=copyJSON;
 $("#backBtn").onclick=backFromDate;
 $("#pageBack").onclick=openHome;
-/* The context line is the claim trigger: training a different week or day is a tap on
-   the thing you are already reading. */
 $("#ctxBtn").onclick=openClaimPicker;
 $("#sheetClose").onclick=sheetClose;
 $("#sheetBg").onclick=sheetClose;

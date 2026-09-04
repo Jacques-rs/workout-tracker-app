@@ -72,8 +72,8 @@
       host.classList.remove("in");
       host.setAttribute("aria-hidden", "true");
       host.dataset.locked = "false";
-      const drawer = $("#drawerWrap"), sheet = $("#sheetWrap");
-      if (!(drawer && drawer.classList.contains("in")) && !(sheet && sheet.classList.contains("in")))
+      const sheet = $("#sheetWrap");
+      if (!(sheet && sheet.classList.contains("in")))
         document.body.classList.remove("noscroll");
       if (returnFocus && returnFocus.focus) returnFocus.focus();
       returnFocus = null;

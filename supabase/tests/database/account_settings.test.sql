@@ -5,7 +5,7 @@ set search_path = public, extensions;
 select no_plan();
 
 -- The account-scoped settings row: one per owner, reachable only by that owner, and
--- carried by the account export. See docs/date-first-revamp.md, "Tracked fields are
+-- carried by the account export. See docs/design-rationale.md, "Tracked fields are
 -- account-scoped".
 select ok(to_regclass('public.user_settings') is not null, 'user_settings table exists');
 select ok(

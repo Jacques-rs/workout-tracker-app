@@ -23,15 +23,15 @@ on disk. Test both programme fixtures after any change to import, filtering, or 
 | `authtest.js` / `profiletest.js` (node) | Authentication ownership/access states and the profile UI's loading, signed-out, authenticated, offline, library and conflict behavior. |
 | `programstoretest.js` (node) | Private programme list/import/activate/remove behavior, including local-first offline import retry, session identity matching and soft deletion. |
 | `sessionstoretest.js` (node) | Device-first queue persistence, programme ordering, revision updates, natural-key collision handling, recoverable conflicts, backfill and offline history. |
+| `settingsstoretest.js` (node) | Account-scoped settings: the per-field last-write-wins merge, the offline queue, and no network at all as a guest. |
+| `accountdatatest.js` (node) | The account portability snapshot: what it includes, and that credentials, the owner marker and demo keys are excluded. |
 | `swtest.js` (node) | App-shell caching and the cross-origin authentication/Data API boundary. |
-| `validatortest.py` (python3) | The builder refuses to emit a **bad** one: every fixture passes `validate_program.py`, and 23 single-mutation breakages are rejected. |
+| `validatortest.py` (python3) | The builder refuses to emit a **bad** one: every fixture passes `validate_program.py`, and every known single-mutation breakage is rejected. The case count is printed by the test, not recorded here. |
 
 `validatortest.py` mutates `program.v2.sample.json` one field at a time — a duplicate id, a
 `day` not in `meta.days`, a `load` emitted as a number, a week with no rows. The negative cases
 are the point: a validator that passes everything is worse than no validator, because it buys
 false confidence. Add a case there whenever you add a rule to `validate_program.py`.
 
-The v2 fixtures were derived from the v1 ones by hand, not by a script, so they are not
-byte-comparable — `program.v2.sample.json` is a shorter block (4 weeks) with stepped loads so
-that switching weeks in the app is *visibly* different, which a mechanical copy wouldn't give
-you. Edit them directly, and keep the v1 files as they are: their value is being old.
+Edit these files directly — they are hand-maintained, not generated. **Keep the v1 files exactly
+as they are: their value is being old.**

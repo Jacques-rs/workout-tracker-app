@@ -7,7 +7,7 @@ This runbook intentionally uses no athlete payloads in availability monitoring.
 1. Jacques upgrades the hosted project to Supabase Pro and confirms daily managed backups with seven-day retention in the Supabase dashboard.
 2. Review that the database migration is applied and the hourly **Public availability check** workflow is green.
 3. Run `./scripts/verify.sh`, deploy the static shell from the approved `dev` source, then perform a non-email browser smoke if a controllable deployed browser is available.
-4. Ask Jacques for explicit approval immediately before every hosted invitation or recovery email. Explain that it consumes one of the shared hourly Auth-email allowance; send at most two per hour.
+4. Every hosted invitation or recovery email is approval-gated — see `CLAUDE.md` § Verifying changes. Send at most two per hour.
 
 ## Canary and release smoke
 
