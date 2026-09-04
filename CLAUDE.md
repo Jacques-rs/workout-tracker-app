@@ -247,11 +247,15 @@ its window width, so the image is a crop of a wider layout.
 
 ## Deployment
 
-**GitHub Pages** serves `/` from the **`dev`** branch of the **public** repo
+**GitHub Pages** serves `/` from **one branch** of the **public** repo
 `Jacques-rs/workout-tracker-app`, live at <https://jacques-rs.github.io/workout-tracker-app/>, via
-the `legacy` (Jekyll) builder. Pushing `dev` deploys. The repo is public because that is the free
-way to get the HTTPS a service worker requires — which is exactly why the `athlete/` rules above are
-non-negotiable. **Check the branch, don't assume it:**
+the `legacy` (Jekyll) builder. Pushing that branch deploys. The repo is public because that is the
+free way to get the HTTPS a service worker requires — which is exactly why the `athlete/` rules
+above are non-negotiable.
+
+**Which branch it is has changed several times, so this file does not record it — ask the API.**
+It has been `dev`, `feat/backend-launch-plan` and `feat/date-first-revamp`, and a push to any other
+branch runs CI without deploying anything:
 
 ```bash
 gh api repos/Jacques-rs/workout-tracker-app/pages --jq '.source.branch, .status'

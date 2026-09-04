@@ -44,11 +44,11 @@ browser-safe publishable key.
 
 Any static host with HTTPS — required for install and offline support. Build command: none. Output directory: `/`.
 
-- **GitHub Pages** — *current approach.* Serves `/` from **`dev`**; pushing `dev` deploys. Requires a **public** repo on the free plan, which this one is. Confirm the branch with `gh api repos/Jacques-rs/workout-tracker-app/pages --jq .source` rather than trusting this line.
+- **GitHub Pages** — *current approach.* Serves `/` from one branch, and **which branch has changed several times**, so look it up rather than trusting any doc: `gh api repos/Jacques-rs/workout-tracker-app/pages --jq .source`. Pushing that branch deploys. Requires a **public** repo on the free plan, which this one is.
 - **Cloudflare Pages** — the fallback if the repo needs to go private: private repos on the free tier, and the site can be gated with Cloudflare Access.
 - **Netlify Drop** — drag the folder in, no repo needed; URL is unlisted but public.
 
-Work happens on the `dev` branch. Several worktrees of this clone exist — run `git worktree list` to see them.
+Work happens on the `dev` branch, which is not necessarily the branch Pages serves. Several worktrees of this clone exist — run `git worktree list` to see them.
 
 ## Install on a phone
 
