@@ -128,9 +128,9 @@
   body.profile-active{padding-bottom:calc(var(--s5) + env(safe-area-inset-bottom))}
   .tnum{font-variant-numeric:tabular-nums}
 
-  /* ---------- account/profile home ----------
-     This is the cold-start surface. Programme calls stay behind program-store.js;
-     session history remains an honest not-yet-connected state until the next phase. */
+  /* ---------- the entry gate ----------
+     Sign-in, the sample, and the honest blocked states. A known owner never sees this:
+     the app routes straight to the hub. Programme calls stay behind program-store.js. */
   .profile-view{min-height:100vh;padding:calc(var(--s5) + env(safe-area-inset-top)) 0 var(--s5)}
   .profile-hero{padding:var(--s3) var(--s1) var(--s5)}
   .profile-kicker{font-size:var(--t-xs);font-weight:800;letter-spacing:.11em;
@@ -183,33 +183,142 @@
     margin:calc(var(--s4) * -1) 0 var(--s2);border-radius:0 0 var(--r-sm) var(--r-sm);
     background:var(--accent-soft);color:var(--accent-ink);font-size:var(--t-xs);font-weight:800}
   .demo-banner[hidden]{display:none}
+  .profile-sync{margin:var(--s2) 0 0;font-size:var(--t-xs);color:var(--muted);line-height:1.5}
+
+  /* ---------- 1 · the hub ----------
+     Today first and largest, the last few sessions inline, then one row each to
+     everything else. Typographic hierarchy and hairlines carry it — the four loose
+     structural surfaces this replaces are what made the old layout cost so much to
+     read. */
+  .home-view{min-height:100vh;padding:calc(var(--s5) + env(safe-area-inset-top)) 0 var(--s5)}
+  .home-kicker{font-size:var(--t-xs);font-weight:800;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--muted);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hometoday{padding:var(--s3) 0 var(--s5);border-bottom:1px solid var(--line)}
+  .ht-top{display:flex;align-items:baseline;gap:var(--s2);flex-wrap:wrap}
+  /* The one genuinely large thing in the app. */
+  .ht-date{font-size:clamp(1.6rem,7vw,2.25rem);font-weight:800;letter-spacing:-.03em;
+    line-height:1.05;font-variant-numeric:tabular-nums}
+  /* Amber is reserved for *now*, so it is spent here and on the calendar's today ring. */
+  .ht-rel{font-size:var(--t-xs);font-weight:700;text-transform:uppercase;
+    letter-spacing:.12em;color:var(--accent-ink)}
+  .hometoday[data-state="rest"] .ht-rel,
+  .hometoday[data-state="review"] .ht-rel,
+  .hometoday[data-state="noprogram"] .ht-rel{color:var(--muted)}
+  .ht-what{margin-top:var(--s2);color:var(--muted);font-size:var(--t-base)}
+  .ht-what strong{color:var(--ink);font-weight:700}
+  .ht-note{margin:var(--s2) 0 0;color:var(--muted);font-size:var(--t-sm)}
+  .hometoday[data-state="resume"] .ht-note{color:var(--accent-ink);font-weight:600}
+  .hometoday[data-state="review"] .ht-note{color:var(--good);font-weight:700}
+  .ht-action{margin-top:var(--s4)}
+  .ht-action button{width:100%;min-height:var(--h-primary)}
+  .ht-quiet{margin-top:var(--s3)}
+
+  .homesection{margin-top:var(--s5)}
+  .hs-title{font-size:var(--t-xs);font-weight:800;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--muted);margin-bottom:var(--s1)}
+  /* A row, not a card: the whole line is the target and a hairline between rows is all
+     the structure it needs. */
+  .homerow{display:flex;align-items:center;gap:var(--s3);width:100%;text-align:left;
+    background:transparent;border:0;border-bottom:1px solid var(--line-soft);
+    border-radius:0;padding:var(--s3) 2px;min-height:var(--h-field)}
+  .homerow:active{background:var(--accent2-soft);transform:none}
+  .homerow:focus-visible{box-shadow:var(--ring)}
+  .hr-main{flex:1 1 auto;min-width:0}
+  .hr-title{display:block;font-weight:700;font-size:var(--t-base);line-height:1.25;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hr-sub{display:block;font-size:var(--t-xs);font-weight:400;color:var(--muted);
+    line-height:1.35;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hr-chev{flex:0 0 auto;color:var(--muted);font-size:var(--t-md);font-weight:700}
+  .hr-mark{flex:0 0 auto;width:20px;text-align:center;font-size:var(--t-md);
+    font-weight:700;color:var(--muted)}
+  .hr-mark[data-state="part"]{color:var(--accent-ink)}
+  .hr-mark[data-state="done"]{color:var(--good)}
+
+  /* ---------- one chrome for Calendar / Programme / Account ----------
+     Three screens that each used to need their own scaffolding now share a back arrow,
+     a title and a body. */
+  .page-view{min-height:100vh;padding:0 0 var(--s5)}
+  .pagebar{position:sticky;top:0;z-index:20;background:var(--bg);display:flex;
+    align-items:center;gap:var(--s3);
+    padding:calc(var(--s3) + env(safe-area-inset-top)) 0 var(--s3)}
+  .pagetitle{flex:1 1 auto;min-width:0;font-weight:700;font-size:var(--t-md);
+    letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .page-body{display:grid;gap:var(--s4)}
+  .page-copy{margin:var(--s2) 0 0;color:var(--muted);font-size:var(--t-sm);line-height:1.5}
+  .panel{padding-bottom:var(--s4);border-bottom:1px solid var(--line)}
+  .panel-title{font-size:var(--t-xs);font-weight:800;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--muted)}
+  .panel-value{margin-top:var(--s1);font-size:var(--t-lg);font-weight:800;
+    letter-spacing:-.02em}
+  .panel-days{margin-top:var(--s3);display:flex;gap:var(--s2);flex-wrap:wrap}
+  .pd-item{font-size:var(--t-xs);font-weight:700;color:var(--ink-dim);
+    background:var(--well);border:1px solid var(--line-soft);border-radius:var(--r-sm);
+    padding:4px 8px}
+  .panel-body{margin-top:var(--s2)}
+  .panel-edit{margin-top:var(--s3)}
+  .panel-edit input,.panel-edit button{width:100%;min-height:var(--h-tap)}
+
+  /* ---------- 2 · the calendar ----------
+     Eight columns: a week label and seven days, in one continuous scroll with no
+     month/block mode switch — it reads as a timeline, which suits a block that does not
+     care about month boundaries. A cell is about 37px at 320 and 47px at 390, which is
+     exactly why it holds a date number and one state mark and nothing else. */
+  .cal{display:grid;grid-template-columns:20px repeat(7,minmax(0,1fr));gap:2px}
+  .cal-corner{min-height:16px}
+  .cal-dow{font-size:var(--t-xs);font-weight:700;color:var(--muted);text-align:center;
+    padding-bottom:2px}
+  .cal-week{display:grid;place-items:center;font-size:var(--t-xs);font-weight:800;
+    color:var(--accent-ink);font-variant-numeric:tabular-nums}
+  .cal-week.out{color:var(--placeholder);font-weight:600}
+  .cal-cell{position:relative;aspect-ratio:1/1;min-height:34px;padding:0;display:grid;
+    place-content:center;justify-items:center;background:transparent;
+    border:1px solid transparent;border-radius:var(--r-sm);color:var(--muted)}
+  .cc-num{font-size:var(--t-sm);font-weight:600;line-height:1.1}
+  .cc-mark{font-size:9px;font-weight:800;line-height:1;min-height:9px}
+  .cal-cell[data-state="scheduled"],.cal-cell[data-state="claimed"]{
+    border-color:var(--line);color:var(--ink-dim)}
+  .cal-cell[data-state="part"]{border-color:var(--accent);color:var(--accent-ink);
+    background:var(--accent-soft)}
+  .cal-cell[data-state="sealed"]{border-color:var(--good-line);color:var(--good);
+    background:var(--good-soft)}
+  .cal-cell[data-state="part"] .cc-num,.cal-cell[data-state="sealed"] .cc-num{font-weight:800}
+  .cal-cell[data-today="true"]{box-shadow:inset 0 0 0 2px var(--accent)}
+  .cal-cell:focus-visible{box-shadow:var(--ring)}
+  .cal-cell:active{transform:scale(.94)}
+  /* A hairline, not a number: on the calendar the trend is the point, not the reading. */
+  .cc-pain{position:absolute;left:34%;right:34%;bottom:4px;height:2px;border-radius:2px;
+    background:var(--warn);opacity:.75}
+  .cc-pain[data-level="high"]{background:var(--bad)}
+  .cal-legend{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s4);margin-top:var(--s4)}
+  .cl-item{display:inline-flex;align-items:center;gap:6px;font-size:var(--t-xs);
+    color:var(--muted)}
+  .cl-mark{display:inline-grid;place-items:center;width:16px;height:16px;flex:0 0 auto;
+    border:1px solid var(--line);border-radius:4px;font-size:8px;font-weight:800}
+  .cl-mark[data-state="part"]{border-color:var(--accent);color:var(--accent-ink)}
+  .cl-mark[data-state="sealed"]{border-color:var(--good-line);color:var(--good)}
+  .cl-pain{display:inline-block;width:16px;height:2px;flex:0 0 auto;border-radius:2px;
+    background:var(--warn)}
 
   /* ---------- header ----------
-     Two rows only. Everything that is decided once a session — week, day, date, the
-     check-in — lives in the drawer, because a header the athlete reads past on every
-     scroll is the thing that made the old layout feel cluttered. Row 2 holds the
-     Overview/Log toggle and the done count; the date lives in the context line so the
-     toggle can be worded instead of two bare icons. */
+     The date view's own two rows: a way back to the hub and a context line on row 1, the
+     Overview/Log toggle and the done count on row 2. Nothing is decided here — week and
+     day are a claim made in one picker, the date is the calendar, the check-in is at the
+     top of the date view, and settings live on the Account screen. */
   header{position:sticky;top:0;z-index:20;background:var(--bg);padding:var(--s4) 0 var(--s2)}
   header::after{content:"";position:absolute;left:0;right:0;bottom:-16px;height:16px;
     background:linear-gradient(var(--bg),var(--bg-fade));pointer-events:none}
   .row{display:flex;gap:var(--s2);align-items:center}
   .grow{flex:1 1 auto;min-width:0}
-  .block-name{font-weight:700;font-size:var(--t-md);letter-spacing:-.2px;line-height:1.2}
-  .sub{color:var(--muted);font-size:var(--t-sm);margin-top:1px}
   .iconbtn{position:relative;flex:0 0 auto;width:38px;height:38px;padding:0;display:grid;
     place-items:center;background:transparent;border:1px solid var(--line);
     border-radius:var(--r-sm)}
   .iconbtn svg{width:19px;height:19px;fill:none;stroke:var(--muted);stroke-width:1.7;
     stroke-linecap:round;stroke-linejoin:round}
   .iconbtn:active svg{stroke:var(--ink)}
-  /* A quiet dot on the ≡ while the check-in is still empty. It is the only nag in the
-     app, and it clears the moment any check-in field is filled. */
-  .iconbtn.alert::after{content:"";position:absolute;top:4px;right:4px;width:8px;height:8px;
-    border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px var(--bg)}
 
-  /* The whole context line is the drawer trigger: changing week, day or date is a tap
-     on the thing you are already reading, not a hunt for the ≡. */
+  /* The whole context line is the claim trigger: training a different week or day is a
+     tap on the thing you are already reading. */
   .ctx{flex:1 1 auto;min-width:0;background:transparent;border:0;padding:2px;
     text-align:left;border-radius:var(--r-sm)}
   .ctx-1{display:block;font-weight:700;font-size:var(--t-md);letter-spacing:-.2px;
@@ -288,21 +397,17 @@
   button.ghost.danger{color:var(--muted)}
   button.ghost.danger.armed{border-color:var(--bad);color:var(--bad);font-weight:700}
   .mini{font-size:var(--t-sm);padding:7px 11px}
-  .btnrow{display:flex;gap:var(--s2);margin-top:var(--s2)}
-  .btnrow>button{flex:1 1 0}
-  #dateInp{width:100%}
 
-  /* Week stepper (drawer) — bigger targets than a <select>, and it is the most-used
-     control in the drawer. */
+  /* Week stepper (claim picker) — bigger targets than a bare <select>, and stepping a
+     week is the most-used move in the picker. */
   .stepper{display:flex;align-items:center;gap:var(--s2)}
   .stepbtn{width:var(--h-tap);height:var(--h-tap);padding:0;font-size:var(--t-lg);
     font-weight:700;flex:0 0 auto}
   .stepval{flex:1 1 auto;text-align:center;text-align-last:center;font-weight:700;
     font-size:var(--t-base);height:var(--h-tap)}
-  .daterowbtn{width:100%;text-align:left}
 
-  /* day list (drawer) — a full-width row per day, because the drawer has the width the
-     old tab strip didn't: the session theme is readable instead of being a truncated tab. */
+  /* Day list (claim picker) — a full-width row per day, so the session theme is readable
+     instead of being a truncated tab. */
   .daylist{display:flex;flex-direction:column;gap:var(--s1);margin-top:var(--s3)}
   .dayitem{display:flex;gap:var(--s3);align-items:baseline;width:100%;text-align:left;
     background:var(--well);border:1px solid var(--line-soft);border-radius:var(--r-sm);
@@ -342,11 +447,12 @@
 
   details{margin-top:var(--s3);border-top:1px solid var(--line-soft);padding-top:var(--s3)}
   details+details{margin-top:var(--s2)}
-  summary{cursor:pointer;color:var(--accent2);font-size:var(--t-sm);font-weight:700;
+  /* Reference material, not an action: the disclosure carries no accent either. */
+  summary{cursor:pointer;color:var(--ink-dim);font-size:var(--t-sm);font-weight:700;
     list-style:none;display:flex;align-items:center;gap:6px}
   summary::-webkit-details-marker{display:none}
   summary::before{content:"";width:0;height:0;border:4px solid transparent;
-    border-left-color:var(--accent2);transition:transform .15s;flex:0 0 auto}
+    border-left-color:var(--muted);transition:transform .15s;flex:0 0 auto}
   details[open] summary::before{transform:rotate(90deg) translateX(-1px)}
   details .body{color:var(--ink-dim);font-size:var(--t-sm);margin-top:var(--s2);
     white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5}
@@ -403,12 +509,41 @@
   .hintchips{display:flex;flex-wrap:wrap;gap:var(--s1);align-items:center;margin-top:var(--s3)}
   .hintchips .hl{font-size:var(--t-xs);font-weight:700;color:var(--muted);
     text-transform:uppercase;letter-spacing:.6px;margin-right:2px}
-  .hchip{padding:4px 9px;border-radius:999px;background:var(--accent2-soft);
-    color:var(--accent2);border:1px solid transparent;font-size:var(--t-xs);
+  /* The programme's own list of what matters here. Quiet — only the pain-relevant ones
+     are marked, which is the same cue that accents the pain field. */
+  .hchip{padding:4px 9px;border-radius:999px;background:var(--well);
+    color:var(--ink-dim);border:1px solid var(--line-soft);font-size:var(--t-xs);
     font-weight:600;line-height:1.35}
   .hchip.pain{background:var(--accent-soft);color:var(--accent-ink);
     border-color:color-mix(in srgb,var(--accent) 35%,transparent)}
   textarea{width:100%;min-height:56px;resize:vertical;font-weight:400;line-height:1.5}
+
+  /* ---------- 6 · the focus logger's instruments ----------
+     The rest clock and "last time", side by side on one rule above the fields. Big
+     tabular numerals with a tiny letterspaced label under them — an instrument reading,
+     not a form field. */
+  .instrument{display:flex;align-items:flex-end;gap:var(--s4);margin-top:var(--s4);
+    padding-bottom:var(--s2);border-bottom:1px solid var(--line-soft);min-height:34px}
+  .instrument:empty{display:none}
+  .restclock{flex:0 0 auto;display:flex;flex-direction:column;line-height:1.05}
+  .restclock[hidden]{display:none}
+  .rc-value{font-size:var(--t-lg);font-weight:800;letter-spacing:-.03em;color:var(--muted)}
+  /* Amber while you are still inside the prescribed rest, quiet once you may go. The
+     mark is permission, not an alarm — nothing here sounds, buzzes or notifies. */
+  .restclock[data-ready="false"] .rc-value{color:var(--accent-ink)}
+  .rc-label{margin-top:2px;font-size:var(--t-xs);font-weight:700;text-transform:uppercase;
+    letter-spacing:.1em;color:var(--muted);white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis}
+  /* Right-aligned, so the clock and the past reading do not fight for the same edge. */
+  .lasttime{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;
+    align-items:flex-end;text-align:right;line-height:1.15}
+  .lt-label{font-size:var(--t-xs);font-weight:700;text-transform:uppercase;
+    letter-spacing:.1em;color:var(--muted);white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;max-width:100%}
+  /* Not green, and not accented: a fact about the past, never a prescription. */
+  .lt-value{font-size:var(--t-base);font-weight:800;color:var(--ink-dim);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .lt-ago{font-size:var(--t-xs);color:var(--muted)}
 
   /* ---------- set editor (Log view, one set at a time) ----------
      Chips show every set already logged plus the one in progress; the fields below are
@@ -458,12 +593,24 @@
      input's intrinsic width: without it the input sat narrow inside its cell and the /10
      suffix — positioned against the cell — floated outside the box it belongs to. */
   .setgrid input{width:100%;text-align:center;min-height:var(--h-field);font-size:var(--t-md)}
+  /* The instrument treatment: a rule under a big tabular numeral, and a tiny
+     letterspaced label over it, instead of four boxed form fields. The tap target is
+     still the full --h-field, which is what a chalked thumb needs. */
+  .setgrid .lbl{text-align:center;text-transform:uppercase;letter-spacing:.06em;
+    font-weight:800}
+  .setgrid input,.setgrid .pickerbtn{background:transparent;border:0;border-radius:0;
+    border-bottom:2px solid var(--line);padding:6px 2px}
+  /* No ring: the rule going amber and the field lighting up is the focus indicator, and
+     a 3px ring around a borderless field reads as a box coming back. */
+  .setgrid input:focus,.setgrid .pickerbtn:focus,.setgrid .pickerbtn:focus-visible{
+    border-bottom-color:var(--accent);box-shadow:none;background:var(--accent-soft)}
+  /* Load and whatever the exercise measures — the two numbers being aimed at. */
+  .setgrid .big input{font-size:1.375rem;font-weight:800;letter-spacing:-.02em}
+  .setgrid .big .unit{font-size:var(--t-xs)}
   .setnoteinp{margin-top:var(--s2)}
   .setnoteinp input{width:100%;min-height:var(--h-tap)}
   /* Most sets have no note, and an always-present empty field pushed the primary action
-     down a row for nothing. */
-  .addnote{border:0;background:transparent;color:var(--accent2);padding:6px 2px;
-    font-weight:700}
+     down a row for nothing. Styled with the other quiet actions above. */
   /* Two rows, neither wrapping: one unmistakable primary action, and the quieter things
      beneath it at equal width. The planned set path stays visually dominant. */
   .setactions{display:flex;gap:var(--s2);margin-top:var(--s3)}
@@ -499,8 +646,13 @@
   .pickerbtn{width:100%;min-height:var(--h-field);text-align:center;font-size:var(--t-md);
     font-variant-numeric:tabular-nums;color:var(--ink);font-weight:700}
   .pickerbtn.empty{color:var(--placeholder);font-weight:500}
-  .quietaction{border:0;background:transparent;color:var(--accent2);padding:6px 2px;
-    font-size:var(--t-sm);font-weight:700}
+  /* Amber means *now* — the primary action, the rest clock while you are still resting,
+     the current pip, today on the calendar. A secondary action that borrowed it was
+     competing with the one tap that matters, so quiet actions are muted and underlined
+     instead. */
+  .quietaction,.addnote{border:0;background:transparent;color:var(--muted);padding:6px 2px;
+    font-size:var(--t-sm);font-weight:700;text-decoration:underline;
+    text-underline-offset:3px}
   .setsecondary{display:flex;justify-content:space-between;gap:var(--s3);align-items:center;
     margin-top:var(--s2)}
   .setsecondary button:last-child{text-align:right}
@@ -511,6 +663,16 @@
   .adjustvalue{min-width:120px;text-align:center}
   .adjustvalue strong{display:block;font-size:var(--t-lg);font-variant-numeric:tabular-nums}
   .adjustvalue span{display:block;color:var(--muted);font-size:var(--t-xs);margin-top:2px}
+
+  /* ---------- 7 · circuits ----------
+     Its own composition: one large round counter instead of a three-numeral readout with
+     two of them meaningless. */
+  .roundcount{display:flex;align-items:baseline;gap:var(--s2);margin-bottom:var(--s3)}
+  .rn-value{font-size:1.75rem;font-weight:800;letter-spacing:-.03em;line-height:1;
+    color:var(--accent-ink)}
+  .rn-label{font-size:var(--t-xs);font-weight:800;text-transform:uppercase;
+    letter-spacing:.1em;color:var(--muted);min-width:0;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
 
   /* ---------- circuit logger ---------- */
   .circuitplan{margin-top:var(--s3);padding:var(--s3);background:var(--well);
@@ -544,43 +706,61 @@
   .toast.action button{border:0;background:transparent;color:var(--toast-ink);
     padding:7px;font-size:var(--t-sm);text-decoration:underline}
 
-  /* readiness tints the check-in card */
-  .sessioncard[data-readiness="Green"]{--cat:var(--good)}
-  .sessioncard[data-readiness="Amber"]{--cat:var(--warn)}
-  .sessioncard[data-readiness="Red"]{--cat:var(--bad)}
-  .sessioncard[data-readiness="Green"],.sessioncard[data-readiness="Amber"],
-  .sessioncard[data-readiness="Red"]{border-color:color-mix(in srgb,var(--cat) 45%,transparent)}
+  /* ---------- the date view ----------
+     One date, what is on it, and one action. Structure comes from hairlines and
+     typographic weight rather than from nesting another card inside the page — the four
+     loose surfaces the old layout grew are exactly what this replaces. */
+  .datehead{padding:var(--s4) 0 var(--s3);border-bottom:1px solid var(--line)}
+  .dh-top{display:flex;align-items:baseline;gap:var(--s2);flex-wrap:wrap}
+  /* The one genuinely large thing on the screen: which day you are looking at. Tabular
+     so a two-digit date doesn't shift the weekday sideways. */
+  .dh-date{font-size:var(--t-hero);font-weight:800;letter-spacing:-.02em;line-height:1.1;
+    font-variant-numeric:tabular-nums}
+  .dh-rel{font-size:var(--t-xs);font-weight:700;text-transform:uppercase;
+    letter-spacing:.12em;color:var(--muted)}
+  .datehead[data-state="start"] .dh-rel,
+  .datehead[data-state="resume"] .dh-rel{color:var(--accent-ink)}
+  .dh-what{margin-top:var(--s1);color:var(--muted);font-size:var(--t-sm)}
+  .dh-what strong{color:var(--ink-dim);font-weight:700}
+  .dh-status{margin-top:var(--s2);font-size:var(--t-sm);color:var(--muted)}
+  .dh-status[data-tone="part"]{color:var(--accent-ink);font-weight:600}
+  .dh-status[data-tone="done"]{color:var(--good);font-weight:700}
+  .dh-action{margin-top:var(--s3)}
+  .dh-action button{width:100%;min-height:var(--h-primary)}
+  .dh-quiet{margin-top:var(--s3);display:flex;gap:var(--s4);flex-wrap:wrap}
 
-  /* ---------- drawer ----------
-     Session setup (week / day / date), the check-in, import-export and settings. All of
-     it is entered once and read rarely, which is exactly what earns a place off-screen.
-     Visibility rather than [hidden] so the slide-in animates both ways with no timers:
-     the delayed visibility transition keeps the panel present until it has left. */
-  .drawer-wrap{position:fixed;inset:0;z-index:60;visibility:hidden;
-    transition:visibility 0s linear .24s}
-  .drawer-wrap.in{visibility:visible;transition-delay:0s}
-  .drawer-bg{position:absolute;inset:0;background:var(--scrim);opacity:0;
-    transition:opacity .22s}
-  .drawer-wrap.in .drawer-bg{opacity:1}
-  .drawer{position:absolute;left:0;top:0;bottom:0;width:min(92vw,400px);
-    display:flex;flex-direction:column;background:var(--panel);
-    border-right:1px solid var(--line);transform:translateX(-101%);
-    transition:transform .24s cubic-bezier(.2,.8,.2,1);
-    padding-left:env(safe-area-inset-left)}
-  .drawer-wrap.in .drawer{transform:none}
-  .drawer-head{flex:0 0 auto;display:flex;align-items:flex-start;gap:var(--s3);
-    padding:calc(var(--s4) + env(safe-area-inset-top)) var(--s4) var(--s3);
+  /* The end of the session, at the end of the list. */
+  .datefoot{margin-top:var(--s5);padding-top:var(--s4);border-top:1px solid var(--line)}
+  .datefoot button{width:100%;min-height:var(--h-primary)}
+  .df-line{font-size:var(--t-sm);font-weight:700;color:var(--good)}
+  .df-note{margin:var(--s2) 0 0;font-size:var(--t-xs);color:var(--muted);line-height:1.5}
+
+  /* ---------- the check-in ----------
+     Above the exercise list and below the primary action, so the tendon protocol gets
+     asked for without ever standing between the athlete and a warm-up. */
+  .checkin{margin:var(--s4) 0 0;padding:var(--s3) 0 var(--s4);
     border-bottom:1px solid var(--line-soft)}
-  /* Without this the button shrinks to one character per line next to the block name. */
-  .drawer-head button{flex:0 0 auto;white-space:nowrap}
-  .drawer-body{flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;
-    padding:0 var(--s4) calc(var(--s5) + env(safe-area-inset-bottom))}
+  .ci-head{display:flex;align-items:baseline;gap:var(--s3)}
+  .ci-title{flex:0 0 auto;font-size:var(--t-xs);font-weight:800;text-transform:uppercase;
+    letter-spacing:.12em;color:var(--ink-dim)}
+  .ci-stat{flex:1 1 auto;min-width:0;text-align:right;font-size:var(--t-xs);
+    font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis}
+  .ci-note{margin-top:2px;font-size:var(--t-xs);color:var(--muted)}
+  /* Readiness colours the block's own left edge — the one place a traffic light belongs. */
+  .checkin[data-readiness="Green"]{--ci:var(--good)}
+  .checkin[data-readiness="Amber"]{--ci:var(--warn)}
+  .checkin[data-readiness="Red"]{--ci:var(--bad)}
+  .checkin[data-readiness="Green"],.checkin[data-readiness="Amber"],
+  .checkin[data-readiness="Red"]{border-left:3px solid var(--ci);
+    padding-left:var(--s3);margin-left:calc(var(--s3) * -1)}
+
   .dnote{color:var(--muted);font-size:var(--t-sm);margin:var(--s3) 0 0;line-height:1.5}
   body.noscroll{overflow:hidden}
 
   /* ---------- account dialog ----------
      Authentication is deliberately outside the workout renderer. It can open from an
-     invite/recovery link or from the drawer without becoming a prerequisite for local
+     invite/recovery link or from the Account screen without becoming a prerequisite for local
      autosave, and it has its own keyboard-friendly dialog rather than reusing the
      finite-choice sheet. */
   .auth-wrap{position:fixed;inset:0;z-index:110;display:none;align-items:flex-end}
@@ -611,18 +791,6 @@
     .auth-dialog{border-bottom:1px solid var(--line);border-radius:20px;
       padding-bottom:var(--s4)}}
 
-  /* Accordion sections. `details.acc` deliberately outguns the generic `details` rules
-     used for coach notes — same element, different job. */
-  details.acc{margin:var(--s3) 0 0;padding:0;background:var(--well);
-    border:1px solid var(--line-soft);border-radius:var(--r-sm);overflow:hidden}
-  details.acc:first-child{margin-top:var(--s3)}
-  details.acc+details.acc{margin-top:var(--s2)}
-  details.acc>summary{padding:var(--s3);color:var(--ink);font-size:var(--t-sm);font-weight:700}
-  details.acc>summary::before{border-left-color:var(--muted)}
-  details.acc>summary .accstat{flex:0 0 auto;max-width:52%;color:var(--muted);font-weight:600;
-    font-size:var(--t-xs);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .accbody{padding:0 var(--s3) var(--s3)}
-  .accbody>.card{margin:0}
   .togrow{display:flex;align-items:center;gap:var(--s3);padding:var(--s3) 0;
     border-top:1px solid var(--line-soft)}
   .togrow .tl{flex:1 1 auto;min-width:0}
@@ -660,7 +828,7 @@
 
   /* ---------- footer / misc ----------
      One bar, two contents: the export actions in Overview, and prev/next in Log, where
-     the thumb needs them far more than it needs Export. Export is always in the drawer
+     the thumb needs them far more than it needs Export. Export also sits on the date view
      as well, so swapping never strands it. */
   .footer-bar{position:fixed;left:0;right:0;bottom:0;z-index:30;
     background:var(--footer-bg);backdrop-filter:blur(12px);border-top:1px solid var(--line);
@@ -694,9 +862,6 @@
   @media (prefers-reduced-motion:reduce){
     *,*::before,*::after{transition-duration:.01ms !important;animation-duration:.01ms !important}
     button:active{transform:none}
-    /* The drawer's close animation is held open by a visibility *delay*, not a duration.
-       Leave it in place here and a scrim nobody can see keeps eating taps for 240ms. */
-    .drawer-wrap{transition-delay:0s !important}
   }
 </style>
 <script>
@@ -721,15 +886,33 @@
   <main class="profile-body" id="profileBody" aria-live="polite"></main>
 </div>
 
+<!-- The heart of the app: a home you land on, that answers "what am I doing today"
+     first and links to everything else. Not one of the sub-features promoted to the
+     top — a hub. -->
+<div class="home-view" id="homeView" hidden>
+  <main class="home-body" id="homeBody" aria-live="polite"></main>
+</div>
+
+<!-- One chrome for Calendar, Programme and Account: a back arrow, a title, a body.
+     Three screens that each used to need their own scaffolding now share one. -->
+<div class="page-view" id="pageView" hidden>
+  <header class="pagebar">
+    <button class="iconbtn" id="pageBack" aria-label="Back to home">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <div class="pagetitle" id="pageTitle"></div>
+  </header>
+  <main class="page-body" id="pageBody" aria-live="polite"></main>
+</div>
+
 <div id="workoutView" hidden>
 <header>
   <div class="demo-banner" id="demoBanner" hidden>Sample programme · demo activity is kept separate</div>
   <div class="row">
-    <button class="iconbtn" id="menuBtn" aria-label="Session menu and settings"
-            aria-expanded="false" aria-controls="drawer">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    <button class="iconbtn" id="backBtn" aria-label="Back to home">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
     </button>
-    <button class="ctx" id="ctxBtn" aria-label="Change week, day or date">
+    <button class="ctx" id="ctxBtn" aria-label="Train a different week or day">
       <span class="ctx-1" id="ctxLine">Training Tracker</span>
       <span class="ctx-2" id="ctxSub">Import a program to begin</span>
     </button>
@@ -761,19 +944,6 @@
   </div>
 </div>
 
-<div class="drawer-wrap" id="drawerWrap">
-  <div class="drawer-bg" id="drawerBg"></div>
-  <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Session and settings">
-    <div class="drawer-head">
-      <div class="grow">
-        <div class="block-name" id="blockName">Training Tracker</div>
-        <div class="sub" id="blockSub">Import a program to begin</div>
-      </div>
-      <button class="ghost mini" id="drawerClose">Done</button>
-    </div>
-    <div class="drawer-body" id="drawerBody"></div>
-  </aside>
-</div>
 </div>
 
 <div class="sheet-wrap" id="sheetWrap" aria-hidden="true">
@@ -815,6 +985,7 @@
 <script src="./js/auth-ui.js"></script>
 <script src="./js/program-store.js"></script>
 <script src="./js/session-store.js"></script>
+<script src="./js/settings-store.js"></script>
 <script src="./js/account-data.js"></script>
 <script src="./js/profile-ui.js"></script>
 <script>
@@ -827,27 +998,77 @@ const el = (t,props={},kids=[])=>{const n=document.createElement(t);
   (Array.isArray(kids)?kids:[kids]).forEach(c=>c!=null&&n.append(c.nodeType?c:document.createTextNode(c)));
   return n;};
 
-const LS = { prog:"tp_program_v1", set:"tp_settings_v1", pos:"tp_pos_v1",
-  demoPos:"tp_demo_pos_v1",
+const LS = { prog:"tp_program_v1", set:"tp_settings_v1",
+  /* The block anchor — one stored date per programme. See the schedule section. */
+  sched:"tp_schedule_v1", demoSched:"tp_demo_schedule_v1",
+  /* The account half of the settings — see the settings section for the scope split. */
+  acct:"tp_account_settings_v1",
+  sessPrefix:"tp_sess_v1::", demoSessPrefix:"tp_demo_sess_v1::",
   sess:(d,day)=>`tp_sess_v1::${d}::${day}`,
   demoSess:(d,day)=>`tp_demo_sess_v1::${d}::${day}` };
-/* `week` and `day` ARE persisted (LS.pos) — see restorePos(). `focus` is not: it is the
-   index of the exercise shown in the Log view, and on a cold start it is derived from
-   what is already ticked off, which lands you on the first exercise you haven't done.
-   `date` is not either — it keys the stored session, so it always starts at today.
-   `setEdit` is the index of a committed set being re-edited from its chip, or null while
-   typing the next new one — always in-memory, reset by every navigation function below.
-   The Overview scroll position is also runtime-only: it survives a trip into Log, but
-   resets when the programme, week, day or date changes. */
+/* `date` is the primary axis and always starts at TODAY — the app never opens "the next
+   thing", because a screen that silently shows another day gets you doing the wrong
+   session. `week` and `day` are DERIVED from it: read off the claim when a session is
+   stored on that date, else the schedule's suggestion. Nothing about the position is
+   stored separately any more; the old tp_pos_v1 could disagree with the claim, and when
+   it did it showed the wrong week's prescriptions. `focus` is the index of the exercise
+   shown in the Log view, derived on a cold start from what is already ticked off, which
+   lands you on the first exercise you haven't done. `setEdit` is the index of a
+   committed set being re-edited from its chip, or null while typing the next new one —
+   always in-memory, reset by every navigation function below. The Overview scroll
+   position is runtime-only too: it survives a trip into Log, but resets when the
+   programme, week, day or date changes. */
+/* Retired keys, removed when a programme is cleared so a stale copy can never be picked
+   up by a reader that has no business reading it. */
+const LEGACY_KEYS=["tp_pos_v1","tp_demo_pos_v1"];
 let PROGRAM=null, STATE={week:1,day:null,date:todayISO(),focus:0,setEdit:null};
-/* Cold starts always land on the profile. `source` changes the local position/session
-   namespace while a workout is open; it is runtime-only and never reaches an export. */
-const APP={surface:"profile",source:null};
+/* Cold starts always land on the entry gate. `route` is which of the five surfaces is
+   showing; `source` changes the local session namespace while a workout is open. Both
+   are runtime-only and neither reaches an export.
+     entry      the sign-in / sample gate, owned by profile-ui
+     home       the hub — today first, the last few sessions, rows to everything else
+     calendar   a continuous scroll of weeks
+     date       the date view and the focus logger (the old workout surface)
+     programme  the private library, the block anchor, import
+     account    the account, sync state, and the device/account settings split
+   `from` is where a jump to the date view came from, so back returns there rather than
+   always to the hub — one level, because there is nothing deeper to remember. */
+const APP={surface:"profile",route:"entry",source:null,from:"home"};
 let SAMPLE_PROGRAM=null;
 let OVERVIEW_SCROLL=0;
 
-function todayISO(){const d=new Date();const z=n=>String(n).padStart(2,"0");
+/* ---------- local calendar days ----------
+   Every date in the app is a local calendar day, never a UTC instant. `new Date(iso)`
+   parses a bare "2026-01-01" as midnight UTC, which lands on 31 Dec west of Greenwich
+   and would shift a whole block by a day; `parseISO` builds from the local parts
+   instead. Nothing below may reach for Date.parse. */
+function isoOf(d){const z=n=>String(n).padStart(2,"0");
   return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`;}
+function todayISO(){return isoOf(new Date());}
+function parseISO(iso){
+  const m=/^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(String(iso??"").trim());
+  if(!m)return null;
+  const d=new Date(Number(m[1]),Number(m[2])-1,Number(m[3]));
+  /* Rejects "2026-02-31", which JS would roll forward into March without complaint. */
+  if(isNaN(d.getTime())||d.getMonth()!==Number(m[2])-1||d.getDate()!==Number(m[3]))return null;
+  return d;
+}
+function addDays(iso,n){
+  const d=parseISO(iso);if(!d)return "";
+  d.setDate(d.getDate()+(Math.round(Number(n))||0));
+  return isoOf(d);
+}
+/* 1 = Monday … 7 = Sunday. getDay() is 0 = Sunday, and every schedule number in this
+   app is Monday-first, so the conversion happens once, here. */
+function weekdayOf(iso){const d=parseISO(iso);if(!d)return 0;return d.getDay()===0?7:d.getDay();}
+function mondayOf(iso){const w=weekdayOf(iso);return w?addDays(iso,1-w):"";}
+/* Whole days from a to b. Both are local midnights, so a DST boundary makes the raw
+   difference 23 or 25 hours — rounding is what keeps that from reading as 0 or 1.04 days. */
+function daysBetween(a,b){
+  const x=parseISO(a),y=parseISO(b);
+  if(!x||!y)return null;
+  return Math.round((y.getTime()-x.getTime())/86400000);
+}
 function toast(msg,action){const t=$("#toast");t.innerHTML="";t.classList.toggle("action",!!action);
   t.append(document.createTextNode(msg));
   if(action){const b=el("button",{},action.label);b.onclick=()=>{hideToast();action.onclick();};t.append(b);}
@@ -877,32 +1098,71 @@ function readPersonalSessions(){
   return sessions;
 }
 function cachedAccess(){return !!window.TPAuth&&!!window.TPAuth.canAccessCached&&window.TPAuth.canAccessCached();}
-function showSurface(surface){
-  APP.surface=surface==="workout"?"workout":"profile";
-  const profile=APP.surface==="profile";
-  $("#profileView").hidden=!profile;$("#workoutView").hidden=profile;
-  document.body.classList.toggle("profile-active",profile);
-  if(profile){
+/* One place decides which surface is visible, and it is the only place that touches the
+   `hidden` flags — five screens toggled from five different handlers is how the old
+   layout ended up with no flow. */
+const PAGE_TITLES={calendar:"Calendar",programme:"Programme",account:"Account"};
+function showRoute(route){
+  const known=["entry","home","calendar","date","programme","account"];
+  APP.route=known.indexOf(route)>=0?route:"entry";
+  /* Kept in step for every caller that still asks the older question. */
+  APP.surface=APP.route==="date"?"workout":"profile";
+  const page=!!PAGE_TITLES[APP.route];
+  $("#profileView").hidden=APP.route!=="entry";
+  $("#homeView").hidden=APP.route!=="home";
+  $("#pageView").hidden=!page;
+  $("#workoutView").hidden=APP.route!=="date";
+  /* Only the date view carries the sticky action bar, so only it needs the room. */
+  document.body.classList.toggle("profile-active",APP.route!=="date");
+  if(page)$("#pageTitle").textContent=PAGE_TITLES[APP.route];
+  if(APP.route==="entry"){
     if(window.TPProfileUI)TPProfileUI.render();
     setTimeout(()=>{const h=$("#profileTitle");if(h&&h.focus)h.focus();},0);
   }
+  if(APP.route==="home")renderHome();
+  if(APP.route==="calendar")renderCalendar();
+  if(APP.route==="programme")renderProgrammePage();
+  if(APP.route==="account")renderAccountPage();
 }
-function openProfile(){
-  if(APP.surface==="workout")flushDraft();
-  if(drawerOpen())closeDrawer();
-  showSurface("profile");scrollTop();
+/* Kept as the old name so every existing caller reads the same, but it now routes to
+   the hub for a known owner: the entry gate is the sign-in surface, not the home. */
+function showSurface(surface){
+  if(surface==="workout"){showRoute("date");return;}
+  showRoute(cachedAccess()&&PROGRAM?"home":"entry");
+}
+function leaveWorkout(){
+  if(APP.route==="date")flushDraft();
+}
+function openHome(){leaveWorkout();showRoute("home");scrollTop();}
+function openCalendarPage(){leaveWorkout();showRoute("calendar");}
+function openProgrammePage(){leaveWorkout();showRoute("programme");scrollTop();}
+function openAccountPage(){leaveWorkout();showRoute("account");scrollTop();}
+/* The entry gate. Reached by signing out, and by the sample's own way back. */
+function openProfile(){leaveWorkout();showRoute("entry");scrollTop();}
+/* Back out of the date view to wherever the jump came from — the calendar if that is
+   where the date was picked, the hub otherwise. */
+function backFromDate(){
+  const to=APP.from==="calendar"?"calendar":APP.source==="sample"?"entry":"home";
+  leaveWorkout();showRoute(to);scrollTop();
 }
 function openWorkout(source){
   APP.source=source;
   $("#demoBanner").hidden=source!=="sample";
-  showSurface("workout");renderAll();scrollTop();
+  showRoute("date");renderAll();scrollTop();
+}
+/* Open a date's own view from the hub or the calendar. */
+function gotoDate(iso,from){
+  APP.from=from||"home";
+  adoptDate(iso);
+  showRoute("date");
+  renderAll();resetViewScroll();
 }
 function openCachedWorkout(){
   if(!cachedAccess()){showSurface("profile");if(window.TPAuthUI)TPAuthUI.open("sign-in");return;}
   const value=cachedProgram();
   if(!value){toast("Import a programme first");showSurface("profile");return;}
   PROGRAM=value;APP.source="personal";STATE={week:1,day:null,date:todayISO(),focus:0,setEdit:null};
-  restorePos();resetFocus();openWorkout("personal");
+  refreshSchedule();invalidateSessionIndex();adoptDate(todayISO());openWorkout("personal");
 }
 async function openSampleWorkout(){
   try{
@@ -915,7 +1175,7 @@ async function openSampleWorkout(){
       throw new Error("invalid sample");
     PROGRAM=SAMPLE_PROGRAM;APP.source="sample";
     STATE={week:1,day:null,date:todayISO(),focus:0,setEdit:null};
-    restorePos();resetFocus();openWorkout("sample");
+    refreshSchedule();invalidateSessionIndex();adoptDate(todayISO());openWorkout("sample");
   }catch(e){toast("Sample programme is unavailable offline. Try again when connected.");}
 }
 
@@ -959,8 +1219,15 @@ function rpeButton(value,prescribed,onpick,label="RPE"){
 
 /* ---------- settings ----------
    Which optional inputs are shown. Defaults are all-on, so the coaching loop that
-   depends on the pain fields behaves as expected out of the box; a user without knee
-   issues turns them off once. Per-device, like everything else here. */
+   depends on the pain fields behaves as expected out of the box; an athlete without knee
+   issues turns them off once.
+
+   TWO SCOPES, one read model. Which optional fields you track and what you call them are
+   about WHO YOU ARE, so they follow the account to any device you sign in on. Appearance
+   and which view the app opens on are about WHERE YOU ARE STANDING — a basement at 6 a.m.
+   and a kitchen at noon want different things — so they stay on the device. The Account
+   screen shows the split explicitly rather than presenting one undifferentiated list.
+   See docs/date-first-revamp.md. */
 const FIELD_DEFS=[
   {key:"painPerExercise",name:"Pain per exercise",
    desc:"A 0–10 pain box on every set. Knee load varies hugely between movements, so this is what identifies which movement to regress."},
@@ -971,28 +1238,97 @@ const FIELD_DEFS=[
   {key:"bodyweight",name:"Bodyweight",desc:"Logged in kg at check-in."},
   {key:"hrvNote",name:"HRV / notes",desc:"Free text for HRV and anything else about recovery."}
 ];
-/* palette+mode+view live in the same per-device settings object as the tracked fields.
-   They are cosmetic, so they are deliberately NOT part of the session export — the
-   `tracking` block is built from FIELD_DEFS alone, so nothing here can leak into a log.
-   `sv` is a one-shot settings-migration marker — see loadSettings(). */
+/* palette + mode + view are cosmetic and deliberately NOT part of the session export —
+   the `tracking` block is built from FIELD_DEFS and painLabel alone, so nothing here can
+   leak into a log. `sv` is a one-shot settings-migration marker — see loadSettings(). */
 const SET_DEFAULTS={painLabel:"Knee",palette:"a",mode:"auto",view:"focus",sv:1};
 FIELD_DEFS.forEach(f=>SET_DEFAULTS[f.key]=true);
 let SETTINGS={...SET_DEFAULTS};
+/* Which store owns a key is decided HERE and nowhere else, so a new setting cannot end
+   up in the wrong scope by accident. */
+const ACCOUNT_KEYS=["painLabel"].concat(FIELD_DEFS.map(f=>f.key));
+const DEVICE_KEYS=["palette","mode","view","sv"];
+function accountScoped(key){return ACCOUNT_KEYS.indexOf(key)>=0;}
+/* The account half, as {values, at}: the value plus one ISO stamp per field, which is
+   what makes the conflict rule last-write-wins PER FIELD. */
+let ACCOUNT_SETTINGS={values:{},at:{}};
 
 function loadSettings(){
+  let stored=null;
   try{
     const raw=localStorage.getItem(LS.set);
-    if(raw){
-      const stored=JSON.parse(raw);
-      SETTINGS={...SET_DEFAULTS,...stored};
-      /* An install from before Log became the default view has no `sv` and its stored
-         `view` is the old all-exercises default — opening straight onto the new
-         read-only Overview would look like logging had vanished. One-shot fix-up. */
-      if(!stored||!stored.sv){SETTINGS.view="focus";SETTINGS.sv=1;saveSettings();}
-    }
+    if(raw)stored=JSON.parse(raw);
   }catch(e){}
+  SETTINGS={...SET_DEFAULTS,...(stored||{})};
+  /* An install from before Log became the default view has no `sv` and its stored `view`
+     is the old all-exercises default — opening straight onto the read-only Overview
+     would look like logging had vanished. One-shot fix-up. */
+  const needsView=!stored||!stored.sv;
+  if(needsView){SETTINGS.view="focus";SETTINGS.sv=1;}
+  ACCOUNT_SETTINGS=readAccountSettings();
+  /* An install that predates the account scope has its tracked fields in the DEVICE
+     record. Move them across with the athlete's real values and stamp them now: a
+     migration IS a write, and last-write-wins then resolves two devices migrating
+     differently — which the athlete can see and re-set in one tap. */
+  let migrated=false;
+  if(stored)ACCOUNT_KEYS.forEach(key=>{
+    if(!(key in stored))return;
+    if(Object.prototype.hasOwnProperty.call(ACCOUNT_SETTINGS.values,key))return;
+    ACCOUNT_SETTINGS.values[key]=stored[key];
+    ACCOUNT_SETTINGS.at[key]=new Date().toISOString();
+    migrated=true;
+  });
+  applyAccountSettings();
+  if(needsView)saveSettings();
+  if(migrated)writeAccountSettings(true);
 }
-function saveSettings(){localStorage.setItem(LS.set,JSON.stringify(SETTINGS));}
+/* The device half only. The account keys are stripped so a stale copy of them cannot sit
+   in the device record and confuse a later reader. */
+function saveSettings(){
+  const device={};
+  DEVICE_KEYS.forEach(k=>{device[k]=SETTINGS[k];});
+  try{localStorage.setItem(LS.set,JSON.stringify(device));}catch(e){}
+}
+function readAccountSettings(){
+  if(window.TPAccountSettings&&TPAccountSettings.read)return TPAccountSettings.read();
+  try{
+    const raw=JSON.parse(localStorage.getItem(LS.acct)||"null");
+    return {values:(raw&&raw.values)||{},at:(raw&&raw.at)||{}};
+  }catch(e){return {values:{},at:{}};}
+}
+/* Fold the account record over the defaults into the one read model everything renders
+   from, so no caller has to know which scope a key came from. */
+function applyAccountSettings(){
+  ACCOUNT_KEYS.forEach(key=>{
+    SETTINGS[key]=Object.prototype.hasOwnProperty.call(ACCOUNT_SETTINGS.values,key)
+      ?ACCOUNT_SETTINGS.values[key]:SET_DEFAULTS[key];
+  });
+}
+/* Device-first: the local record is written synchronously and is authoritative for
+   rendering; the store schedules the remote half and a keystroke never waits for it. */
+function writeAccountSettings(){
+  if(window.TPAccountSettings&&TPAccountSettings.stage){
+    TPAccountSettings.stage(ACCOUNT_SETTINGS);return;
+  }
+  try{localStorage.setItem(LS.acct,JSON.stringify(ACCOUNT_SETTINGS));}catch(e){}
+}
+/* The one way to change a setting. Nothing else may assign into SETTINGS. */
+function setSetting(key,value){
+  SETTINGS[key]=value;
+  if(!accountScoped(key)){saveSettings();return;}
+  ACCOUNT_SETTINGS.values[key]=value;
+  ACCOUNT_SETTINGS.at[key]=new Date().toISOString();
+  writeAccountSettings();
+}
+/* A merged record arriving from another device. Adopted into the read model and
+   repainted — the athlete may be looking at the very switch that changed. */
+function adoptAccountSettings(record){
+  ACCOUNT_SETTINGS={values:(record&&record.values)||{},at:(record&&record.at)||{}};
+  applyAccountSettings();
+  if(APP.route==="account")renderAccountPage();
+  else if(APP.route==="date"){renderCheckin();renderMain();}
+  else if(APP.route==="calendar")renderCalendar();
+}
 
 /* ---------- theme ----------
    Two palettes × light/dark. "Auto" follows the phone's own light/dark setting, so the
@@ -1028,6 +1364,9 @@ function painLbl(suffix){
   const site=(SETTINGS.painLabel||"").trim();
   return (site?site+" pain":"Pain")+(suffix||"");
 }
+/* For the ~70px column in the set editor, where the instrument label is uppercase and
+   letterspaced: the site on its own, with the /10 unit beside it carrying the rest. */
+function painLblShort(){return (SETTINGS.painLabel||"").trim()||"Pain";}
 
 function renderAppearance(host){
   host.innerHTML="";
@@ -1037,7 +1376,7 @@ function renderAppearance(host){
       p.swatch.map(c=>el("i",{attrs:{style:"background:"+c}})));
     const b=el("button",{className:"pal",attrs:{"aria-pressed":String(SETTINGS.palette===p.key)}},
       [dots,el("div",{className:"pn"},p.name),el("div",{className:"pd"},p.desc)]);
-    b.onclick=()=>{SETTINGS.palette=p.key;saveSettings();applyTheme();renderAppearance(host);};
+    b.onclick=()=>{setSetting("palette",p.key);applyTheme();renderAppearance(host);};
     pals.append(b);
   });
   host.append(pals);
@@ -1045,7 +1384,7 @@ function renderAppearance(host){
   const seg=el("div",{className:"seg"});
   MODES.forEach(([k,label])=>{
     const b=el("button",{attrs:{"aria-pressed":String(SETTINGS.mode===k)}},label);
-    b.onclick=()=>{SETTINGS.mode=k;saveSettings();applyTheme();renderAppearance(host);};
+    b.onclick=()=>{setSetting("mode",k);applyTheme();renderAppearance(host);};
     seg.append(b);
   });
   host.append(seg);
@@ -1061,11 +1400,12 @@ function renderFields(host){
     const sw=el("button",{className:"sw",attrs:{role:"switch","aria-checked":String(!!SETTINGS[f.key]),
       "aria-label":f.name}});
     sw.onclick=()=>{
-      SETTINGS[f.key]=!SETTINGS[f.key];
+      setSetting(f.key,!SETTINGS[f.key]);
       sw.setAttribute("aria-checked",String(SETTINGS[f.key]));
-      /* Both halves of the app render these fields: the exercise cards in main and the
-         check-in in the drawer directly above this switch. */
-      saveSettings();renderCheckin();renderMain();
+      /* Every surface that renders this field has to follow: the exercise cards, the
+         check-in at the top of the date view, and the calendar's own mark and legend —
+         nothing may render a tracked field that is switched off. */
+      renderCheckin();renderMain();
     };
     host.append(el("div",{className:"togrow"},[
       el("div",{className:"tl"},[el("div",{className:"tn"},f.name),el("div",{className:"td"},f.desc)]),
@@ -1077,7 +1417,7 @@ function renderFields(host){
   /* Cards repaint per keystroke; the check-in waits for blur. It sits above this input in
      the same scroll container, and rebuilding it mid-word moves the ground under the
      keyboard. onchange fires on commit, which is soon enough for a label. */
-  inp.oninput=()=>{SETTINGS.painLabel=inp.value;saveSettings();renderMain();};
+  inp.oninput=()=>{setSetting("painLabel",inp.value);renderMain();};
   inp.onchange=()=>renderCheckin();
   const kids=[el("div",{className:"tn"},"Pain label"),
     el("div",{className:"td"},"Names the pain fields."),
@@ -1089,7 +1429,7 @@ function renderFields(host){
   if(site&&site!==txt(SETTINGS.painLabel).toLowerCase()){
     const cap=site.charAt(0).toUpperCase()+site.slice(1);
     const use=el("button",{className:"ghost mini"},`Use “${cap}”`);
-    use.onclick=()=>{SETTINGS.painLabel=cap;saveSettings();
+    use.onclick=()=>{setSetting("painLabel",cap);
       renderMain();renderCheckin();renderFields(host);};
     kids.push(el("div",{className:"td",style:"margin-top:8px"},
       [`This program mostly monitors ${site}. `,use]));
@@ -1097,33 +1437,9 @@ function renderFields(host){
   host.append(el("div",{className:"togrow"},[el("div",{className:"tl"},kids)]));
 }
 
-/* ---------- drawer ----------
-   Week, day, date, the check-in, import/export and the settings. All of it is decided
-   once and then read rarely, which is what earns a place off-screen: while the athlete
-   is actually training, the screen is the training. */
-let DAYBTNS=[];
-/* Which accordions are open. In memory, not storage — it is "where I was a moment ago",
-   not a preference, and rebuilding the drawer must not collapse a section under the
-   athlete's thumb. */
-const ACC={checkin:true,data:false,appearance:false,fields:false};
-/* Whether the date row shows the picker or just the value — also drawer-local state,
-   reset every time the drawer opens so a stale open picker doesn't reappear later. */
-let dateEditing=false;
-
-function accordion(key,title,build,statId){
-  const stat=el("span",{className:"accstat"});
-  if(statId)stat.id=statId;
-  const body=el("div",{className:"accbody"});
-  const d=el("details",{className:"acc"},
-    [el("summary",{},[el("span",{className:"grow"},title),stat]),body]);
-  if(ACC[key])d.setAttribute("open","");
-  d.ontoggle=()=>{ACC[key]=!!d.open;};
-  if(build)build(body);
-  return d;
-}
-
-/* One line of "is the check-in done?", shown on the closed accordion so the answer
-   doesn't cost a tap. */
+/* ---------- what a session says about itself ----------
+   The check-in's own one-line status, shown beside it on the date view so the answer
+   never costs a tap. */
 function checkinSummary(s){
   const v=(s&&s.session)||{},b=[];
   if(SETTINGS.readiness&&txt(v.readiness))b.push(txt(v.readiness));
@@ -1132,96 +1448,27 @@ function checkinSummary(s){
   if(SETTINGS.bodyweight&&txt(v.bodyweightKg))b.push(txt(v.bodyweightKg)+"kg");
   return b.join(" · ")||(checkinFilled(s)?"Filled":"Not filled");
 }
-/* Any value at all, including ones whose field is currently switched off — this decides
-   whether to nag, and nagging about a field the athlete has hidden would be wrong. */
+/* Any value at all, including ones whose field is currently switched off. */
 function checkinFilled(s){
   const v=(s&&s.session)||{};
   return Object.keys(BLANK_SESSION).some(k=>txt(v[k])!=="");
 }
 
-function renderDayList(host){
-  host.innerHTML="";DAYBTNS=[];
-  const days=(PROGRAM.meta.days||[]);
-  if(!days.length){host.append(el("p",{className:"dnote"},"This program lists no training days."));return;}
-  days.forEach(d=>{
-    const p=dayParts(d);
-    const b=el("button",{className:"dayitem",attrs:{"aria-pressed":String(d===STATE.day)}},[
-      el("span",{className:"dnum"},p.num||"·"),
-      el("span",{className:"dwrap"},[
-        el("span",{className:"dday"},p.short),
-        el("span",{className:"dtheme"},dayTheme(d))])]);
-    b.onclick=()=>selectDay(d);
-    DAYBTNS.push({node:b,day:d});
-    host.append(b);
-  });
-}
-function paintDays(){
-  DAYBTNS.forEach(x=>x.node.setAttribute("aria-pressed",String(x.day===STATE.day)));
-}
-/* Arrows for the one-tap case, a dropdown in between for the far one — jumping from
-   Week 1 to Week 6 by tapping "next" five times is exactly the kind of navigation this
-   was supposed to fix. */
-function weekStepper(){
-  const weeks=PROGRAM.meta.weeks||1;
-  const wrap=el("div",{className:"stepper"});
-  const dec=el("button",{className:"stepbtn",attrs:{"aria-label":"Previous week"}},"‹");
-  const sel=el("select",{className:"stepval",attrs:{"aria-label":"Week"}});
-  for(let i=1;i<=weeks;i++)
-    sel.append(el("option",{value:i,textContent:"Week "+i,selected:i===STATE.week}));
-  const inc=el("button",{className:"stepbtn",attrs:{"aria-label":"Next week"}},"›");
-  dec.disabled=STATE.week<=1;
-  inc.disabled=STATE.week>=weeks;
-  dec.onclick=()=>{selectWeek(STATE.week-1);renderDrawer();};
-  sel.onchange=()=>{selectWeek(sel.value);renderDrawer();};
-  inc.onclick=()=>{selectWeek(STATE.week+1);renderDrawer();};
-  wrap.append(dec,sel,inc);
-  return wrap;
-}
-function dateRow(){
-  const wrap=el("div",{});
-  if(dateEditing){
-    const dt=el("input",{id:"dateInp",type:"date",value:STATE.date,
-      attrs:{"aria-label":"Session date"}});
-    dt.onchange=()=>{selectDate(dt.value);dateEditing=false;renderDrawer();};
-    wrap.append(dt);
-  }else{
-    const today=STATE.date===todayISO();
-    const btn=el("button",{className:"ghost daterowbtn"},
-      `${today?"Today":"Date"} · ${fmtDate(STATE.date)}`);
-    btn.onclick=()=>{dateEditing=true;renderDrawer();};
-    wrap.append(btn);
-  }
-  return wrap;
-}
-/* Day and date both switch which stored session is open, so the check-in has to be
-   rebuilt from the new one; week does not (the session key is date + day). */
-/* Each of these flushes first, while STATE still points at the session the draft
-   belongs to — the stored session is keyed by date + day, and dayExercises() by week,
-   so committing after the switch would file the set against the wrong session. Each
-   then re-renders, so the cards never hold a session object older than storage. */
+/* ---------- moving around the block ----------
+   The drawer is gone, and with it the week stepper, the day list and the standalone date
+   picker: everything they did has a better home. Week and day are a CLAIM on the open
+   date, made in one picker; the date itself is the calendar. Both of these are what the
+   claim picker calls, and each is either a write (a claim) or a re-resolve (a date) —
+   never an independent axis that can drift out of step with reality. */
 function selectDay(d){
   if(d===STATE.day)return;
-  flushDraft();
-  STATE.day=d;savePos();resetFocus();paintDays();renderCheckin();renderHeader();renderMain();resetViewScroll();
+  /* A session already stored for this day on this date carries its own week — that is
+     the claim, and it wins over whichever week happens to be on screen. */
+  const stored=sessionsOn(STATE.date).find(r=>r.day===d);
+  applyClaim(stored?stored.week:STATE.week,d);
 }
-function selectDate(v){
-  flushDraft();
-  STATE.date=v||todayISO();resetFocus();renderCheckin();renderHeader();renderMain();resetViewScroll();
-}
-function selectWeek(w){
-  flushDraft();
-  STATE.week=Number(w)||1;savePos();resetFocus();renderHeader();renderMain();resetViewScroll();
-}
-
-function renderDataSection(host){
-  host.innerHTML="";
-  const imp=el("button",{className:"ghost"},"Import program…");
-  imp.onclick=()=>requestProgramImport();
-  const copy=el("button",{className:"ghost"},"Copy JSON");copy.onclick=copyJSON;
-  const exp=el("button",{className:"primary"},"Export session");exp.onclick=exportSession;
-  host.append(el("div",{className:"btnrow"},[imp]));
-  host.append(el("div",{className:"btnrow"},[copy,exp]));
-}
+function selectDate(v){openDate(v||todayISO());}
+function selectWeek(w){applyClaim(w,STATE.day);}
 
 function authCanImport(){
   return !!window.TPAuth&&window.TPAuth.canImport();
@@ -1233,57 +1480,16 @@ function requestProgramImport(){
   toast("Sign in to import a personal program");
 }
 
-function renderDrawer(){
-  const host=$("#drawerBody");if(!host)return;
-  host.innerHTML="";DAYBTNS=[];
-  const home=el("button",{className:"ghost",style:"width:100%"},"← Profile home");
-  home.onclick=openProfile;host.append(home);
-  if(PROGRAM){
-    host.append(weekStepper());
-    const days=el("div",{className:"daylist"});
-    renderDayList(days);
-    host.append(days);
-    host.append(dateRow());
-    host.append(accordion("checkin","Session check-in",b=>{b.id="checkinHost";},"checkinStat"));
-  }else{
-    host.append(el("p",{className:"dnote"},
-      "No program loaded. Import a program.json and the week, day and check-in appear here."));
-  }
-  host.append(accordion("data","Program & data",renderDataSection));
-  host.append(accordion("appearance","Appearance",renderAppearance));
-  host.append(accordion("fields","Tracked fields",renderFields));
-  renderCheckin();
-}
-/* Rebuilt on its own rather than with the whole drawer: the sections below it hold
-   scroll position and open/closed state that a full rebuild would throw away. */
+/* Rebuilt on its own rather than with the whole date view: the exercise list below it
+   holds the scroll position a full rebuild would throw away. */
 function renderCheckin(){
   const host=$("#checkinHost");if(!host)return;
   host.innerHTML="";
-  if(!PROGRAM)return;
-  const s=getSession();
-  host.append(sessionCard(s));
-  const stat=$("#checkinStat");
-  if(stat)stat.textContent=checkinSummary(s);
+  /* The check-in belongs to the date view. The focus logger is one exercise and one set,
+     and a session-level form in the middle of it is exactly the clutter this replaces. */
+  if(!PROGRAM||!txt(STATE.day)||viewMode()==="focus")return;
+  host.append(sessionCard(getSession()));
 }
-
-function drawerOpen(){return $("#drawerWrap").classList.contains("in");}
-function openDrawer(){
-  dateEditing=false;
-  renderDrawer();
-  $("#drawerWrap").classList.add("in");
-  $("#menuBtn").setAttribute("aria-expanded","true");
-  document.body.classList.add("noscroll");
-}
-function closeDrawer(){
-  $("#drawerWrap").classList.remove("in");
-  $("#menuBtn").setAttribute("aria-expanded","false");
-  document.body.classList.remove("noscroll");
-  /* The check-in may just have been edited. Main's cards were built holding an older
-     session object; without this, the next keystroke in any card autosaves that stale
-     copy and silently overwrites whatever was just typed in the drawer. */
-  renderMain();
-}
-function toggleDrawer(){drawerOpen()?closeDrawer():openDrawer();}
 
 /* ---------- exercise categories ----------
    Colour for an exercise's left rail. Resolution order:
@@ -1523,9 +1729,9 @@ function painAsked(ex){
   const site=PAIN_SITES.exec(hint)||PAIN_SITES.exec(focus);
   return {site:site?site[1].toLowerCase():""};
 }
-/* The site the loaded programme talks about most, so the drawer can offer it instead of
-   the athlete having to know that "Knee" is a setting. Nothing here is persisted or
-   exported, and the device's own painLabel always wins. */
+/* The site the loaded programme talks about most, so the Account screen can offer it
+   instead of the athlete having to know that "Knee" is a setting. Nothing here is
+   persisted or exported, and the athlete's own painLabel always wins. */
 function programPainSite(){
   if(!PROGRAM||!Array.isArray(PROGRAM.exercises))return "";
   const freq=new Map();
@@ -1539,28 +1745,318 @@ function programPainSite(){
 }
 
 /* ---------- where the athlete is in the block ----------
-   Week and day are a position, not a preference: week 5 is a fact about the block, and a
-   refresh — or the service worker activating a new build mid-session — must not drop it
-   back to Week 1 Day 1 and silently show the wrong prescriptions. Date is deliberately
-   NOT restored: it keys the stored session, so reopening the app the next morning must
-   start a new day rather than reopen yesterday's file. */
-function firstDay(){return (PROGRAM&&PROGRAM.meta&&PROGRAM.meta.days&&PROGRAM.meta.days[0])||null;}
-function positionKey(){return APP.source==="sample"?LS.demoPos:LS.pos;}
-function savePos(){
-  try{localStorage.setItem(positionKey(),JSON.stringify({week:STATE.week,day:STATE.day}));}catch(e){}
+   Tracking is date-first, so `STATE.date` is primary and (week, day) are DERIVED from it:
+   read off the claim when a session is stored on that date, otherwise the schedule's
+   suggestion. There is no separate stored position any more — the old `tp_pos_v1` could
+   disagree with the claim, and when it did it silently showed the wrong week's
+   prescriptions. Claims live in the sessions; see "what a date is" below. */
+/* `STATE.day` is a LABEL STRING everywhere — it is half of the stored session key and
+   what every exercise row's own `day` is compared against. dayLabels() is the only
+   correct way to read meta.days, because a structured day is an object and letting one
+   reach STATE.day would break the session key, the day filter and the header at once. */
+function dayLabels(program){return dayEntries(program||PROGRAM).map(d=>d.label);}
+function firstDay(){return dayLabels()[0]||null;}
+
+/* ---------- the derived schedule ----------
+   `tp-program-2` carries no dates. A programme is (week, day) only, and the weekday
+   exists solely as prose inside the day label — "Day 1 (Mon) - Clean Skill + Front
+   Squat" — a convention documented in data-contracts.md and deliberately NOT enforced
+   by validate_program.py. Tracking is date-first, so exactly one function turns that
+   into calendar dates, with three fallbacks in the documented order.
+
+   The schedule is a SUGGESTION, not a commitment. A stored session carrying a date is a
+   claim, and claims always win: the content of a date is any stored session on it, else
+   this suggestion. That is why there is no "move session" operation, no cascade, and no
+   schedule state that can drift out of sync with reality — training Tuesday's session on
+   Wednesday needs no feature at all. See docs/date-first-revamp.md.
+
+   Nothing here is a lookup the render path pays for: SCHEDULE is computed when the
+   programme or the anchor changes, and read from memory after that. */
+const WEEKDAYS=[
+  {n:1,re:/\bmon(?:day)?\b/i,short:"Mon"},
+  {n:2,re:/\btue(?:s(?:day)?)?\b/i,short:"Tue"},
+  {n:3,re:/\bwed(?:nesday)?\b/i,short:"Wed"},
+  {n:4,re:/\bthu(?:r(?:s(?:day)?)?)?\b/i,short:"Thu"},
+  {n:5,re:/\bfri(?:day)?\b/i,short:"Fri"},
+  {n:6,re:/\bsat(?:urday)?\b/i,short:"Sat"},
+  {n:7,re:/\bsun(?:day)?\b/i,short:"Sun"}
+];
+function weekdayShort(n){const w=WEEKDAYS.find(x=>x.n===Number(n));return w?w.short:"";}
+function matchWeekday(s){
+  const t=String(s??"");
+  /* "Monostructural" must not read as Monday — every pattern is \b-anchored on both
+     sides, so a weekday only matches when it stands as its own word. */
+  for(const w of WEEKDAYS)if(w.re.test(t))return w.n;
+  return 0;
 }
-function restorePos(){
-  STATE.day=firstDay();
-  let p=null;
-  try{p=JSON.parse(localStorage.getItem(positionKey())||"null");}catch(e){}
-  if(!p||typeof p!=="object")return;
-  /* Clamp against the programme actually loaded, not against what was saved. A saved week
-     can point past the end of a shorter block imported since, and a saved day can name a
-     day this programme doesn't have — either would render an empty screen. */
-  const w=Number(p.week), weeks=Number(PROGRAM.meta.weeks)||1;
-  if(Number.isFinite(w)&&w>=1&&w<=weeks)STATE.week=Math.floor(w);
-  const days=Array.isArray(PROGRAM.meta.days)?PROGRAM.meta.days:[];
-  if(days.indexOf(p.day)>=0)STATE.day=p.day;
+/* The parenthetical is the convention, so it wins over a weekday word appearing anywhere
+   else in the label: "Day 1 (Mon) - Sunday long grind" is a Monday. */
+function parseWeekday(label){
+  const s=String(label??"");
+  const paren=/\(([^)]*)\)/.exec(s);
+  return (paren?matchWeekday(paren[1]):0)||matchWeekday(s);
+}
+function normWeekday(v){
+  if(typeof v==="number"){const n=Math.floor(v);return n>=1&&n<=7?n:0;}
+  return matchWeekday(v);
+}
+/* meta.days is a list of label strings today. A future generator may emit
+   {label, weekday} objects instead — accepting both here is what makes adding the
+   structured fields a no-op in the app rather than a migration. Nothing emits them yet;
+   see "Deliberately deferred" in docs/date-first-revamp.md. */
+function dayEntries(program){
+  const days=(program&&program.meta&&program.meta.days)||[];
+  if(!Array.isArray(days))return [];
+  return days.map(d=>(d&&typeof d==="object")
+    ?{label:txt(d.label??d.name??d.day),weekday:normWeekday(d.weekday)}
+    :{label:txt(d),weekday:0}).filter(d=>d.label);
+}
+/* Identifies the programme an anchor belongs to, so a stale anchor for a replaced
+   programme is ignored rather than silently applied to the new block. Deliberately
+   excludes meta.version: a week revised mid-block bumps the revision, and losing the
+   anchor there would move every date in the block. */
+function programKeyOf(program){
+  const m=(program&&program.meta)||{};
+  return [slug(m.block),slug(m.athleteId||m.athlete),Math.floor(Number(m.weeks)||0),
+          dayEntries(program).length].join("|");
+}
+function scheduleStoreKey(){return APP.source==="sample"?LS.demoSched:LS.sched;}
+function storedAnchor(program){
+  try{
+    const v=JSON.parse(localStorage.getItem(scheduleStoreKey())||"null");
+    if(v&&typeof v==="object"&&v.programKey===programKeyOf(program)&&parseISO(v.anchorMonday))
+      return mondayOf(v.anchorMonday);
+  }catch(e){}
+  return "";
+}
+function saveAnchor(program,iso){
+  const monday=mondayOf(iso);
+  if(!monday)return "";
+  try{localStorage.setItem(scheduleStoreKey(),
+    JSON.stringify({programKey:programKeyOf(program),anchorMonday:monday}));}catch(e){}
+  return monday;
+}
+/* Right most of the time, cheap when wrong: the Monday of the week the programme was
+   imported. It is persisted the first time it resolves, which is what makes it mean
+   "imported" rather than quietly re-deriving to whatever Monday it is now. A programme
+   that ever declares meta.startDate wins over that, but never over an athlete's own
+   edit — an edited anchor is already stored and matches on programKey. */
+function anchorFor(program){
+  const stored=storedAnchor(program);
+  if(stored)return stored;
+  const declared=(program&&program.meta&&program.meta.startDate)||"";
+  return mondayOf(parseISO(declared)?declared:todayISO());
+}
+function scheduleFor(program){
+  if(!program||!program.meta)return null;
+  const weeks=Math.max(1,Math.floor(Number(program.meta.weeks)||1));
+  const days=dayEntries(program).map(d=>({label:d.label,
+    weekday:d.weekday||parseWeekday(d.label)}));
+  /* Third fallback: no weekday could be read for this day, so distribute across
+     consecutive weekdays from Monday — skipping the ones the labelled days already own,
+     so a partly-labelled programme keeps the labels it does have instead of being
+     flattened back to Mon/Tue/Wed. With more than seven days the tail doubles up, which
+     is the same "two sessions on one date" case the calendar already lists. */
+  const taken=new Set(days.filter(d=>d.weekday).map(d=>d.weekday));
+  let next=1;
+  days.forEach(d=>{
+    if(d.weekday)return;
+    while(next<=7&&taken.has(next))next++;
+    d.weekday=Math.min(next,7);taken.add(d.weekday);next++;
+  });
+  return {anchorMonday:anchorFor(program),weeks,days};
+}
+/* The live schedule for the loaded programme. null with no programme loaded, which every
+   caller has to tolerate — "no programme" is one of the honest date states. */
+let SCHEDULE=null;
+function refreshSchedule(){
+  SCHEDULE=PROGRAM?scheduleFor(PROGRAM):null;
+  if(SCHEDULE&&PROGRAM)saveAnchor(PROGRAM,SCHEDULE.anchorMonday);
+  return SCHEDULE;
+}
+/* One tap in the UI; the value is always normalised to a Monday so week arithmetic
+   cannot drift by a few days. */
+function setAnchorMonday(iso){
+  if(!PROGRAM)return "";
+  const monday=saveAnchor(PROGRAM,iso);
+  if(!monday)return "";
+  refreshSchedule();
+  return monday;
+}
+function scheduleDay(label,sched){
+  const s=sched||SCHEDULE;
+  if(!s)return null;
+  return s.days.find(d=>d.label===label)||null;
+}
+/* (week, day) -> the date the schedule suggests. "" when there is no schedule, or the
+   day is not one this programme has. */
+function dateFor(week,dayLabel,sched){
+  const s=sched||SCHEDULE;
+  const day=scheduleDay(dayLabel,s);
+  if(!s||!day)return "";
+  const w=Math.max(1,Math.floor(Number(week)||1));
+  return addDays(s.anchorMonday,(w-1)*7+(day.weekday-1));
+}
+/* …and the other direction. null means the schedule has nothing on that date: before the
+   block, past its last week, or a weekday the programme does not train — a rest day. */
+function scheduleForDate(date,sched){
+  const s=sched||SCHEDULE;
+  if(!s)return null;
+  const diff=daysBetween(s.anchorMonday,date);
+  if(diff==null||diff<0)return null;
+  const week=Math.floor(diff/7)+1;
+  if(week>s.weeks)return null;
+  const day=s.days.find(d=>d.weekday===(diff%7)+1);
+  return day?{week,day:day.label}:null;
+}
+
+/* ---------- what a date is ----------
+   Opening a date resolves to exactly one of five things, and that IS the navigation
+   model:
+
+     noprogram  nothing imported
+     rest       nothing scheduled and nothing stored — notes only
+     start      scheduled, nothing stored yet (worded "Log it late" once it has passed)
+     resume     an open session exists on this date
+     review     a sealed session exists — viewable, and editable
+
+   A CLAIM is any stored session carrying this date, and claims always win over the
+   schedule's suggestion. That is the whole reason there is no "move session" operation:
+   training Tuesday's session on Wednesday means opening Wednesday, picking a different
+   day, and the session you create IS the claim. A scheduled date that passes with
+   nothing logged simply stays not-done — never red, never auto-rolled forward. */
+function sortClaims(list){
+  const order=dayLabels();
+  /* An open session first: if a date holds two, the one still being logged is the one
+     you meant to open. Two sessions on one date are allowed and listed — not designed
+     for, but never silently dropped. */
+  return list.slice().sort((a,b)=>
+    (a.status==="sealed"?1:0)-(b.status==="sealed"?1:0)||
+    order.indexOf(a.day)-order.indexOf(b.day));
+}
+function dateStateOf(iso){
+  const date=parseISO(iso)?iso:todayISO();
+  if(!PROGRAM)return {kind:"noprogram",date,week:1,day:null,claims:[]};
+  const claims=sortClaims(sessionsOn(date));
+  if(claims.length){
+    const pick=claims[0];
+    return {kind:pick.status==="sealed"?"review":"resume",
+      date,week:pick.week,day:pick.day,claims};
+  }
+  const suggestion=scheduleForDate(date);
+  if(suggestion)return {kind:"start",date,week:suggestion.week,day:suggestion.day,claims:[]};
+  return {kind:"rest",date,week:suggestedWeek(date),day:null,claims:[]};
+}
+/* A rest day has no (week, day) to show, but the claim picker still needs a sensible
+   week preselected — the week the block is in on that date, clamped to the block. */
+function suggestedWeek(iso){
+  if(!SCHEDULE)return 1;
+  const diff=daysBetween(SCHEDULE.anchorMonday,iso);
+  if(diff==null)return 1;
+  return Math.min(SCHEDULE.weeks,Math.max(1,Math.floor(diff/7)+1));
+}
+/* The next date at or after `from` that the schedule has a session on. Bounded by the
+   block rather than searching forward forever, and used only to point at the next
+   session from a rest day — never to move anything. */
+function nextScheduled(from){
+  if(!SCHEDULE)return null;
+  const start=parseISO(from)?from:todayISO();
+  const diff=daysBetween(SCHEDULE.anchorMonday,start);
+  if(diff==null)return null;
+  const last=addDays(SCHEDULE.anchorMonday,SCHEDULE.weeks*7-1);
+  for(let d=diff<0?SCHEDULE.anchorMonday:start;d&&d<=last;d=addDays(d,1)){
+    const hit=scheduleForDate(d);
+    if(hit)return {date:d,week:hit.week,day:hit.day};
+  }
+  return null;
+}
+/* Is there a stored session under the open date + day? This is what separates "start"
+   from "resume": the claim is a record on disk, not a flag in memory. */
+function sessionStored(){
+  if(!txt(STATE.day))return false;
+  try{return localStorage.getItem(sessionKey())!=null;}catch(e){return false;}
+}
+/* The state of the date currently open, read from STATE and storage rather than
+   re-resolved — so it can never disagree with the claim the athlete just made. */
+function openState(s){
+  if(!PROGRAM)return "noprogram";
+  if(!txt(STATE.day))return "rest";
+  if(!sessionStored())return "start";
+  return sealed(s||getSession())?"review":"resume";
+}
+/* The state half of opening a date, with no re-render: used while a workout is still
+   being opened, before there is anything on screen to update. */
+function adoptDate(iso){
+  const d=dateStateOf(iso);
+  STATE.date=d.date;STATE.week=d.week;STATE.day=d.day;STATE.setEdit=null;
+  resetFocus();
+  return d;
+}
+/* The one entry point for "show me this date", so the claim is adopted in exactly one
+   place. Flushes first, while STATE still points at the session the draft belongs to. */
+function openDate(iso){
+  flushDraft();
+  adoptDate(iso);
+  renderHeader();
+  renderMain();resetViewScroll();
+}
+/* Claiming is a WRITE, not navigation: it says "this date is week W, day D". A session
+   already stored under the resulting key has its week rewritten, because the claim is
+   the athlete's own correction. Nothing is created otherwise, so browsing weeks never
+   litters the calendar with empty sessions. */
+function applyClaim(week,day){
+  flushDraft();
+  STATE.week=Math.max(1,Math.floor(Number(week)||1));
+  STATE.day=txt(day)||null;
+  STATE.setEdit=null;
+  /* saveSession() stamps week/day/date from STATE, which is exactly the claim. */
+  if(sessionStored())saveSession(getSession());
+  resetFocus();
+  renderHeader();
+  renderMain();resetViewScroll();
+}
+/* Starting a session writes it, and that write is what makes the date a claim: from here
+   on the stored record, not the schedule, decides what this date is. */
+function startSession(){
+  if(!PROGRAM||!txt(STATE.day))return null;
+  const s=getSession();
+  s.status="open";s.sealedAt="";
+  saveSession(s);
+  return s;
+}
+/* ---------- sealing ----------
+   "Complete" used to be inferred from the entries, which cannot tell "I finished" from
+   "I did four of six and walked out" — a difference the coaching side cares about.
+   Sealing is LOCAL and works with the radio off: tying it to sync or export would make a
+   dropped connection look like an unfinished workout. */
+function sealSession(){
+  if(!PROGRAM||!txt(STATE.day))return null;
+  flushDraft();
+  const s=getSession();
+  s.status="sealed";s.sealedAt=new Date().toISOString();
+  saveSession(s);
+  return s;
+}
+/* Editing a sealed session deliberately does NOT come through here — un-sealing because
+   a typo was fixed would flip the calendar back to "unfinished", which is a lie about
+   that day. This is only the explicit "reopen this day", so a mis-tapped Finish is not
+   permanent. */
+function unsealSession(){
+  if(!PROGRAM||!txt(STATE.day))return null;
+  const s=getSession();
+  s.status="open";s.sealedAt="";
+  saveSession(s);
+  return s;
+}
+/* Export stays manual and per-session — the export is a file that has to be put
+   somewhere, on the athlete's terms. Recording when it left is what lets the app say
+   "edited since export" afterwards, which is information the coaching loop needs and the
+   app has never had. */
+function markExported(){
+  if(!PROGRAM||!sessionStored())return null;
+  const s=getSession();
+  saveSession(s,{exported:true});
+  return s;
 }
 
 function loadProgram(obj){
@@ -1569,16 +2065,23 @@ function loadProgram(obj){
   const demo=$("#demoBanner");if(demo)demo.hidden=true;
   /* A fresh import starts at the top of the block — and that reset has to be persisted,
      or the next refresh would restore the position from the programme just replaced. */
-  STATE.week=1; STATE.day=(obj.meta.days&&obj.meta.days[0])||null; STATE.date=todayISO();
-  savePos();
-  resetFocus();
+  /* The anchor is resolved and persisted here, so "the Monday of the week the programme
+     was imported" is a fact about this import rather than about whenever it is next
+     opened. The session index belongs to the previous programme's namespace. */
+  refreshSchedule();
+  invalidateSessionIndex();
+  /* A fresh import lands on TODAY, like every other entry point — the app never opens
+     "the next thing", because a screen that silently shows another day gets you doing
+     the wrong session. Today may well be a rest day, and the date view says so and
+     offers both the next session and the claim picker. */
+  adoptDate(todayISO());
   renderAll();resetViewScroll();
 }
 function acceptProgramImport(obj,fromProfile=APP.surface==="profile"){
   if(window.TPPrograms&&TPPrograms.importProgram){
     const pending=TPPrograms.importProgram(obj);
     return Promise.resolve(pending).then(result=>{
-      if(fromProfile)showSurface("profile");else closeDrawer();
+      if(fromProfile)showSurface("profile");
       if(result&&result.ok){
         toast(result.pending?"Programme ready · cloud backup queued":"Programme added to your library");
       }else{
@@ -1590,11 +2093,15 @@ function acceptProgramImport(obj,fromProfile=APP.surface==="profile"){
   }
   loadProgram(obj);
   if(fromProfile){showSurface("profile");if(window.TPProfileUI)TPProfileUI.render();}
-  else closeDrawer();
   toast(fromProfile?"Programme ready on this device":"Program loaded");
 }
 function clearCachedProgram(){
-  localStorage.removeItem(LS.prog);localStorage.removeItem(LS.pos);
+  localStorage.removeItem(LS.prog);
+  LEGACY_KEYS.forEach(k=>localStorage.removeItem(k));
+  /* The anchor is a fact about a programme, not about the device — it goes with it.
+     Sessions are deliberately kept: they are the training record. */
+  localStorage.removeItem(LS.sched);
+  SCHEDULE=null;invalidateSessionIndex();
   if(APP.source==="personal"||APP.surface==="profile")PROGRAM=null;
   if(window.TPProfileUI)TPProfileUI.render();
 }
@@ -1607,12 +2114,30 @@ async function boot(){
     onActivate:loadProgram,
     onClearActive:clearCachedProgram
   });
+  /* Account-scoped settings, initialised before the surfaces that render them. A merged
+     record arriving from another device is adopted rather than ignored. */
+  if(window.TPAccountSettings)TPAccountSettings.init({
+    onMerged:record=>{adoptAccountSettings(record);}
+  });
   if(window.TPSessions)TPSessions.init({
     readLocalSessions:readPersonalSessions,
     buildPayload:(session,program)=>buildSessionPayload(session,program)
   });
   if(window.TPProfileUI)TPProfileUI.init({
     getCachedProgram:cachedProgram,
+    /* profile-ui repaints on every auth/library/sync tick. It has no idea which screen
+       is showing, so it asks. */
+    isEntryVisible:()=>APP.route==="entry",
+    onRefresh:()=>{
+      if(APP.route==="programme")renderProgrammePage();
+      else if(APP.route==="account")renderAccountPage();
+      else if(APP.route==="home")renderHome();
+    },
+    /* A cloud session that IS on this device is a date on the calendar, so it does not
+       need a second home in Account. */
+    hasLocalSession:(date,day)=>{
+      try{return localStorage.getItem(LS.sess(date,day))!=null;}catch(e){return false;}
+    },
     onOpenCached:openCachedWorkout,
     onImport:requestProgramImport,
     onActivateProgram:id=>{
@@ -1652,16 +2177,40 @@ async function boot(){
     onDownloadHistory:downloadSessionPayload,
     onCopyHistory:copySessionPayload,
     onOpenSample:openSampleWorkout,
-    onSignedOut:()=>showSurface("profile")
+    onSignedOut:()=>{forgetProgram();openProfile();}
   });
   if(window.TPAuth){
     TPAuth.subscribe(()=>{
-      if(APP.surface==="workout"&&APP.source==="personal"&&!cachedAccess())openProfile();
-      else if(drawerOpen())renderDrawer();
+      /* Losing access has to drop the personal training surface at once, and with it
+         everything derived from the programme. */
+      if(APP.source==="personal"&&APP.route!=="entry"&&!cachedAccess()){
+        forgetProgram();openProfile();return;
+      }
+      /* Gaining access on the gate is what turns a cold sign-in into the hub. */
+      if(APP.route==="entry"&&cachedAccess()){bootSurface();return;}
+      /* The account screen shows sign-in state, so it follows an auth change. */
+      if(APP.route==="account")renderAccountPage();
     });
     TPAuth.init();
   }
-  showSurface("profile");
+  bootSurface();
+}
+/* Drop the loaded programme and everything derived from it, without touching the
+   sessions on disk — those are the training record, not a cache. */
+function forgetProgram(){
+  PROGRAM=null;SCHEDULE=null;APP.source=null;invalidateSessionIndex();
+}
+/* Where a cold start lands. The hub answers "what am I doing today", which needs the
+   cached programme in hand — so it is loaded here rather than on the way into a workout. */
+function bootSurface(){
+  if(cachedAccess()&&!PROGRAM){
+    const cached=cachedProgram();
+    if(cached){
+      PROGRAM=cached;APP.source="personal";
+      refreshSchedule();invalidateSessionIndex();adoptDate(todayISO());
+    }
+  }
+  showRoute(cachedAccess()&&PROGRAM?"home":"entry");
 }
 
 /* ---------- session persistence ---------- */
@@ -1700,9 +2249,19 @@ function entryState(e){
   if(e.done)return "done";
   return ((e.sets&&e.sets.length)||draftDirty(e)||circuitHasData(e))?"part":"todo";
 }
-function blankEntry(){return {done:false,load:"",reps:"",rpe:"",painDuring:"",notes:"",
+function blankEntry(){return {done:false,name:"",load:"",reps:"",rpe:"",painDuring:"",notes:"",
   sets:[],draft:blankDraft(),summaryAuto:true,setTarget:null,circuit:null};}
 function renumber(e){(e.sets||[]).forEach((r,i)=>{r.set=i+1;});return e.sets;}
+/* The entry for an exercise on the open session, created on demand. The exercise's own
+   name is stamped on it because "last time" has to match across blocks, where ids are
+   regenerated — the id alone stops working exactly when the comparison is most wanted.
+   App-local: exportEntry() names every exported key, so this can never reach a log file. */
+function entryFor(s,ex){
+  const e=s.entries[ex.id]||(s.entries[ex.id]=blankEntry());
+  normalizeEntry(e);
+  if(e.name!==ex.name)e.name=ex.name;
+  return e;
+}
 
 /* ---------- deriving the flat summary from sets[] ----------
    Every one of these must be safe on an empty or partial set list: never fabricate an
@@ -1803,7 +2362,57 @@ function normalizeEntry(e){
   return changed;
 }
 
-function sessionKey(){return APP.source==="sample"?LS.demoSess(STATE.date,STATE.day):LS.sess(STATE.date,STATE.day);}
+/* ---------- session lifecycle state ----------
+   Additive, and read tolerantly: a record already on a phone has none of these keys.
+   **An absent `status` means "open"** — a session written before sealing existed cannot
+   have been sealed, and reading it as anything else would flip the calendar's account of
+   a day the athlete already finished.
+
+     status      "open" | "sealed" — Finish session seals it. Sealing is local and works
+                 with the radio off; it is deliberately not tied to sync or export, or a
+                 dropped connection would look like an unfinished workout.
+     sealedAt    when that happened.
+     exportedAt  when the session last left the phone as a file. Compared against
+                 `editedAt` to derive "edited since export" — editing a sealed session
+                 never un-seals it, because un-sealing would flip the calendar back to
+                 "unfinished" because you fixed a typo, which is a lie about that day.
+     editedAt    when it last changed. Written by saveSession().
+     lastSetAt   when a set was last committed. The rest clock is always now − this, so
+                 there is no timer state to drift, corrupt or desynchronise.
+
+   None of them reach a log file: buildSessionPayload() names every exported key. */
+function normalizeSessionState(s){
+  let changed=false;
+  const status=s.status==="sealed"?"sealed":"open";
+  if(s.status!==status){s.status=status;changed=true;}
+  if(status!=="sealed"&&txt(s.sealedAt)){s.sealedAt="";changed=true;}
+  ["sealedAt","exportedAt","editedAt","lastSetAt"].forEach(k=>{
+    const v=txt(s[k]);
+    if(s[k]!==v){s[k]=v;changed=true;}
+  });
+  return changed;
+}
+function sealed(s){return !!s&&s.status==="sealed";}
+/* A strictly increasing edit stamp. Two writes inside the same millisecond would compare
+   equal, and "edited since export" would then be hidden by nothing more than a fast
+   thumb — so a collision is nudged forward by a millisecond, which keeps the stored value
+   a plain ISO timestamp. `new Date(previous)` is right here and not a parseISO case:
+   these are UTC instants, not local calendar days. */
+function nextStamp(previous){
+  const now=new Date().toISOString();
+  if(!previous||now>previous)return now;
+  return new Date(new Date(previous).getTime()+1).toISOString();
+}
+/* A sealed session whose file on disk is older than its last edit. The coaching loop
+   needs to know; the app has never had the information before. */
+function editedSinceExport(s){
+  if(!s||!txt(s.exportedAt)||!txt(s.editedAt))return false;
+  return s.editedAt>s.exportedAt;
+}
+function sessionKey(){
+  if(!txt(STATE.day))return "";
+  return APP.source==="sample"?LS.demoSess(STATE.date,STATE.day):LS.sess(STATE.date,STATE.day);
+}
 function getSession(){
   const raw=localStorage.getItem(sessionKey());
   let s=null;
@@ -1819,22 +2428,34 @@ function getSession(){
   }
   if(!s)s={block:PROGRAM?PROGRAM.meta.block:"",athlete:PROGRAM?PROGRAM.meta.athlete:"",
     week:STATE.week,day:STATE.day,date:STATE.date,
+    status:"open",sealedAt:"",exportedAt:"",editedAt:"",lastSetAt:"",
     session:{...BLANK_SESSION},entries:{}};
-  let changed=false;
+  let changed=normalizeSessionState(s);
   Object.keys(s.entries).forEach(id=>{
     const e={...blankEntry(),...s.entries[id]};
     if(normalizeEntry(e))changed=true;
     s.entries[id]=e;
   });
-  if(changed){try{localStorage.setItem(sessionKey(),JSON.stringify(s));}catch(e){}}
+  if(changed&&sessionKey()){try{localStorage.setItem(sessionKey(),JSON.stringify(s));}catch(e){}}
   return s;
 }
-function saveSession(s){
+function saveSession(s,opts){
+  /* No day claimed means there is no session on this date — a rest day holds notes, not
+     a workout. Guarding here rather than at every caller stops a stray autosave filing a
+     `::null` record that the calendar would then have to explain. */
+  if(!txt(STATE.day)){updateProgress(s);return;}
   s.week=STATE.week;s.day=STATE.day;s.date=STATE.date;
+  s.editedAt=nextStamp(s.editedAt);
+  /* Exporting is not an edit. Stamping both from the same instant is what keeps
+     "edited since export" false until the athlete actually changes something after. */
+  if(opts&&opts.exported)s.exportedAt=s.editedAt;
   /* localStorage can throw (quota, private mode) — never let a keystroke's autosave
      take the rest of the app down with it. */
   let saved=false;
   try{localStorage.setItem(sessionKey(),JSON.stringify(s));saved=true;}catch(e){}
+  /* The index is a cache over the sibling session keys. Anything that writes a session
+     must drop it, or the calendar and "last time" would go stale mid-block. */
+  if(saved)invalidateSessionIndex();
   /* The remote path begins only after the device write succeeds. stage() is synchronous:
      it snapshots the contract into a durable queue and schedules network work elsewhere,
      so a keystroke never waits for Supabase. Demo sessions never cross this boundary. */
@@ -1847,14 +2468,102 @@ function saveSession(s){
   updateProgress(s);
 }
 
+/* ---------- the session index ----------
+   Date-first navigation asks "what is on this date", and the focus logger asks "what did
+   I lift for this exercise last time" — both about sessions other than the open one,
+   which means reading sibling tp_sess_v1::* keys. That is a localStorage scan, and
+   saveSession() runs on every keystroke, so it is built ONCE and cached behind
+   sessionIndex(). **Never call the builder from a render path.**
+
+   It is a cache, so every write invalidates it (see saveSession). Missing that is how
+   "last time" would go quietly stale mid-block. */
+let SESSION_INDEX=null;
+function invalidateSessionIndex(){SESSION_INDEX=null;}
+function sessionPrefix(){return APP.source==="sample"?LS.demoSessPrefix:LS.sessPrefix;}
+/* Exercise identity for matching across sessions: an id is stable inside a block, but a
+   re-generated programme or a new block renumbers them, so the name — punctuation and
+   case removed — is the fallback that keeps "last time" alive where it matters most. */
+function normName(s){return String(s??"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();}
+function buildSessionIndex(){
+  const prefix=sessionPrefix();
+  const byDate=new Map();      /* date            -> [record]  (as stored, unordered) */
+  const byId=new Map();        /* exercise id     -> [logged]   oldest first          */
+  const byName=new Map();      /* normalised name -> [logged]   oldest first          */
+  const logged=[];
+  for(let i=0;i<localStorage.length;i++){
+    const key=localStorage.key(i);
+    if(!key||key.indexOf(prefix)!==0)continue;
+    let v=null;
+    try{v=JSON.parse(localStorage.getItem(key)||"null");}catch(e){}
+    if(!v||typeof v!=="object")continue;
+    /* The date in the KEY is authoritative. It is what the session is filed under, so a
+       record whose body disagrees — hand-edited storage, or a build that predates the
+       claim — must still land on the date the athlete will look for it on. */
+    const rest=key.slice(prefix.length),cut=rest.indexOf("::");
+    const date=cut<0?txt(v.date):rest.slice(0,cut);
+    if(!parseISO(date))continue;
+    const rec={key,date,day:cut<0?txt(v.day):rest.slice(cut+2),
+      week:Math.max(1,Math.floor(Number(v.week)||1)),
+      status:v.status==="sealed"?"sealed":"open",
+      sealedAt:txt(v.sealedAt),exportedAt:txt(v.exportedAt),editedAt:txt(v.editedAt),
+      lastSetAt:txt(v.lastSetAt),record:v};
+    if(!byDate.has(date))byDate.set(date,[]);
+    byDate.get(date).push(rec);
+    const entries=(v.entries&&typeof v.entries==="object")?v.entries:{};
+    Object.keys(entries).forEach(id=>{
+      const e=entries[id];
+      const sets=(e&&Array.isArray(e.sets))?e.sets:[];
+      if(!sets.length)return;                 /* nothing was committed — nothing to show */
+      logged.push({id,date,day:rec.day,week:rec.week,name:txt(e.name),sets});
+    });
+  }
+  /* Ascending, so "the most recent one before this date" is a walk from the end. */
+  logged.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:0);
+  logged.forEach(r=>{
+    if(r.id){if(!byId.has(r.id))byId.set(r.id,[]);byId.get(r.id).push(r);}
+    const n=normName(r.name);
+    if(n){if(!byName.has(n))byName.set(n,[]);byName.get(n).push(r);}
+  });
+  return {byDate,byId,byName};
+}
+function sessionIndex(){
+  if(!SESSION_INDEX)SESSION_INDEX=buildSessionIndex();
+  return SESSION_INDEX;
+}
+/* Every stored session filed on this date. More than one is allowed and listed —
+   two sessions on one date is a real thing that happens, just not designed for. */
+function sessionsOn(date){
+  const list=sessionIndex().byDate.get(txt(date));
+  return list?list.slice():[];
+}
+/* The most recent committed sets for this exercise from a session STRICTLY BEFORE
+   `date`. Id first, then the normalised name; null when there is genuinely nothing,
+   because the logger prints nothing rather than an empty row. */
+function lastLoggedFor(ex,date){
+  if(!ex||!parseISO(date))return null;
+  const idx=sessionIndex();
+  let best=null;
+  /* Strictly greater, and ids are scanned first, so an id match wins a same-date tie. */
+  const consider=r=>{if(r.date<date&&(!best||r.date>best.date))best=r;};
+  (idx.byId.get(txt(ex.id))||[]).forEach(consider);
+  (idx.byName.get(normName(ex.name))||[]).forEach(consider);
+  return best;
+}
+
 /* ---------- set mutation ---------- */
-function commitSet(e,unit){
+/* The rest clock reads "time since you last logged anything", which is what you want
+   between exercises as well as between sets — so the stamp is session-level, and every
+   path that commits a set or a round takes the session in order to write it. There is no
+   timer state anywhere: the display is always now − lastSetAt. */
+function stampLastSet(s){if(s)s.lastSetAt=new Date().toISOString();}
+function commitSet(e,unit,s){
   if(draftEmpty(e.draft))return false;
   const row={set:e.sets.length+1,load:txt(e.draft.load),reps:txt(e.draft.reps),
     rpe:txt(e.draft.rpe),painDuring:txt(e.draft.painDuring),note:txt(e.draft.note)};
   e.sets.push(row);
   e.draft=seedDraft(row);
   applyDerivedSummary(e,unit);
+  stampLastSet(s);
   return true;
 }
 function deleteSet(e,idx,unit){
@@ -1865,22 +2574,21 @@ function deleteSet(e,idx,unit){
    touching the draft, and only committed rows are exported. So anything that ends the
    athlete's time on an exercise commits a dirty draft first. Only *dirty* — a draft
    still showing the previous set's values is not a set that happened. */
-function commitDraftIfDirty(e,unit){
-  return draftDirty(e)?commitSet(e,unit):false;
+function commitDraftIfDirty(e,unit,s){
+  return draftDirty(e)?commitSet(e,unit,s):false;
 }
-function commitCircuitRound(e){
+function commitCircuitRound(e,s){
   if(!draftDirty(e))return false;
   e.sets.push({set:e.sets.length+1,load:txt(e.draft.load),
     reps:txt(e.draft.reps)||"As prescribed",rpe:txt(e.draft.rpe),
     painDuring:txt(e.draft.painDuring),note:txt(e.draft.note)});
   const c=e.circuit;c.rounds=e.sets.length;c.touched=true;e.draft=blankDraft();
-  syncCircuitSummary(e);return true;
+  syncCircuitSummary(e);stampLastSet(s);return true;
 }
 /* The same thing for the exercise currently open in Log view, for callers that navigate
    away rather than holding the entry. Returns whether anything was committed, because a
    caller that does not immediately re-render would otherwise leave the card on screen
-   holding a session object one set out of date — the same staleness closeDrawer() guards
-   against. */
+   holding a session object one set out of date. */
 function flushDraft(){
   if(!PROGRAM||!STATE.day)return false;
   const exs=dayExercises(),ex=exs[STATE.focus];
@@ -1888,41 +2596,45 @@ function flushDraft(){
   const s=getSession(),e=s.entries[ex.id];
   const spec=circuitOf(ex);
   if(spec){
-    if(!e||circuitState(e,ex).mode!=="details"||!commitCircuitRound(e))return false;
+    if(!e||circuitState(e,ex).mode!=="details"||!commitCircuitRound(e,s))return false;
     saveSession(s);return true;
   }
-  if(!e||!commitDraftIfDirty(e,metricOf(ex).unit))return false;
+  if(!e||!commitDraftIfDirty(e,metricOf(ex).unit,s))return false;
   saveSession(s);
   return true;
 }
 
 /* ---------- rendering ---------- */
-function renderAll(){renderHeader();renderDrawer();renderMain();}
+function renderAll(){renderHeader();renderMain();}
 
-/* The header carries only what has to be true while training: which session this is,
-   how far through it you are, and which date it is being logged onto. Everything else
-   moved into the drawer. */
+/* The header carries only what has to be true while training: which session this is and
+   how far through it you are. The date view states the date itself, so the context line
+   only carries it in the focus logger. */
 function renderHeader(){
-  const name=$("#blockName"),sub=$("#blockSub");
   if(!PROGRAM){
-    name.textContent="Training Tracker";
-    sub.textContent="No program loaded — tap Import";
     $("#ctxLine").textContent="Training Tracker";
     $("#ctxLine").classList.remove("off");
     $("#ctxSub").textContent="Import a program to begin";
     return;
   }
-  name.textContent=PROGRAM.meta.block||"Training block";
   const rev=progVersion();
-  sub.textContent=`${PROGRAM.meta.athlete||""} · ${PROGRAM.meta.weeks||"?"}-week block`
-    +(rev?` · v${rev}`:"");
   const today=STATE.date===todayISO();
   const ctx=$("#ctxLine");
-  ctx.textContent=STATE.day
-    ?`Week ${STATE.week} · ${dayParts(STATE.day).short} ${fmtDateShort(STATE.date)}`+(today?"":" · not today")
-    :`Week ${STATE.week}`;
-  ctx.classList.toggle("off",!today);
-  $("#ctxSub").textContent=STATE.day?dayTheme(STATE.day):"No training days in this program";
+  /* The date view states the date itself, larger, directly below — so the header only
+     carries it in the focus logger, where there is no date head to read. Saying it
+     twice on one screen is exactly the loose duplication this revamp removes. */
+  if(viewMode()==="focus"){
+    ctx.textContent=STATE.day
+      ?`Week ${STATE.week} · ${dayParts(STATE.day).short} ${fmtDateShort(STATE.date)}`+(today?"":" · not today")
+      :`Week ${STATE.week}`;
+    ctx.classList.toggle("off",!today);
+    $("#ctxSub").textContent=STATE.day?dayTheme(STATE.day):"No training days in this program";
+  }else{
+    ctx.textContent=PROGRAM.meta.block||"Training block";
+    ctx.classList.remove("off");
+    $("#ctxSub").textContent=`Week ${STATE.week} of ${PROGRAM.meta.weeks||"?"}`
+      +(rev?` · v${rev}`:"");
+  }
 }
 /* "Day 1 (Mon) - Clean Skill + Front Squat" -> {num:"D1", short:"Mon"} */
 function dayParts(d){
@@ -1945,6 +2657,32 @@ function fmtDate(iso){
     return d.toLocaleDateString(undefined,{weekday:"short",day:"numeric",month:"short"});
   }catch(e){return iso;}
 }
+/* "Fri 4 Sep" — the date view's own headline, where the weekday IS the point. */
+function fmtDateLong(iso){
+  try{
+    const d=parseISO(iso);
+    if(!d)return txt(iso);
+    return d.toLocaleDateString(undefined,{weekday:"short",day:"numeric",month:"short"});
+  }catch(e){return txt(iso);}
+}
+/* How far from today, in words. A date that isn't today is legitimate — it is how a
+   session gets completed after the fact — but it is otherwise silent, and logging onto
+   the wrong day cannot be undone. */
+function relDay(iso){
+  const n=daysBetween(todayISO(),iso);
+  if(n==null)return "";
+  if(n===0)return "Today";
+  if(n===-1)return "Yesterday";
+  if(n===1)return "Tomorrow";
+  return n<0?`${-n} days ago`:`in ${n} days`;
+}
+/* A stored instant, shown as a wall-clock time. Not a calendar day, so Date() is right. */
+function fmtTime(iso){
+  try{
+    const d=new Date(txt(iso));
+    return isNaN(d.getTime())?"":d.toLocaleTimeString(undefined,{hour:"2-digit",minute:"2-digit"});
+  }catch(e){return "";}
+}
 /* Same, without the weekday — the header already states that via the day name. */
 function fmtDateShort(iso){
   try{
@@ -1966,7 +2704,9 @@ function setView(v){
   if(next===current)return;
   if(current==="list")OVERVIEW_SCROLL=currentScrollY();
   if(next==="list")flushDraft();      /* leaving the editor ends the set in progress */
-  SETTINGS.view=next;saveSettings();renderMain();
+  /* The header now reads differently in each view — the date view states the date
+     itself, so the context line only carries it in the logger. */
+  setSetting("view",next);renderHeader();renderMain();
   if(next==="list")restoreOverviewScroll();else scrollTop();
 }
 function syncView(){
@@ -2017,6 +2757,9 @@ function renderMain(){
   }
   const s=getSession();
   const exs=dayExercises();
+  const list=viewMode()!=="focus";
+  /* The date, what is on it, and one action — first, before anything that qualifies it. */
+  if(list)m.append(dateHead(s));
   /* v1 only: the rows on screen are the Week-1 template, so past week 1 the athlete
      has to apply the progression rule themselves. v2 authors every week, so the
      prescription shown IS this week's and the banner would be a lie. */
@@ -2025,19 +2768,29 @@ function renderMain(){
     if(authoredWeeks.length&&STATE.week>Math.max(...authoredWeeks))
       m.append(el("div",{className:"banner"},`Week ${STATE.week}: prescriptions below are the Week-1 template — apply each exercise's Progression Rule for this week.`));
   }
-  if(!exs.length)m.append(el("div",{className:"banner"},isV2()
+  /* A rest day has no exercises and is not missing any — that is a different sentence
+     from a day whose rows failed to resolve, and saying the wrong one reads as a bug. */
+  if(!exs.length&&txt(STATE.day))m.append(el("div",{className:"banner"},isV2()
     ?`No exercises for week ${STATE.week} of this day in the program.`
     :"No exercises for this day in the program."));
   const orphans=orphanExercises();
   if(orphans.length)m.append(el("div",{className:"banner"},
     `${orphans.length} exercise${orphans.length>1?"s":""} on this day (${orphans.map(o=>o.name).join("; ")}) have no valid week and are not shown in any week. Re-generate program.json.`));
   clampFocus();
-  if(viewMode()==="focus"){
+  let checkinHost=null;
+  if(!list){
     if(exs.length)m.append(logCard(exs[STATE.focus],s,STATE.focus));
   }else{
+    /* The check-in is above the exercise list and below the primary action: the data is
+       worth asking for, but it must never stand between the athlete and a warm-up. */
+    if(txt(STATE.day)){checkinHost=el("div",{id:"checkinHost"});m.append(checkinHost);}
     exs.forEach((ex,i)=>m.append(overviewCard(ex,s,i)));
+    const foot=dateFoot(s);
+    if(foot)m.append(foot);
   }
   renderNav();
+  /* After the host is in the document, so renderCheckin() can find it by id. */
+  if(checkinHost)renderCheckin();
   updateProgress(s);
 }
 
@@ -2092,7 +2845,6 @@ function updateProgress(sess){
     if(cnt)cnt.textContent="—";
     if(fill)fill.style.width="0";
     if(part)part.style.width="0";
-    $("#menuBtn").classList.remove("alert");
     paintNav();return;
   }
   const s=sess||getSession();
@@ -2106,9 +2858,8 @@ function updateProgress(sess){
      as 0% through. Same bar, two truths: finished, and started. */
   part.style.width=pct(touched);
   cnt.textContent=`${done}/${exs.length} done`;
-  /* The only nag in the app: a dot on the ≡ until the check-in has something in it.
-     It lives here because this runs on every save, so it clears as soon as it's wrong. */
-  $("#menuBtn").classList.toggle("alert",!checkinFilled(s));
+  /* The check-in is on screen now rather than behind the ≡, so its own status line is
+     the nag and a dot on the hamburger would point at nothing. */
   const stat=$("#checkinStat");
   if(stat)stat.textContent=checkinSummary(s);
   paintNav(s);
@@ -2122,13 +2873,19 @@ function field(labelText,node,unit,labelClass){
   return el("div",{},[el("label",{className:"lbl"+(labelClass?" "+labelClass:"")},labelText),fld]);
 }
 
+/* ---------- the session check-in ----------
+   It sits near the top of the date view and NEVER gates Start. The data matters — it is
+   the tendon protocol, and `amPainOnWaking` describes the response to the PREVIOUS
+   session — but a form standing between the athlete and a warm-up gets skipped, or
+   worse, filled with whatever number ends it fastest. A skipped check-in is honest
+   missing data; a faked one is poison. */
 function sessionCard(s){
-  const c=el("div",{className:"card sessioncard"});
-  c.append(el("span",{className:"rail"}));
+  const c=el("div",{className:"checkin"});
   c.dataset.readiness=SETTINGS.readiness?(s.session.readiness||""):"";
-  /* No title: the accordion this sits in is already called "Session check-in", and the
-     rail keeps carrying the readiness colour. */
-  c.append(el("div",{className:"rx"},"Fill this before you start — it's how today began, not how it went."));
+  c.append(el("div",{className:"ci-head"},[
+    el("span",{className:"ci-title"},"Check-in"),
+    el("span",{className:"ci-stat",id:"checkinStat"},checkinSummary(s))]));
+  c.append(el("div",{className:"ci-note"},"How today began, not how it went — the response to your last session."));
   const wrap=el("div",{className:"log"});
   const mk=(k,label,type="text",attrs={},unit)=>{
     const inp=el("input",{type,value:s.session[k]??"",attrs});
@@ -2159,6 +2916,496 @@ function sessionCard(s){
   ov.oninput=()=>{s.session.overall=ov.value;saveSession(s);};
   c.append(el("div",{style:"margin-top:12px"},[el("label",{className:"lbl"},"Overall notes"),ov]));
   return c;
+}
+
+/* ---------- the date view ----------
+   Opening a date shows the list first and focus second: focus-first is faster
+   mid-session but disorienting on open, and reviewing a logged workout wants the list,
+   not a single exercise. Hairlines and typographic hierarchy carry the structure — a
+   date, what is on it, one action — rather than another nested card. */
+function sessionProgressLine(s){
+  const exs=dayExercises();
+  if(!exs.length)return "Nothing prescribed for this day";
+  const states=exs.map(ex=>entryState(s.entries[ex.id]));
+  const done=states.filter(x=>x==="done").length;
+  const touched=states.filter(x=>x!=="todo").length;
+  return `${done} of ${exs.length} done`+(touched>done?` · ${touched-done} in progress`:"");
+}
+/* What a sealed day says about itself. "not exported" is worth saying out loud: the file
+   still has to be put somewhere by hand, and the app is the only thing that knows. */
+function sealLine(s){
+  const at=fmtTime(s.sealedAt);
+  const bits=["Finished"+(at?" "+at:"")];
+  if(!txt(s.exportedAt))bits.push("not exported yet");
+  else bits.push(editedSinceExport(s)?"edited since export":"exported");
+  return bits.join(" · ");
+}
+/* Screen 9. Week AND day together, with the schedule's guess preselected — day-only
+   would quietly serve the wrong week's prescription, which is worse than any navigation
+   problem, because you would train off it. */
+function openClaimPicker(){
+  if(!PROGRAM)return;
+  const days=dayLabels();
+  if(!days.length){toast("This programme lists no training days.");return;}
+  const weeks=SCHEDULE?SCHEDULE.weeks:1;
+  const suggestion=scheduleForDate(STATE.date);
+  let week=Math.min(weeks,Math.max(1,Number(STATE.week)||(suggestion?suggestion.week:1)));
+  let day=txt(STATE.day)||(suggestion?suggestion.day:days[0]);
+  const wrap=el("div");
+  const stepper=el("div",{className:"stepper"});
+  const dec=el("button",{className:"stepbtn",attrs:{"aria-label":"Previous week"}},"‹");
+  const val=el("div",{className:"stepval tnum"});
+  const inc=el("button",{className:"stepbtn",attrs:{"aria-label":"Next week"}},"›");
+  const list=el("div",{className:"daylist"});
+  const confirm=el("button",{className:"primary"},"");
+  /* Rebuilt on a tap, never on a keystroke — there is no text input in this sheet. */
+  const paint=()=>{
+    val.textContent="Week "+week;
+    dec.disabled=week<=1;inc.disabled=week>=weeks;
+    list.innerHTML="";
+    days.forEach(d=>{
+      const p=dayParts(d);
+      const b=el("button",{className:"dayitem",attrs:{"aria-pressed":String(d===day)}},[
+        el("span",{className:"dnum"},p.num||"·"),
+        el("span",{className:"dwrap"},[el("span",{className:"dday"},p.short),
+          el("span",{className:"dtheme"},dayTheme(d))])]);
+      b.onclick=()=>{day=d;paint();};
+      list.append(b);
+    });
+    confirm.textContent=`Train Week ${week} · ${dayParts(day).num||dayParts(day).short}`;
+  };
+  dec.onclick=()=>{week=Math.max(1,week-1);paint();};
+  inc.onclick=()=>{week=Math.min(weeks,week+1);paint();};
+  confirm.onclick=()=>{sheetClose();applyClaim(week,day);};
+  stepper.append(dec,val,inc);
+  paint();
+  const row=el("div",{className:"sheet-actions"});
+  const cancel=el("button",{className:"ghost"},"Cancel");cancel.onclick=sheetClose;
+  row.append(cancel,confirm);
+  wrap.append(stepper,list,row);
+  sheetOpen("Doing a different day?",
+    suggestion?`${fmtDate(STATE.date)} · the schedule suggests Week ${suggestion.week} · ${dayParts(suggestion.day).short}. Nothing is moved — the session you create is what this date holds.`
+              :`${fmtDate(STATE.date)} is a rest day on the schedule. Nothing is moved — the session you create is what this date holds.`,
+    wrap);
+}
+function confirmFinish(){
+  const s=getSession(),exs=dayExercises();
+  const done=exs.filter(ex=>entryState(s.entries[ex.id])==="done").length;
+  const left=exs.length-done;
+  const body=el("div");
+  body.append(sheetActions("Finish session",()=>{
+    sealSession();renderMain();toast("Session finished");
+  },"Keep logging"));
+  sheetOpen("Finish this session?",
+    left?`${done} of ${exs.length} exercises are marked done. The other ${left} stay exactly as they are — "I did ${done} and walked out" is a real answer, and the log will say so.`
+        :"Everything is logged. Sealing records that you finished rather than leaving it to be guessed from the entries; the session stays editable afterwards.",
+    body);
+}
+function confirmReopen(){
+  const body=el("div");
+  body.append(sheetActions("Reopen day",()=>{
+    unsealSession();renderMain();toast("Day reopened");
+  },"Leave it sealed"));
+  sheetOpen("Reopen this day?",
+    "You can edit a sealed session without reopening it — editing never un-seals it. Reopen only if the session was finished by mistake.",
+    body);
+}
+function dateHead(s){
+  const st=openState(s);
+  const box=el("div",{className:"datehead",attrs:{"data-state":st}});
+  const top=el("div",{className:"dh-top"});
+  top.append(el("div",{className:"dh-date"},fmtDateLong(STATE.date)));
+  const rel=relDay(STATE.date);
+  if(rel)top.append(el("span",{className:"dh-rel"},rel));
+  box.append(top);
+  box.append(el("div",{className:"dh-what"},txt(STATE.day)
+    ?[el("strong",{},"Week "+STATE.week)," · ",dayParts(STATE.day).short," · ",dayTheme(STATE.day)]
+    :"Rest day — nothing scheduled"));
+  const action=el("div",{className:"dh-action"});
+  const quiet=el("div",{className:"dh-quiet"});
+  const claim=el("button",{className:"quietaction"},"Doing a different day?");
+  claim.onclick=openClaimPicker;
+  /* A scheduled date that has passed with nothing logged stays not-done — greyed and
+     quiet, never red, never rolled forward. Only the wording of the action changes. */
+  const past=(daysBetween(todayISO(),STATE.date)||0)<0;
+  if(st==="rest"){
+    const next=nextScheduled(STATE.date);
+    if(next)box.append(el("div",{className:"dh-status"},
+      `Next session · ${fmtDateLong(next.date)} · Week ${next.week} · ${dayParts(next.day).short}`));
+    quiet.append(claim);
+  }else if(st==="start"){
+    const go=el("button",{className:"primary"},past?"Log it late":"Start session");
+    go.onclick=()=>{startSession();setView("focus");};
+    action.append(go);
+    quiet.append(claim);
+  }else if(st==="resume"){
+    box.append(el("div",{className:"dh-status",attrs:{"data-tone":"part"}},sessionProgressLine(s)));
+    const go=el("button",{className:"primary"},"Resume logging");
+    go.onclick=()=>setView("focus");
+    action.append(go);
+    quiet.append(claim);
+  }else if(st==="review"){
+    box.append(el("div",{className:"dh-status",attrs:{"data-tone":"done"}},sealLine(s)));
+    const more=el("button",{className:"ghost"},"Log more");
+    more.onclick=()=>setView("focus");
+    action.append(more);
+    const reopen=el("button",{className:"quietaction"},"Reopen day");
+    reopen.onclick=confirmReopen;
+    quiet.append(claim,reopen);
+  }
+  if(action.children.length)box.append(action);
+  if(quiet.children.length)box.append(quiet);
+  return box;
+}
+/* The end of the session belongs at the end of the list, which is where the athlete is
+   standing when the work is done. */
+function dateFoot(s){
+  const st=openState(s);
+  if(st!=="resume"&&st!=="review")return null;
+  const box=el("div",{className:"datefoot"});
+  if(st==="resume"){
+    const fin=el("button",{className:"primary"},"Finish session");
+    fin.onclick=confirmFinish;
+    box.append(fin);
+    box.append(el("p",{className:"df-note"},
+      "Finishing records that you finished, instead of leaving it to be guessed from what is logged. It works offline and exports nothing."));
+  }else{
+    box.append(el("div",{className:"df-line"},sealLine(s)));
+    box.append(el("p",{className:"df-note"},editedSinceExport(s)
+      ?"This session changed after its last export. Export it again to send the current version."
+      :"Export the file into athlete/"+(athleteId()||"<you>")+"/logs/ for review."));
+  }
+  return box;
+}
+
+/* ---------- the hub and the calendar ----------
+   Two screens, one visual system. The hub answers "what am I doing today" before
+   anything else and links to everything; the calendar is the timeline the hub's Recent
+   rows are a shortcut into. Neither reads STATE — they are about dates other than the
+   one open — so everything below takes a stored record or an ISO date. */
+/* Progress for a session we are not standing in, so it cannot call dayExercises(). */
+function recordProgress(rec){
+  const exs=sessionExercises(PROGRAM,rec.week,rec.day);
+  const entries=(rec.record&&rec.record.entries)||{};
+  const states=exs.map(ex=>entryState(entries[ex.id]));
+  return {total:exs.length,
+    done:states.filter(x=>x==="done").length,
+    touched:states.filter(x=>x!=="todo").length};
+}
+function progressWords(p){
+  if(!p.total)return "Nothing prescribed for this day";
+  return `${p.done} of ${p.total} done`+(p.touched>p.done?` · ${p.touched-p.done} in progress`:"");
+}
+/* The last few stored sessions, newest first, excluding the date the hub already shows. */
+function recentSessions(n,exclude){
+  const out=[];
+  sessionIndex().byDate.forEach(list=>list.forEach(r=>{if(r.date!==exclude)out.push(r);}));
+  out.sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:0);
+  return out.slice(0,Math.max(0,n));
+}
+/* The most recent scheduled date before `from` with nothing stored on it. Returns null
+   as soon as the last scheduled day WAS trained, so this is an offer and never a list of
+   accusations — a missed date stays quiet and greyed, exactly as the calendar shows it. */
+function lastMissed(from){
+  if(!SCHEDULE)return null;
+  for(let i=1;i<=14;i++){
+    const d=addDays(from,-i);
+    if(!d)break;
+    const off=daysBetween(SCHEDULE.anchorMonday,d);
+    if(off==null||off<0)break;
+    const hit=scheduleForDate(d);
+    if(!hit)continue;
+    if(sessionsOn(d).length)return null;
+    return {date:d,week:hit.week,day:hit.day};
+  }
+  return null;
+}
+function homeRow(title,sub,mark,onclick){
+  const b=el("button",{className:"homerow"},[
+    el("span",{className:"hr-main"},[el("span",{className:"hr-title"},title),
+      el("span",{className:"hr-sub"},sub)]),
+    mark]);
+  b.onclick=onclick;
+  return b;
+}
+function chev(){return el("span",{className:"hr-chev",attrs:{"aria-hidden":"true"}},"›");}
+function homeToday(today){
+  const d=dateStateOf(today);
+  const box=el("div",{className:"hometoday",attrs:{"data-state":d.kind}});
+  box.append(el("div",{className:"ht-top"},[
+    el("div",{className:"ht-date"},fmtDateLong(today)),
+    el("span",{className:"ht-rel"},"Today")]));
+  const open=()=>gotoDate(today,"home");
+  if(d.kind==="noprogram"){
+    box.append(el("div",{className:"ht-what"},"No programme loaded"));
+    box.append(el("p",{className:"ht-note"},
+      "Import the program.json your coach built and today's session appears here."));
+    const imp=el("button",{className:"primary"},"Import a programme");
+    imp.onclick=openProgrammePage;
+    box.append(el("div",{className:"ht-action"},imp));
+    return box;
+  }
+  if(d.kind==="rest"){
+    box.append(el("div",{className:"ht-what"},"Rest day"));
+    /* The one state with no action. A hub with no answer at all reads as broken, so a
+       quiet second line points at the next session instead. */
+    const next=nextScheduled(today);
+    if(next)box.append(el("p",{className:"ht-note"},
+      `Next session · ${fmtDateLong(next.date)} · Week ${next.week} · ${dayParts(next.day).short}`));
+    else box.append(el("p",{className:"ht-note"},"Nothing else scheduled in this block."));
+    /* Scheduled-and-passed: the sixth state. Offered here rather than on its own screen,
+       because a session missed yesterday is the only thing you are likely to want on a
+       rest day. */
+    const missed=lastMissed(today);
+    if(missed){
+      const late=el("button",{className:"ghost"},`Log ${fmtDateLong(missed.date)} late`);
+      late.onclick=()=>gotoDate(missed.date,"home");
+      box.append(el("div",{className:"ht-action"},late));
+    }
+    const rest=el("button",{className:"quietaction"},"Open today anyway");
+    rest.onclick=open;
+    box.append(el("div",{className:"ht-quiet"},rest));
+    return box;
+  }
+  box.append(el("div",{className:"ht-what"},
+    [el("strong",{},"Week "+d.week)," · ",dayParts(d.day).short," · ",dayTheme(d.day)]));
+  if(d.kind==="start")box.append(el("p",{className:"ht-note"},"Not started"));
+  else box.append(el("p",{className:"ht-note"},progressWords(recordProgress(d.claims[0]))));
+  const label=d.kind==="start"?"Start session":d.kind==="resume"?"Resume":"Review";
+  const go=el("button",{className:d.kind==="review"?"ghost":"primary"},label);
+  go.onclick=open;
+  box.append(el("div",{className:"ht-action"},go));
+  return box;
+}
+function accountLine(){
+  const state=window.TPAuth&&TPAuth.getState?TPAuth.getState():null;
+  if(!state)return "Account services unavailable";
+  const email=(state.user&&state.user.email)||(state.owner&&state.owner.email)||"";
+  if(state.status==="authenticated")return email||"Signed in";
+  if(state.status==="offline-owner")return (email?email+" · ":"")+"offline";
+  if(state.status==="unavailable")return (email?email+" · ":"")+"services unavailable";
+  return "Sign in";
+}
+function renderHome(){
+  const host=$("#homeBody");if(!host)return;
+  host.innerHTML="";
+  const today=todayISO();
+  host.append(el("div",{className:"home-kicker"},
+    (PROGRAM&&txt(PROGRAM.meta.block))||"Training Tracker"));
+  host.append(homeToday(today));
+  /* Inline, not a destination: you almost always want "the last one" and rarely want
+     "the fourteenth". */
+  const recent=recentSessions(3,today);
+  if(recent.length){
+    const box=el("div",{className:"homesection"});
+    box.append(el("div",{className:"hs-title"},"Recent"));
+    recent.forEach(r=>{
+      const p=recordProgress(r);
+      const bits=["Week "+r.week,dayParts(r.day).short];
+      if(p.total)bits.push(`${p.done}/${p.total}`);
+      bits.push(r.status==="sealed"?"finished":"in progress");
+      box.append(homeRow(fmtDateLong(r.date),bits.join(" · "),
+        el("span",{className:"hr-mark",attrs:{"data-state":r.status==="sealed"?"done":"part",
+          "aria-hidden":"true"}},r.status==="sealed"?"✓":"◐"),
+        ()=>gotoDate(r.date,"home")));
+    });
+    host.append(box);
+  }
+  const rows=el("div",{className:"homesection"});
+  const weeks=SCHEDULE?SCHEDULE.weeks:0;
+  const here=SCHEDULE?suggestedWeek(today):0;
+  rows.append(homeRow("Calendar",
+    weeks?`Week ${here} of ${weeks} · every date in the block`:"Every date, once a programme is loaded",
+    chev(),openCalendarPage));
+  const rev=progVersion();
+  rows.append(homeRow("Programme",PROGRAM
+    ?[txt(PROGRAM.meta.athlete),`${PROGRAM.meta.weeks||"?"}-week block`,rev?"v"+rev:""]
+      .filter(Boolean).join(" · ")
+    :"Import a programme",chev(),openProgrammePage));
+  /* Sync state is a line inside Account and never a badge here, so it cannot compete
+     with today's session for attention. */
+  rows.append(homeRow("Account",accountLine(),chev(),openAccountPage));
+  host.append(rows);
+}
+
+/* ---------- 2 · Calendar ----------
+   A continuous vertical scroll of weeks: the block's weeks labelled W1–Wn, dates outside
+   it still present but plain. One calendar, no month/block mode switch, so it reads as a
+   timeline — which suits a block that does not care about month boundaries. At seven
+   columns a cell is roughly 48px, so it holds the date number and one state mark and
+   nothing more. */
+const CAL_DOW=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+function calendarRange(){
+  const today=todayISO();
+  let first=SCHEDULE?addDays(SCHEDULE.anchorMonday,-7):mondayOf(today);
+  let last=SCHEDULE?addDays(SCHEDULE.anchorMonday,SCHEDULE.weeks*7+6):addDays(mondayOf(today),13);
+  /* A session logged outside the block still has to be findable. */
+  sessionIndex().byDate.forEach((_,date)=>{
+    if(date<first)first=mondayOf(date);
+    if(date>last)last=addDays(mondayOf(date),6);
+  });
+  if(mondayOf(today)<first)first=mondayOf(today);
+  if(addDays(mondayOf(today),6)>last)last=addDays(mondayOf(today),6);
+  return {first,last};
+}
+/* One mark per cell. "claimed" is a session that exists with nothing logged in it yet;
+   "scheduled" is a date the plan wants and nothing has happened on — greyed and quiet,
+   never red and never rolled forward. */
+function calendarMark(iso){
+  const stored=sessionsOn(iso);
+  if(stored.length){
+    if(stored.some(r=>r.status==="sealed"))return "sealed";
+    return stored.some(r=>recordProgress(r).touched>0)?"part":"claimed";
+  }
+  return scheduleForDate(iso)?"scheduled":"none";
+}
+const CAL_GLYPH={sealed:"✓",part:"◐",claimed:"○",scheduled:"",none:""};
+/* The one number the tendon protocol tracks over time, and the calendar is the only
+   place a trend in it would ever be visible. Shown only when the athlete tracks it at
+   all: an athlete who does not sees no mark and no legend entry, not a greyed one. */
+function calendarPain(iso){
+  if(!SETTINGS.painOnWaking)return 0;
+  let worst=0;
+  sessionsOn(iso).forEach(r=>{
+    const v=parseNum((r.record&&r.record.session&&r.record.session.amPainOnWaking)||"");
+    if(v!=null&&v>worst)worst=v;
+  });
+  return worst;
+}
+function calendarLegend(){
+  const box=el("div",{className:"cal-legend"});
+  const item=(mark,label)=>box.append(el("span",{className:"cl-item"},[
+    el("span",{className:"cl-mark",attrs:{"data-state":mark,"aria-hidden":"true"}},CAL_GLYPH[mark]||""),
+    label]));
+  item("sealed","finished");
+  item("part","logged, not finished");
+  item("claimed","started");
+  item("scheduled","scheduled");
+  if(SETTINGS.painOnWaking)box.append(el("span",{className:"cl-item"},[
+    el("span",{className:"cl-pain",attrs:{"data-level":"mid","aria-hidden":"true"}}),
+    painLbl(" on waking").toLowerCase()]));
+  return box;
+}
+function renderCalendar(){
+  const host=$("#pageBody");if(!host)return;
+  host.innerHTML="";
+  if(!PROGRAM){
+    host.append(el("p",{className:"page-copy"},
+      "Import a programme and the block appears here as dates."));
+    return;
+  }
+  const today=todayISO();
+  const range=calendarRange();
+  const grid=el("div",{className:"cal"});
+  grid.append(el("div",{className:"cal-corner",attrs:{"aria-hidden":"true"}},""));
+  CAL_DOW.forEach(d=>grid.append(el("div",{className:"cal-dow"},d)));
+  let todayCell=null;
+  for(let monday=range.first;monday&&monday<=range.last;monday=addDays(monday,7)){
+    const off=SCHEDULE?daysBetween(SCHEDULE.anchorMonday,monday):null;
+    const week=(off!=null&&off>=0&&off%7===0&&off/7<SCHEDULE.weeks)?off/7+1:0;
+    grid.append(el("div",{className:"cal-week"+(week?"":" out")},week?"W"+week:"·"));
+    for(let i=0;i<7;i++){
+      const iso=addDays(monday,i);
+      const mark=calendarMark(iso);
+      const pain=calendarPain(iso);
+      const cell=el("button",{className:"cal-cell",attrs:{
+        "data-state":mark,"data-today":String(iso===today),
+        "aria-label":`${fmtDate(iso)} — ${CAL_STATE_WORDS[mark]}`}},[
+        el("span",{className:"cc-num tnum"},String(Number(iso.slice(8,10)))),
+        el("span",{className:"cc-mark",attrs:{"aria-hidden":"true"}},CAL_GLYPH[mark]||"")]);
+      if(pain>0)cell.append(el("span",{className:"cc-pain",
+        attrs:{"data-level":pain>=4?"high":"mid","aria-hidden":"true"}}));
+      cell.onclick=()=>gotoDate(iso,"calendar");
+      if(iso===today)todayCell=cell;
+      grid.append(cell);
+    }
+  }
+  host.append(grid);
+  host.append(calendarLegend());
+  /* Land on the week the athlete is in, not at the top of a two-month scroll. */
+  if(todayCell&&todayCell.scrollIntoView)
+    setTimeout(()=>{try{todayCell.scrollIntoView({block:"center"});}catch(e){}},0);
+}
+const CAL_STATE_WORDS={sealed:"finished",part:"logged, not finished",claimed:"started",
+  scheduled:"scheduled, not done",none:"nothing scheduled"};
+
+/* ---------- 10 · Programme ----------
+   The private library, and the one date the whole calendar hangs off. */
+let anchorEditing=false;
+function anchorPanel(){
+  const box=el("div",{className:"panel"});
+  box.append(el("div",{className:"panel-title"},"Block start"));
+  if(!PROGRAM||!SCHEDULE){
+    box.append(el("p",{className:"page-copy"},
+      "Import a programme and its first week is anchored here."));
+    return box;
+  }
+  box.append(el("div",{className:"panel-value tnum"},fmtDate(SCHEDULE.anchorMonday)));
+  box.append(el("p",{className:"page-copy"},
+    "Week 1 starts on this Monday, and every date the app suggests is counted from it. Sessions you have already logged keep their own dates — moving this moves the suggestion, never the record."));
+  /* The derived weekdays, so the anchor can actually be checked rather than trusted. */
+  const days=el("div",{className:"panel-days"});
+  SCHEDULE.days.forEach(d=>{
+    const p=dayParts(d.label);
+    days.append(el("span",{className:"pd-item"},
+      `${p.num||"·"} ${weekdayShort(d.weekday)||p.short}`));
+  });
+  box.append(days);
+  if(anchorEditing){
+    const inp=el("input",{type:"date",value:SCHEDULE.anchorMonday,
+      attrs:{"aria-label":"Block start date"}});
+    inp.onchange=()=>{
+      const set=setAnchorMonday(inp.value);
+      anchorEditing=false;
+      /* Normalised to a Monday, so week arithmetic can never drift by a few days. */
+      toast(set?"Block starts "+fmtDate(set):"Pick a valid date");
+      invalidateSessionIndex();renderProgrammePage();
+    };
+    box.append(el("div",{className:"panel-edit"},inp));
+  }else{
+    const edit=el("button",{className:"ghost"},"Change start date");
+    edit.onclick=()=>{anchorEditing=true;renderProgrammePage();};
+    box.append(el("div",{className:"panel-edit"},edit));
+  }
+  return box;
+}
+function renderProgrammePage(){
+  const host=$("#pageBody");if(!host)return;
+  host.innerHTML="";
+  host.append(anchorPanel());
+  if(window.TPProfileUI&&TPProfileUI.renderProgramme)TPProfileUI.renderProgramme(host);
+}
+/* ---------- 11 · Account ----------
+   The account itself, then the settings — shown as two explicitly labelled scopes rather
+   than one undifferentiated list, because the difference matters: tracked fields follow
+   you to any device you sign in on, and appearance does not. */
+function settingsGroup(title,note,build){
+  const box=el("div",{className:"panel"});
+  box.append(el("div",{className:"panel-title"},title));
+  if(note)box.append(el("p",{className:"page-copy"},note));
+  const body=el("div",{className:"panel-body"});
+  build(body);
+  box.append(body);
+  return box;
+}
+function renderAccountPage(){
+  const host=$("#pageBody");if(!host)return;
+  host.innerHTML="";
+  if(window.TPProfileUI&&TPProfileUI.renderAccount)TPProfileUI.renderAccount(host);
+  /* Only an owner has an account for these to follow. */
+  if(!cachedAccess())return;
+  const sync=window.TPAccountSettings&&TPAccountSettings.getState
+    ?TPAccountSettings.getState():null;
+  const syncNote=!sync?""
+    :sync.status==="offline"?" Saved on this device · queued for your account."
+    :sync.status==="error"?" Saved on this device · "+(sync.error&&sync.error.message||"sync failed")
+    :sync.pending?" Saving to your account…":"";
+  host.append(settingsGroup("Tracked fields · follows your account",
+    "Which optional fields you track, and what you call them, follow you to any device you sign in on. Change one on two devices at once and the most recent change wins, per field."+syncNote,
+    renderFields));
+  host.append(settingsGroup("This device",
+    "Appearance is about where you are standing — a basement at 6 a.m. and a kitchen at noon want different things — so it stays on this phone. So does the rest clock, which is always on and hides itself once you have left the gym.",
+    renderAppearance));
 }
 
 /* ---------- exercise head (shared by Overview and Log) ----------
@@ -2252,8 +3499,7 @@ const STATE_BADGE={done:"✓",part:"◐",todo:"○"};
    Zero inputs — the whole point of splitting this out of the old all-in-one card. Tap
    anywhere on it to open the exercise in Log view. */
 function overviewCard(ex,s,idx){
-  const e=s.entries[ex.id]||(s.entries[ex.id]=blankEntry());
-  normalizeEntry(e);
+  const e=entryFor(s,ex);
   const cat=catOf(ex);
   const st=entryState(e),line=statusLine(ex,e);
   const c=el("div",{className:"card ov"+(e.done?" done":""),
@@ -2327,8 +3573,8 @@ function confirmEndExercise(ex,e,s,idx,onchange,metric){
     `${before} of ${target} planned sets will be recorded. Your original prescription is not changed.`;
   const primary=none?"Skip exercise":spec?"End circuit":`End after ${before} set${before===1?"":"s"}`;
   const body=el("div");body.append(sheetActions(primary,()=>{
-    if(spec&&circuitState(e,ex).mode==="details")commitCircuitRound(e);
-    else if(!spec)commitDraftIfDirty(e,metric.unit);
+    if(spec&&circuitState(e,ex).mode==="details")commitCircuitRound(e,s);
+    else if(!spec)commitDraftIfDirty(e,metric.unit,s);
     e.done=true;if(spec){if(circuitState(e,ex).mode==="final")syncFinalCircuit(ex,e);else syncCircuitSummary(e);}saveSession(s);
     if(viewMode()==="focus"&&idx===STATE.focus&&idx<dayExercises().length-1){
       STATE.focus=idx+1;STATE.setEdit=null;renderMain();scrollTop();
@@ -2336,6 +3582,137 @@ function confirmEndExercise(ex,e,s,idx,onchange,metric){
     toast(none?"Exercise skipped":spec?"Circuit ended":`Exercise ended after ${e.sets.length} set${e.sets.length===1?"":"s"}`);
   },"Keep logging"));
   sheetOpen(title,copy,body);
+}
+
+/* ---------- 6 · the focus logger's instruments ----------
+   One exercise, one set, and — visible at the same time — the exercise name, its
+   prescription, the sets already committed, the current set's fields, the rest clock,
+   and what was lifted for this exercise last time. Legibility is the binding constraint
+   here rather than restraint: someone mid-session is tracking rest, target load, RPE and
+   pain at once, and all of it has to be readable at arm's length, one-handed, with
+   chalked hands. */
+
+/* The rest clock counts UP from the last logged set, with the prescribed rest marked on
+   it — not a countdown that expires and then means nothing. Passive: no sound, no buzz,
+   no notification permission, all of which fight the offline/no-dependency constraint
+   and behave badly in an installed iOS PWA. It hides itself past about a quarter of an
+   hour, when you have left the gym and a large number is just noise.
+
+   It cannot get buggy, by construction. Committing a set writes `lastSetAt`; the display
+   is always now − lastSetAt, recomputed on render by a single interval that only
+   repaints. There is no timer state to drift, corrupt or desynchronise — it survives a
+   reload, a backgrounded tab and an iOS PWA being killed, and the worst case is a stale
+   number for one repaint. Nothing in the log path reads it, so it can never interfere
+   with logging. */
+const REST_HIDE_S=15*60;
+let REST_TICK=null,REST_NODE=null;
+/* The prescribed rest in seconds, when the generator gave something countable. A UNIT IS
+   REQUIRED: every rest value in a real programme carries one ("90 sec", "2.5-3 min",
+   "~90 sec between rounds"), and guessing at a bare number would read 90 as an hour and
+   a half. Prose like "As needed", "Included" or "-" simply leaves the clock unmarked.
+   A range takes its LOWER bound — the mark says "you may go", not "you must wait". */
+function parseRestSeconds(ex){
+  const m=/(\d+(?:\.\d+)?)\s*(?:[-–—]\s*\d+(?:\.\d+)?\s*)?(sec(?:onds?|s)?|min(?:utes?|s)?|s|m)\b/i
+    .exec(txt(ex&&ex.rest));
+  if(!m)return 0;
+  const n=parseFloat(m[1]);
+  if(!Number.isFinite(n)||n<=0)return 0;
+  return Math.round(n*(/^m/i.test(m[2])?60:1));
+}
+/* Seconds since the session last had a set committed. null when nothing has been logged,
+   which is the difference between "no rest yet" and "no rest needed". */
+function restSeconds(s,now){
+  const at=txt(s&&s.lastSetAt);
+  if(!at)return null;
+  const t=new Date(at).getTime();
+  if(isNaN(t))return null;
+  return Math.max(0,Math.round(((now||Date.now())-t)/1000));
+}
+function fmtClock(sec){
+  const n=Math.max(0,Math.round(Number(sec)||0));
+  return `${Math.floor(n/60)}:${String(n%60).padStart(2,"0")}`;
+}
+function restClockNode(ex,s){
+  const target=parseRestSeconds(ex);
+  /* aria-live off on purpose: a value that changes every second must never be announced. */
+  const node=el("div",{className:"restclock",attrs:{"aria-live":"off"}});
+  const value=el("span",{className:"rc-value tnum"});
+  const label=el("span",{className:"rc-label"});
+  node.append(value,label);
+  node._paint=()=>{
+    const sec=restSeconds(s);
+    if(sec==null||sec>REST_HIDE_S){node.hidden=true;return;}
+    node.hidden=false;
+    value.textContent=fmtClock(sec);
+    node.setAttribute("data-ready",String(!target||sec>=target));
+    label.textContent=target?`rest · ${fmtClock(target)} prescribed`:"since last set";
+  };
+  node._paint();
+  return node;
+}
+/* One interval for the whole app, and it only ever repaints. It stops itself once the
+   node it was painting has left the document, so a rebuild never leaves a second one
+   running. */
+function startRestTick(node){
+  REST_NODE=node||null;
+  if(REST_TICK||typeof setInterval!=="function")return;
+  REST_TICK=setInterval(()=>{
+    const n=REST_NODE;
+    if(!n||typeof n._paint!=="function"||n.isConnected===false){
+      if(typeof clearInterval==="function")clearInterval(REST_TICK);
+      REST_TICK=null;REST_NODE=null;return;
+    }
+    n._paint();
+  },1000);
+}
+
+/* "Last time" is the other half of the instrument: the number you are aiming at, on
+   screen instead of in your head. The same set number's load × reps where it exists,
+   else the top set, always with how long ago. Deliberately NOT coloured as a target — it
+   is a fact about the past, and making it green would quietly turn it into a
+   prescription. Silent when there is nothing, rather than printing an empty row. */
+function heaviestSet(rows){
+  let best=rows[0];
+  rows.forEach(r=>{
+    const a=parseNum(r.load),b=parseNum(best.load);
+    if(a!=null&&(b==null||a>b))best=r;
+  });
+  return best;
+}
+function agoWords(n){
+  if(n==null)return "";
+  if(n<=0)return "today";
+  if(n===1)return "yesterday";
+  if(n<14)return n+" days ago";
+  const weeks=Math.round(n/7);
+  return weeks<9?weeks+" weeks ago":Math.round(n/30)+" months ago";
+}
+function lastTimeNode(ex,e){
+  const rec=lastLoggedFor(ex,STATE.date);
+  if(!rec||!rec.sets.length)return null;
+  const n=((e&&Array.isArray(e.sets))?e.sets.length:0)+1;
+  const same=rec.sets[n-1];
+  const row=same||heaviestSet(rec.sets);
+  if(!row)return null;
+  const value=[txt(row.load),withUnit(txt(row.reps),metricOf(ex).unit)]
+    .filter(Boolean).join(" × ");
+  if(!value)return null;
+  return el("div",{className:"lasttime"},[
+    el("span",{className:"lt-label"},same?`Set ${n} last time`:"Top set last time"),
+    el("span",{className:"lt-value tnum"},value),
+    el("span",{className:"lt-ago"},agoWords(daysBetween(rec.date,STATE.date)))]);
+}
+/* The two instruments on one rule. If the clock has nothing to say it hides itself and
+   "last time" has the row to itself — on a 320×568 screen every row above the fields is
+   a row the primary action moves down by. */
+function instrumentRail(ex,e,s){
+  const rail=el("div",{className:"instrument"});
+  const clock=restClockNode(ex,s);
+  rail.append(clock);
+  const last=lastTimeNode(ex,e);
+  if(last)rail.append(last);
+  startRestTick(clock);
+  return rail;
 }
 
 /* ---------- the set editor (Log view) ----------
@@ -2423,7 +3800,11 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
   const loadInp=el("input",{type:"text",value:data.load??"",
     attrs:{placeholder:"kg",inputmode:"decimal","aria-label":"Load",...commonAttrs}});
   loadInp.oninput=()=>{data.load=loadInp.value;onFieldInput();};
-  grid.append(field("Load",loadInp));
+  /* The two values the athlete is actually aiming at get the instrument treatment: big
+     tabular numerals on a rule. Marked here rather than by grid position, so reordering
+     the row cannot silently move the emphasis. */
+  const loadField=field("Load",loadInp);loadField.className="big";
+  grid.append(loadField);
   /* Not inputmode="numeric": that is a digits-only keypad on iOS, and two prescriptions
      in five here are a duration, a distance or prose. metricOf() decides what this field
      is called, what unit it carries and which keyboard it opens. */
@@ -2432,7 +3813,8 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
       "aria-label":metric.label+(ex.reps?", prescribed "+txt(ex.reps):""),
       autocapitalize:metric.autocap,autocorrect:"off",spellcheck:"false"}});
   repsInp.oninput=()=>{data.reps=repsInp.value;onFieldInput();};
-  grid.append(field(metric.fieldLabel,repsInp));
+  const repsField=field(metric.fieldLabel,repsInp);repsField.className="big";
+  grid.append(repsField);
   /* text + inputmode, not type=number: a number input reports "" while the value is an
      incomplete float like "7.", so the autosaved RPE would flicker to blank mid-type.
      This is also what lets RPE hold a half point ("7.5") — see CLAUDE.md. */
@@ -2445,7 +3827,11 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
     painInp.oninput=()=>{data.painDuring=painInp.value;onFieldInput();};
     /* Accented, never hidden: the field exists on every exercise so an empty value stays
        readable as "no pain", and `tracking.painPerExercise` keeps meaning what it says. */
-    grid.append(field(painLbl(),painInp,"/10",asked?"asked":""));
+    /* The site alone, not "Knee pain": this column is about 70px and the label is now
+       uppercase and letterspaced, so the full wording ellipses — and the /10 beside it
+       already says it is a score. Same reasoning as Dist over Distance. The aria-label
+       above keeps the full wording. */
+    grid.append(field(painLblShort(),painInp,"/10",asked?"asked":""));
   }
   host.append(grid);
 
@@ -2491,7 +3877,7 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
       (rows.length<target?`Log set ${curNum} of ${target}`:"Log another set"));
     commit.onclick=()=>{
       /* Silence used to be the answer here, which is indistinguishable from a dead app. */
-      if(!commitSet(e,metric.unit)){toast("Nothing to log yet — add a load, "+
+      if(!commitSet(e,metric.unit,s)){toast("Nothing to log yet — add a load, "+
         metric.label.toLowerCase()+" or RPE");return;}
       const n=e.sets.length;
       saveSession(s);
@@ -2658,10 +4044,22 @@ function openCircuitFinish(ex,e,s,idx,onchange){
   sheetOpen("Finish circuit",`${c.rounds||e.sets.length} round${(c.rounds||e.sets.length)===1?"":"s"} completed. Add only what is useful.`,wrap);
 }
 
+/* A circuit's own composition. A strength set asks for three numerals; a circuit asks
+   "which round am I on", and rendering that as the same three-field row left two of them
+   meaningless. All five kinds × three modes keep every bit of their function — losing a
+   mode would be a downgrade dressed as a simplification. */
+function roundCounter(done,target,label){
+  const box=el("div",{className:"roundcount"});
+  box.append(el("span",{className:"rn-value tnum"},
+    target?`${done}/${target}`:String(done)));
+  box.append(el("span",{className:"rn-label"},label||"rounds"));
+  return box;
+}
 function buildQuickCircuit(host,ex,e,s,idx,onchange){
   const c=circuitState(e,ex),spec=circuitOf(ex),n=Math.max(c.rounds,e.sets.length);
   const target=spec.target||Math.max(n+1,1),chips=el("div",{className:"setchips"});
   const total=spec.target?Math.max(spec.target,n+1):Math.max(n+1,1);
+  host.append(roundCounter(n,spec.target||0,spec.label||"rounds"));
   for(let i=0;i<total;i++)chips.append(el("span",{className:"setchip",attrs:{"data-state":i<n?"done":i===n?"current":"todo"}},String(i+1)));
   if(total>1)host.append(chips);
   host.append(el("div",{className:"setlabel"},spec.target&&n<target?`Round ${n+1} of ${target}`:
@@ -2669,7 +4067,7 @@ function buildQuickCircuit(host,ex,e,s,idx,onchange){
   const done=el("button",{className:"primary circuit-primary"},spec.target&&n<target?
     (n===target-1?"Complete final round":`Complete round ${n+1} of ${target}`):"Complete another round");
   done.onclick=()=>{const row={set:e.sets.length+1,load:"",reps:"As prescribed",rpe:"",painDuring:"",note:""};
-    e.sets.push(row);c.rounds=e.sets.length;c.touched=true;syncCircuitSummary(e);saveSession(s);
+    e.sets.push(row);c.rounds=e.sets.length;c.touched=true;syncCircuitSummary(e);stampLastSet(s);saveSession(s);
     if(navigator.vibrate)try{navigator.vibrate(12);}catch(err){}
     if(spec.target&&c.rounds>=spec.target){onchange("");openCircuitFinish(ex,e,s,idx,onchange);}
     else{toast(`Round ${c.rounds} logged`);onchange("");}};
@@ -2691,6 +4089,7 @@ function buildDetailedCircuit(host,ex,e,s,idx,onchange){
       b.onclick=()=>{STATE.setEdit=i;onchange("");};chips.append(b);}
     else chips.append(el("span",{className:"setchip",attrs:{"data-state":i===rows.length?"current":"todo"}},String(i+1)));
   }
+  host.append(roundCounter(rows.length,spec.target||0,spec.label||"rounds"));
   if(Math.max(target,rows.length+1)>1)host.append(chips);
   const roundLabel=edit!=null?`Edit round ${cur+1}${spec.target?` of ${target}`:""}`:
     spec.target&&rows.length>=target?`${rows.length} rounds completed · ${target} prescribed`:
@@ -2723,8 +4122,8 @@ function buildDetailedCircuit(host,ex,e,s,idx,onchange){
     const log=el("button",{className:"primary"},final?"Log final round":
       spec.target&&rows.length>=target?"Log another round":`Log round ${rows.length+1}`);
     log.onclick=()=>{e.draft.dirty=!draftEmpty(e.draft);
-      if(!commitCircuitRound(e)){/* A round tap itself confirms prescribed work. */
-        e.draft.reps="As prescribed";e.draft.dirty=true;commitCircuitRound(e);}
+      if(!commitCircuitRound(e,s)){/* A round tap itself confirms prescribed work. */
+        e.draft.reps="As prescribed";e.draft.dirty=true;commitCircuitRound(e,s);}
       saveSession(s);
       if(final){onchange("");openCircuitFinish(ex,e,s,idx,onchange);}
       else{toast(`Round ${rows.length} logged`);onchange("");}};
@@ -2798,8 +4197,7 @@ function buildCircuitEditor(host,ex,e,s,idx,onchange){
    notes, progression rule, the flat summary) sits *below* it, because on a 320×568 screen
    three collapsibles above the fields is enough to push the primary action off-screen. */
 function logCard(ex,s,idx){
-  const e=s.entries[ex.id]||(s.entries[ex.id]=blankEntry());
-  normalizeEntry(e);
+  const e=entryFor(s,ex);
   const cat=catOf(ex);
   const c=el("div",{className:"card"+(e.done?" done":"")});
   if(cat)c.style.setProperty("--cat",cat.color);
@@ -2807,6 +4205,15 @@ function logCard(ex,s,idx){
   c.append(...exerciseHead(ex));
   const hints=parseHints(ex);
   if(hints.length)c.append(hintChips(hints));
+  /* The rest clock and "last time", above the fields and below the prescription, so all
+     six things the athlete is tracking are on screen at once. Both follow the set
+     counter — "last time" reads the set about to be logged, and the clock only starts
+     once one has been — so the rail is repainted alongside the editor. It holds no
+     inputs and is only ever redrawn after a deliberate tap, so this stays inside the
+     repaint-don't-rebuild rule. */
+  const railHost=el("div");
+  const paintRail=()=>{railHost.innerHTML="";railHost.append(instrumentRail(ex,e,s));};
+  c.append(railHost);
 
   const summaryHost=el("div");
   const refreshSummary=()=>{if(summaryHost._refresh)summaryHost._refresh();};
@@ -2819,6 +4226,7 @@ function logCard(ex,s,idx){
     const changed=f=>{redraw(f===undefined?"":f);refreshSummary();};
     if(circuitOf(ex))buildCircuitEditor(editorHost,ex,e,s,idx,changed);
     else buildSetEditor(editorHost,ex,e,s,idx,changed,focusOn);
+    paintRail();
   };
   redraw("");
   c.append(editorHost);
@@ -2925,6 +4333,8 @@ async function copySessionPayload(data){
    the data is still in localStorage and Copy JSON is the fallback. */
 function exportSession(){
   if(!PROGRAM){toast("Load a program first");return;}
+  /* A rest day holds notes, not a workout — there is no (week, day) to export against. */
+  if(!txt(STATE.day)){toast("No session on this date — pick a day first");return;}
   /* A set typed and not confirmed is still a set that happened. Re-render after, or the
      card on screen keeps a session object one set older than storage. */
   if(flushDraft())renderMain();
@@ -2932,27 +4342,36 @@ function exportSession(){
     const data=buildSessionExport();
     const name=sessionFilename(data);
     downloadSessionPayload(data);
+    /* Recorded only after the file has actually been produced — claiming a session left
+       the phone when it didn't is worse than not knowing. The re-render is what puts
+       "exported" (or "edited since export") on the date view. */
+    markExported();
+    renderMain();
     const who=athleteId();
     toast("Exported "+name+" — save into athlete/"+(who||"<you>")+"/logs/");
   }catch(err){toast("Export failed: "+err.message+" — try Copy JSON");}
 }
+/* Deliberately does NOT mark the session exported: copying is the fallback when the
+   download fails, and also how the JSON gets looked at. Neither is a file on disk. */
 async function copyJSON(){
   if(!PROGRAM){toast("Load a program first");return;}
+  if(!txt(STATE.day)){toast("No session on this date — pick a day first");return;}
   if(flushDraft())renderMain();
   try{await copySessionPayload(buildSessionExport());}
   catch(err){toast("Copy failed: "+err.message);}
 }
 
 /* ---------- events ----------
-   The week / date / day controls are built by renderDrawer() and wired there, because
-   they only exist while the drawer has been rendered. Everything wired here is markup
-   that is present for the whole life of the page. */
+   Everything wired here is markup present for the whole life of the page. The week, day
+   and date controls no longer exist as standing widgets: they are the claim picker and
+   the calendar, built on demand. */
 $("#exportBtn").onclick=exportSession;
 $("#copyBtn").onclick=copyJSON;
-$("#menuBtn").onclick=toggleDrawer;
-$("#ctxBtn").onclick=openDrawer;
-$("#drawerClose").onclick=closeDrawer;
-$("#drawerBg").onclick=closeDrawer;
+$("#backBtn").onclick=backFromDate;
+$("#pageBack").onclick=openHome;
+/* The context line is the claim trigger: training a different week or day is a tap on
+   the thing you are already reading. */
+$("#ctxBtn").onclick=openClaimPicker;
 $("#sheetClose").onclick=sheetClose;
 $("#sheetBg").onclick=sheetClose;
 $("#viewOverview").onclick=()=>setView("list");
@@ -2971,7 +4390,7 @@ $("#fileInp").onchange=async e=>{
   catch(err){toast("Import failed: "+err.message);}
   e.target.value="";
 };
-/* Escape closes the drawer; arrow keys step through Log view. Both are desktop
+/* Escape closes the action sheet; arrow keys step through Log view. Both are desktop
    conveniences — guarded, because the headless test harness has no event target.
    Suppressed while editing a set: an arrow key while STATE.setEdit is set would jump
    exercises with a chip (not an INPUT) focused mid-edit. */
@@ -2986,8 +4405,7 @@ if(document.addEventListener)document.addEventListener("keydown",e=>{
       else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
     return;
   }
-  if(e.key==="Escape"&&drawerOpen()){closeDrawer();return;}
-  if(drawerOpen()||viewMode()!=="focus"||STATE.setEdit!=null)return;
+  if(APP.route!=="date"||viewMode()!=="focus"||STATE.setEdit!=null)return;
   const t=e.target&&e.target.tagName;
   if(t==="INPUT"||t==="TEXTAREA"||t==="SELECT")return;
   if(e.key==="ArrowLeft")stepFocus(-1);

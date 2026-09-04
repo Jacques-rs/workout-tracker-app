@@ -1,10 +1,65 @@
 {
   "schema": "tp-account-export-1",
   "exportedAt": "2026-08-16T00:00:00.000Z",
-  "account": { "id": "00000000-0000-0000-0000-000000000001", "email": "sample@example.invalid" },
+  "account": {
+    "id": "00000000-0000-0000-0000-000000000001",
+    "email": "sample@example.invalid"
+  },
+  "settings": {
+    "values": {
+      "painOnWaking": true,
+      "painLabel": "Knee"
+    },
+    "fieldUpdatedAt": {
+      "painOnWaking": "2026-08-14T06:00:00.000Z",
+      "painLabel": "2026-08-14T06:00:00.000Z"
+    },
+    "revision": 2,
+    "createdAt": "2026-08-01T00:00:00Z",
+    "updatedAt": "2026-08-14T06:00:00Z"
+  },
   "programmes": [
-    { "id": "10000000-0000-0000-0000-000000000001", "title": "Sample block", "schemaVersion": "tp-program-2", "programVersion": 1, "payload": { "meta": { "schema": "tp-program-2" }, "exercises": [] }, "revision": 1, "createdAt": "2026-08-01T00:00:00Z", "updatedAt": "2026-08-01T00:00:00Z", "deletedAt": null }
+    {
+      "id": "10000000-0000-0000-0000-000000000001",
+      "title": "Sample block",
+      "schemaVersion": "tp-program-2",
+      "programVersion": 1,
+      "payload": {
+        "meta": {
+          "schema": "tp-program-2"
+        },
+        "exercises": []
+      },
+      "revision": 1,
+      "createdAt": "2026-08-01T00:00:00Z",
+      "updatedAt": "2026-08-01T00:00:00Z",
+      "deletedAt": null
+    }
   ],
   "sessions": [],
-  "device": { "activeProgram": null, "position": null, "settings": { "view": "focus" }, "sessions": [], "syncQueue": [] }
+  "device": {
+    "activeProgram": null,
+    "settings": {
+      "view": "focus",
+      "palette": "a",
+      "mode": "auto",
+      "sv": 1
+    },
+    "accountSettings": {
+      "values": {
+        "painOnWaking": true,
+        "painLabel": "Knee"
+      },
+      "at": {
+        "painOnWaking": "2026-08-14T06:00:00.000Z",
+        "painLabel": "2026-08-14T06:00:00.000Z"
+      }
+    },
+    "schedule": {
+      "programKey": "sample-block|sample-athlete|6|4",
+      "anchorMonday": "2026-08-10"
+    },
+    "sessions": [],
+    "syncQueue": []
+  }
 }

@@ -121,16 +121,24 @@ tradeoff is escalated:
 
 ## Proposed data shape
 
-Start with two user-data tables. Exact columns, constraints, indexes and policies are implementation
-details captured in migrations.
+Three user-data tables. Exact columns, constraints, indexes and policies are implementation details
+captured in migrations.
 
 | Table | Purpose | Canonical content |
 |---|---|---|
 | `programs` | A user's saved programme library | `tp-program-*` JSON payload plus owner, title, version, revision and soft-delete timestamps |
 | `session_logs` | Saved and synchronized workout sessions | `tp-session-*` snapshot plus owner, programme/conflict references, session metadata, revision and soft-delete timestamps |
+| `user_settings` | The athlete's account-scoped preferences | One row per owner: which optional fields are tracked and what the pain field is called, plus a per-field timestamp map. Merged last-write-wins **per field**; a preferences record is bounded by a check constraint |
 
-Add tables only when a demonstrated requirement cannot be expressed cleanly here. Analytics can use
-Postgres JSON queries or derived views before the storage model is normalized.
+Add further tables only when a demonstrated requirement cannot be expressed cleanly here. Analytics
+can use Postgres JSON queries or derived views before the storage model is normalized.
+
+**`user_settings` needs an owner decision-register entry.** It was added by the date-first revamp
+(`docs/date-first-revamp.md`, Phase 4), which decided that which optional fields the athlete tracks
+and what they call them belong to the account rather than the device — an athlete who tracks a
+tendon reading on one phone must not silently stop collecting it on another. That is a scope change
+against "start with two tables", so it is recorded here rather than left implicit. It stores
+preferences only: no workout payload, no health readings, and nothing that reaches a log file.
 
 ## Delivery sequence
 

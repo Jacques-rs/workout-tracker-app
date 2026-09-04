@@ -1,9 +1,29 @@
 # Date-first revamp — design spec
 
-**Status: agreed design, nothing implemented.** This document is the durable record of a design
-conversation held on 2026-08-26. It is written to be handed to a session with no other context:
-everything below was decided deliberately, and the reasoning is included because the reasoning is
-the part that stops it being re-litigated badly.
+**Status: implemented on 2026-09-03, all five phases.** This document remains the durable record of
+the design conversation held on 2026-08-26, and is still authoritative for *why* the app is shaped
+this way — everything below was decided deliberately, and the reasoning is the part that stops it
+being re-litigated badly. `CLAUDE.md` and `docs/architecture.md` now describe the shipped result;
+where they disagree with this document, they are describing what is, and this is describing what was
+agreed.
+
+**Two things came out differently from the plan, both deliberately:**
+
+1. **The check-in moved to the date view in Phase 1**, not Phase 4. Two live check-in surfaces
+   writing the same session object is exactly the staleness bug the old `closeDrawer()` guard
+   existed for, so keeping one in the drawer for three more phases was worse than moving it early.
+   The drawer's other four sections stayed until Phase 4 as planned.
+2. **Account-scoped tracked fields needed a third Supabase table** (`public.user_settings`, with a
+   per-field timestamp map). `docs/backend-launch-plan.md` says to "add tables only when a
+   demonstrated requirement cannot be expressed cleanly" in the existing two, and to put a scope
+   change through the owner decision register first — this is that case, and it warrants a register
+   entry. The migration, its RLS policies and its pgTAP tests are committed; the client tolerates
+   the table not existing (the change is kept locally and queued), so an unapplied migration
+   degrades to device-local behaviour rather than to a broken screen.
+
+The one element the document itself flagged as **proposed but unreviewed** — the hairline
+pain-on-waking tick on the calendar — is implemented, gated on the athlete tracking the field at
+all. It is the one visual decision to look at with fresh eyes.
 
 Read `CLAUDE.md` first for the hard constraints. Nothing here breaks any of them —
 no build step, no external runtime dependencies, offline-first, relative paths,
@@ -20,7 +40,9 @@ If you are picking this up cold, in order:
    wrong, say so — do not quietly design around it.**
 3. Look at the eleven agreed screens:
    <https://claude.ai/code/artifact/42a1f71e-f81d-4b39-a398-8d75476d5e59>
-4. Start at **Phase 0** under "Implementation plan". Do not start with the UI.
+4. The five phases below are **done**. Read them for the reasoning behind the ordering and for the
+   gates each one had to pass — those gates are now regression tests in `samples/apptest.js` and
+   manual checks in `CLAUDE.md`'s "Verifying changes".
 
 **Check, don't assume, before you push:** which branch GitHub Pages serves has changed twice
 already. `gh api repos/Jacques-rs/workout-tracker-app/pages --jq '.source.branch, .status'`.

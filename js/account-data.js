@@ -19,11 +19,14 @@
 
   function personalDeviceState(storage) {
     const sessions = [], queue = [];
-    if (!storage) return { activeProgram: null, position: null, settings: null, sessions, syncQueue: queue };
+    if (!storage) return { activeProgram: null, settings: null, accountSettings: null,
+      sessions, syncQueue: queue };
     for (let index = 0; index < storage.length; index++) {
       const key = storage.key(index);
       if (!key || key.startsWith(DEMO_PREFIX)) continue;
-      if (key === "tp_program_v1" || key === "tp_pos_v1" || key === "tp_settings_v1") continue;
+      /* Named explicitly below rather than swept up by the generic scan. */
+      if (key === "tp_program_v1" || key === "tp_settings_v1" ||
+          key === "tp_account_settings_v1" || key === "tp_schedule_v1") continue;
       if (key.startsWith("tp_sess_v1::") || key === "tp_session_sync_v1") {
         try {
           const value = JSON.parse(storage.getItem(key) || "null");
@@ -33,7 +36,11 @@
       }
     }
     const read = key => { try { return JSON.parse(storage.getItem(key) || "null"); } catch (_) { return null; } };
-    return { activeProgram: read("tp_program_v1"), position: read("tp_pos_v1"), settings: read("tp_settings_v1"),
+    /* `settings` is the DEVICE half (appearance); `accountSettings` is the account half as it
+       stands on this device, which may hold a change not yet pushed. `schedule` is the block
+       anchor — without it an exported archive could not reproduce which dates the app suggested. */
+    return { activeProgram: read("tp_program_v1"), settings: read("tp_settings_v1"),
+      accountSettings: read("tp_account_settings_v1"), schedule: read("tp_schedule_v1"),
       sessions, syncQueue: queue };
   }
 
@@ -73,6 +80,9 @@
       if (result.error) throw new Error(text(result.error.message) || "Could not export account data.");
       const cloud = result.data || {};
       const output = { schema: SCHEMA, exportedAt: deps.now(), account: copy(cloud.account || {}),
+        /* Null rather than {} when the account has never stored preferences: the athlete's own
+           tracked-field choices must be in the file, and "not set" is different from "all off". */
+        settings: copy(cloud.settings == null ? null : cloud.settings),
         programmes: copy(cloud.programmes || []), sessions: copy(cloud.sessions || []),
         device: personalDeviceState(storage) };
       download(deps.document, output);

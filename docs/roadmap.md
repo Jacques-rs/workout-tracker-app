@@ -47,9 +47,55 @@ Two things left deliberately undone, and worth knowing:
 - **No migration of old values.** Anything typed into `amPainNextDay` and not yet exported was
   dropped at the rename. Copying it over would have mis-attributed it by a day.
 
-## Done — UI overhaul (drawer + focus view)
+## Done — the date-first revamp (hub, calendar, sealing, focus logger)
 
-The header had grown to five rows — block name, progress, week and date selectors, a day tab
+The app had grown four surfaces designed on their own — a header, a scrolling `<main>`, a drawer of
+accordions, and a Profile home added with the account layer — tied together by five kinds of overlay
+and no single organising idea. Two ideas replaced that: **the heart is a home page**, and **tracking
+is date-first**. `docs/date-first-revamp.md` is the durable record of the design conversation and is
+authoritative for the reasoning; what shipped:
+
+- **Five surfaces, one router.** A hub that answers "what am I doing today" first, a calendar of the
+  whole block, the date view and focus logger, Programme, Account. `showRoute()` is the only thing
+  that touches their visibility.
+- **Every date carries a state**, and opening one resolves to exactly one of resume / review /
+  start / rest / no-programme. The schedule is derived from one anchor Monday plus each day's
+  weekday, and is only ever a **suggestion**: a stored session on a date is a **claim**, and claims
+  win. There is no "move session" operation, because it would be a feature for something that needs
+  none.
+- **Sealing.** `Finish session` distinguishes "I finished" from "I did four of six and walked out",
+  which the coaching side cares about and could not previously be told. Local, offline, and never
+  undone by an edit — an edit marks the exported file stale instead.
+- **The focus logger became an instrument**: the rest clock counting up with the prescribed rest
+  marked, what was lifted for this exercise last time, and big numerals on rules with one full-width
+  action.
+- **The drawer is gone** — four accordions and a hamburger, and nothing lost a home: week and day are
+  the claim picker, the date is the calendar, the check-in is at the top of the date view,
+  import/export are on Programme, and settings are on Account.
+- **Tracked fields became account-scoped**, with last-write-wins per field, so an athlete who tracks
+  a tendon reading on one phone does not silently stop collecting it on another. Appearance stayed on
+  the device.
+- **No migration was needed.** Sessions are already keyed `tp_sess_v1::<date>::<day>`, so every
+  session already on a phone landed on its correct calendar date for free. `tp_pos_v1` was retired
+  because a stored position could disagree with the claim.
+
+Deliberately left undone, and worth knowing:
+
+- **Off-programme workouts** (a pickup session, a race, a swim). Rest days are openable, but a
+  workout with no `(week, day)` and no prescribed rows has a real contract cost: either
+  `tp-session-3` grows a variant, or `review-workout-log` receives a session it cannot compare
+  against. Worth doing, worth not doing accidentally.
+- **Rest-day notes.** A rest day currently shows the next session and the claim picker; a place to
+  write "travelled, walked 8km" is small but needs a store that can never be mistaken for a workout.
+- **An active rest countdown** with sound or haptics. A real feature, not a detail — the current
+  clock is deliberately passive.
+- **Structured schedule fields** in the programme schema. The reader already accepts `meta.startDate`
+  and a per-day `weekday`; emitting them is a `program-builder` change and must happen in lockstep.
+
+### Superseded — UI overhaul (drawer + focus view)
+
+**Superseded by the date-first revamp above; kept for the reasoning, not as a description of the
+app.** The header had grown to five rows — block name, progress, week and date selectors, a day tab
 strip, the day title — and the check-in card sat above the first exercise on every screen. All
 of it was permanently visible, and none of it changes once a session has started. It now sits
 on three surfaces: a two-row header (context line, date, progress), `<main>` for exercise cards

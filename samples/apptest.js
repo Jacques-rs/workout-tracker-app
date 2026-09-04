@@ -62,6 +62,10 @@ class El {
   setAttribute(k, v){ this.attributes[k] = String(v); }
   getAttribute(k){ return this.attributes[k]; }
   focus(){ this._focused = true; ACTIVE_ELEMENT = this; }
+  /* Real DOM methods the export path calls on the anchor it builds. Without them
+     exportSession() throws into its own catch and looks like a failed export. */
+  click(){ if(this.onclick) this.onclick(); }
+  remove(){ const p = this.parentNode; if(p) p.children = p.children.filter(c => c !== this); }
   /* Only selectors the app actually uses on an element: "details", "input", ".chips". */
   querySelectorAll(sel){
     const out = [];
@@ -97,11 +101,17 @@ const sandbox = {
     get activeElement(){ return ACTIVE_ELEMENT; },
     addEventListener(){}
   },
+  /* `length` and `key(i)` are part of the real Storage API and the app uses them: the
+     session index scans sibling tp_sess_v1::* keys. Without them the index would come
+     back empty here and every date-first assertion below would pass for the wrong
+     reason. */
   localStorage: {
     getItem: k => (store.has(k) ? store.get(k) : null),
     setItem: (k, v) => store.set(k, String(v)),
     removeItem: k => store.delete(k),
-    clear: () => store.clear()
+    clear: () => store.clear(),
+    get length(){ return store.size; },
+    key: i => [...store.keys()][i] ?? null
   },
   matchMedia: () => ({ matches: false, addEventListener(){}, addListener(){} }),
   getComputedStyle: () => ({ getPropertyValue: () => "" }),
@@ -125,6 +135,10 @@ const sandbox = {
   URL: { createObjectURL: () => "blob:x", revokeObjectURL(){} },
   Blob: function(){},
   setTimeout, clearTimeout,
+  /* The rest clock arms one repaint interval. Stubbed rather than real: a live interval
+     would keep this process alive after the assertions finish, and what is worth testing
+     is the arithmetic and the repaint, not the timer. */
+  setInterval: () => "rest-tick", clearInterval: () => {},
   fetch: async () => { throw new Error("offline in test"); }
 };
 sandbox.window = Object.assign(sandbox.window, sandbox);
@@ -152,6 +166,11 @@ Object.defineProperties(globalThis, {
   ,APP:          {get:()=>APP}
   ,LS:           {get:()=>LS}
   ,SAMPLE_PROGRAM:{get:()=>SAMPLE_PROGRAM,set:v=>{SAMPLE_PROGRAM=v}}
+  ,SCHEDULE:      {get:()=>SCHEDULE,      set:v=>{SCHEDULE=v}}
+  ,ACCOUNT_SETTINGS:{get:()=>ACCOUNT_SETTINGS,set:v=>{ACCOUNT_SETTINGS=v}}
+  ,ACCOUNT_KEYS:  {get:()=>ACCOUNT_KEYS}
+  ,DEVICE_KEYS:   {get:()=>DEVICE_KEYS}
+  ,SESSION_INDEX: {get:()=>SESSION_INDEX}
 });`;
 vm.runInContext(blocks[blocks.length - 1] + EPILOGUE, sandbox, { filename: "index.html<script>" });
 
@@ -173,6 +192,11 @@ function loadFixture(name){
   app.SETTINGS = { ...app.SET_DEFAULTS };
   const prog = JSON.parse(fs.readFileSync(path.join(ROOT, "samples", name), "utf8"));
   app.loadProgram(prog);
+  /* Date-first: a programme lands on TODAY, and today may well be a rest day for it —
+     these fixtures train Mon/Tue. Claim week 1 day 1, which is exactly what the athlete
+     does from the date view's "Doing a different day?", so the tests below have a
+     session to log against. The date-resolution path itself is tested on its own. */
+  app.applyClaim(1, prog.meta.days[0]);
   return prog;
 }
 function loadSynthetic(exercises){
@@ -184,6 +208,7 @@ function loadSynthetic(exercises){
     logHint:e.logHint||"",focus:"",progression:""}));
   app.loadProgram({meta:{schema:"tp-program-2",block:"Circuit fixture",athlete:"Sample",
     athleteId:"sample",weeks:1,version:1,days:[day]},exercises:rows});
+  app.applyClaim(1,day);
   return rows;
 }
 /* Render the current view without asserting anything about layout. */
@@ -192,7 +217,10 @@ function cards(){ const m = stubFor("#main"); m.children = []; app.renderMain();
 function exCards(){ return cards().filter(c => c.classList.contains("card")); }
 /* The check-in lives in the drawer now, so it is rendered and read separately from the
    training view. renderCheckin() clears the host itself. */
-function checkinCard(){ app.renderCheckin(); return stubFor("#checkinHost").children.find(c => c.nodeType === 1); }
+/* The check-in lives at the top of the date view now. renderCheckin() clears its own
+   host, and only fills it when a day is claimed — a rest day holds notes, not a workout. */
+function checkinCard(){ stubFor("#checkinHost").children = []; app.renderCheckin();
+  return stubFor("#checkinHost").children.find(c => c.nodeType === 1); }
 function labelsIn(node){ return node ? node.findAll(n => n.classList.contains("lbl")).map(n => n.text) : []; }
 function pips(){ return stubFor("#pips").children.filter(n => n.nodeType === 1); }
 /* Log view helpers: the set editor's chips / grid inputs / action buttons live inside
@@ -223,6 +251,16 @@ function setLabel(c){ const n = c.findAll(x => x.classList.contains("setlabel"))
    the old bug where oninput rebuilt the container and destroyed the input mid-keystroke. */
 function type(inp, v){ inp.value = v; inp.oninput(); }
 
+/* The first date within the next fortnight that this programme does NOT train, so the
+   rest-day assertions do not depend on what weekday the suite happens to run on. */
+function nonTrainingDate(app, days){
+  const trained = new Set(days.map(d => app.parseWeekday(d)));
+  let iso = app.todayISO();
+  for(let i = 0; i < 14; i++){ if(!trained.has(app.weekdayOf(iso))) return iso;
+    iso = app.addDays(iso, 1); }
+  return iso;
+}
+
 /* ---------- tests ---------- */
 console.log("\naccount-first entry and isolated sample storage");
 {
@@ -236,15 +274,20 @@ console.log("\naccount-first entry and isolated sample storage");
   app.openSampleWorkout();
   is(app.APP.source, "sample", "the deliberate sample action opens demo mode");
   assert(!stubFor("#demoBanner").hidden, "sample mode is labelled persistently in the workout header");
+  /* The sample trains Mon/Tue, so today is very likely a rest day for it and there is
+     no session key until a day is claimed. That is the model, not a gap. */
+  app.applyClaim(1, personal.meta.days[0]);
   assert(/^tp_demo_sess_v1::/.test(app.sessionKey()), "sample sessions use their own storage namespace");
-  app.savePos();
-  assert(store.has("tp_demo_pos_v1"), "sample week/day position is stored separately too");
+  assert(store.has("tp_demo_schedule_v1"), "the sample's block anchor is stored separately too");
+  assert(!store.has("tp_schedule_v1") || JSON.parse(store.get("tp_demo_schedule_v1")).anchorMonday,
+    "…so opening the sample cannot move a personal block's anchor");
   is(store.get("tp_program_v1"), personalJson, "opening the sample never replaces the cached personal programme");
 
   app.openProfile();
   is(app.APP.surface, "profile", "the workout can return to profile home");
   app.openCachedWorkout();
   is(app.APP.source, "personal", "the known owner can reopen cached personal training");
+  app.applyClaim(1, personal.meta.days[0]);
   assert(/^tp_sess_v1::/.test(app.sessionKey()), "personal sessions retain their existing keys");
   assert(!/^tp_demo_/.test(app.sessionKey()), "personal and sample session keys cannot collide");
 
@@ -1056,16 +1099,16 @@ console.log("\nprogramme revision — displayed and stamped on the export");
   loadFixture("program.v2.sample.json");
   is(app.progVersion(), 3, "version read from meta.version");
   is(app.buildSessionExport().programVersion, 3, "and stamped on the export");
-  app.renderAll();
-  assert(/·\s*v3$/.test(stubFor("#blockSub").text),
-         `shown next to the block name (got ${JSON.stringify(stubFor("#blockSub").text)})`);
+  app.setView("list"); app.renderAll();
+  assert(/·\s*v3$/.test(stubFor("#ctxSub").text),
+         `shown in the date view's header context (got ${JSON.stringify(stubFor("#ctxSub").text)})`);
 
   /* A programme from before the revision convention. The app must not invent "v1". */
   loadFixture("program.sample.json");
   is(app.progVersion(), 0, "an unversioned programme reads as 0");
   is(app.buildSessionExport().programVersion, 0, "exported as 0, not omitted");
-  app.renderAll();
-  assert(!/v\d/.test(stubFor("#blockSub").text),
+  app.setView("list"); app.renderAll();
+  assert(!/v\d/.test(stubFor("#ctxSub").text),
          "and no version is claimed in the header");
 
   /* Junk in meta.version must not put "vNaN" on screen or in a log file. */
@@ -1084,13 +1127,19 @@ console.log("\npain on waking — a pre-session field, not a next-morning one");
   app.STATE.week = 1;
 
   /* It has to be reachable at check-in, before a single set is logged — that is the
-     whole point of the move away from amPainNextDay. It is now one tap away in the
-     drawer rather than the first card of the training view. */
-  const checkin = checkinCard();
-  assert(!!checkin && checkin.classList.contains("sessioncard"), "the check-in card renders in the drawer");
+     whole point of the move away from amPainNextDay. It sits near the top of the date
+     view, above the exercise list and below the primary action, so it is asked for
+     without ever standing between the athlete and a warm-up. */
   app.setView("list");
-  assert(!cards().some(c => c.classList.contains("sessioncard")),
-         "and no longer sits at the top of the training view");
+  const checkin = checkinCard();
+  assert(!!checkin && checkin.classList.contains("checkin"), "the check-in renders on the date view");
+  assert(!checkin.classList.contains("card"),
+         "as a hairline block rather than another nested card");
+  app.setView("focus");
+  assert(!checkinCard(), "and never inside the focus logger");
+  assert(!cards().some(c => c.classList.contains("checkin")),
+         "…which the logger's own render confirms");
+  app.setView("list");
   const labels = labelsIn(checkin);
   assert(labels.some(t => /on waking/i.test(t)),
          `labelled for the morning reading (got ${JSON.stringify(labels)})`);
@@ -1232,24 +1281,32 @@ console.log("\nOverview position resets when the workout context changes");
   is(app.OVERVIEW_SCROLL, 0, "importing a programme clears the Overview position");
 }
 
-console.log("\ndrawer — week navigation has a dropdown, not just arrows");
+console.log("\nthe drawer is gone, and nothing lost a home");
 {
+  /* The largest single cut against "too many loose structural parts": four accordions
+     and a hamburger disappear, and every one of the things they held has a better home.
+     What must NOT survive is a second way to change week, day or date — two independent
+     axes are exactly what could drift out of step with the claim. */
   loadFixture("program.v2.sample.json");
-  app.STATE.week = 1;
-  const host = stubFor("#drawerBody");
-  host.children = [];
-  app.renderDrawer();
-  const stepper = host.findAll(n => n.classList.contains("stepper"))[0];
-  assert(!!stepper, "the week stepper renders in the drawer");
-  const select = stepper.findAll(n => n.tagName === "SELECT")[0];
-  assert(!!select, "…and it contains a dropdown — jumping from week 1 to week 6 no longer costs five taps of the arrow");
-  is(select.children.filter(c => c.nodeType === 1).length, app.PROGRAM.meta.weeks, "one option per week");
-  const arrows = stepper.findAll(n => n.classList.contains("stepbtn"));
-  is(arrows.length, 2, "the arrows stay too, for the one-tap case");
-
-  select.value = "4";
-  select.onchange();
-  is(app.STATE.week, 4, "picking a week from the dropdown jumps straight there");
+  ["renderDrawer", "openDrawer", "closeDrawer", "toggleDrawer", "drawerOpen",
+   "weekStepper", "dateRow", "renderDayList", "paintDays", "renderDataSection",
+   "accordion"].forEach(name => {
+    is(typeof app[name], "undefined", `${name}() is gone`);
+  });
+  /* The week/day picker survives as the claim picker — one sheet, both halves together,
+     and it is the context line that opens it. */
+  is(typeof app.openClaimPicker, "function", "the claim picker replaces all three pickers");
+  is(typeof app.openCalendarPage, "function", "the calendar replaces the date picker");
+  is(typeof app.renderAccountPage, "function", "the Account screen holds the settings");
+  is(typeof app.renderProgrammePage, "function", "and the Programme screen import/export");
+  /* Appearance and Tracked fields still render — they moved two taps deeper, which is
+     right for settings touched twice a year, and they did not disappear. */
+  const appearance = new El("div"); app.renderAppearance(appearance);
+  assert(appearance.findAll(n => n.classList.contains("pal")).length >= 2,
+    "Appearance still offers its palettes");
+  const fields = new El("div"); app.renderFields(fields);
+  is(fields.findAll(n => n.getAttribute("role") === "switch").length, app.FIELD_DEFS.length,
+    "and Tracked fields still offers every switch");
 }
 
 console.log("\nStateEdit is cleared by every navigation entry point");
@@ -1362,64 +1419,1094 @@ console.log("\nsettings migration — an existing install lands on Log, not a bl
   app.SETTINGS = { ...app.SET_DEFAULTS };
 }
 
-console.log("\nwhere you are in the block survives a refresh");
+console.log("\nreload mid-session restores the claim, not the schedule's guess");
 {
-  /* What boot() does to the position on a cold start: a fresh STATE, then restorePos().
-     Date is carried over rather than re-derived so the test doesn't depend on the clock —
-     boot() starts it at today on purpose, which is tested separately below. */
-  const refresh = () => {
-    app.STATE = { week: 1, day: null, date: app.STATE.date, focus: 0, setEdit: null };
-    app.restorePos();
+  /* There is no stored position any more: the claim lives in the session record, so a
+     reload re-resolves the open date and reads (week, day) straight off it. This is the
+     single most likely subtle bug in the whole revamp — saveSession() writes week/day
+     from STATE on every keystroke, so if STATE were re-derived from the schedule the
+     next autosave would quietly rewrite the claim. */
+  const today = app.todayISO();
+  const wd = app.weekdayOf(today);
+  const d1 = `Day 1 (${app.weekdayShort(wd)}) - Squat day`;
+  const d2 = `Day 2 (${app.weekdayShort(wd % 7 + 1)}) - Press day`;
+  store.clear(); ACTIVE_ELEMENT = null; app.SETTINGS = { ...app.SET_DEFAULTS };
+  const rows = [];
+  for(let w = 1; w <= 4; w++) for(const day of [d1, d2])
+    rows.push({ id: `w${w}${day === d1 ? "d1" : "d2"}e1`, week: w, day,
+      name: day === d1 ? "Back squat" : "Strict press", sets: "3", reps: "5",
+      load: String(90 + w * 5), rpe: "RPE 7", tempo: "", rest: "", logHint: "",
+      focus: "", progression: "" });
+  app.loadProgram({ meta: { schema: "tp-program-2", block: "Dated", athlete: "Sample",
+    athleteId: "sample", weeks: 4, days: [d1, d2] }, exercises: rows });
+
+  is([app.STATE.date, app.STATE.day], [today, d1],
+    "a fresh import lands on today, resolved through the schedule");
+  is(app.STATE.week, 1, "at the week the anchor puts today in");
+  is(app.openState(), "start", "with nothing stored, today is a session waiting to be started");
+
+  /* Two weeks behind the plan — the most common way a block goes off-plan. */
+  app.applyClaim(3, d1);
+  is(app.openState(), "start", "claiming a week without logging creates nothing");
+  is(app.sessionsOn(today).length, 0, "…so browsing weeks never litters the calendar");
+  app.startSession();
+  is(app.openState(), "resume", "starting a session writes it, and that write IS the claim");
+  const c = logCardNode();
+  const inputs = setInputs(c);
+  type(inputs[0], "97.5"); type(inputs[1], "5");
+  actionBtn(c, /^Log set|^Log final/).onclick();
+
+  /* A cold start is a fresh STATE plus today's date, and nothing else. */
+  const reload = () => {
+    app.STATE = { week: 1, day: null, date: "not-a-date", focus: 0, setEdit: null };
+    app.invalidateSessionIndex();
+    app.adoptDate(app.todayISO());
   };
+  reload();
+  is(app.STATE.date, today, "a reload opens today");
+  is([app.STATE.week, app.STATE.day], [3, d1],
+    "and reads the claimed week and day off the stored session, not the schedule's week 1");
+  is(app.dayExercises().map(e => e.load), ["105"],
+    "so the prescriptions on screen are the claimed week's");
+  is(app.getSession().entries["w3d1e1"].sets[0].load, "97.5",
+    "and the set logged before the reload is still there");
 
+  app.saveSession(app.getSession());
+  is(JSON.parse(store.get(app.sessionKey())).week, 3,
+    "an autosave after the reload keeps the claim rather than overwriting it");
+
+  /* Re-claiming corrects the session in place rather than orphaning it. */
+  app.applyClaim(4, d1);
+  is(JSON.parse(store.get(app.sessionKey())).week, 4, "re-claiming rewrites the stored week");
+  is(app.sessionsOn(today).length, 1, "without leaving a second session on the date");
+  is(app.getSession().entries["w3d1e1"].sets[0].load, "97.5",
+    "and the logged set is not lost by the correction");
+
+  /* A different day on the same date is a different session, and adopts its own week. */
+  app.applyClaim(2, d2);
+  app.startSession();
+  is(app.sessionsOn(today).length, 2, "two sessions on one date are allowed and listed");
+  app.applyClaim(4, d1);
+  app.selectDay(d2);
+  is(app.STATE.week, 2, "switching to a day already claimed on this date adopts its week");
+
+  /* A v1 programme has no per-week rows, but the week still has to survive a reload —
+     the progression banner is read against it. */
+  const v1 = loadFixture("program.sample.json");
+  app.applyClaim(5, v1.meta.days[0]);
+  app.startSession();
+  reload();
+  is(app.STATE.week, 5, "a v1 programme restores its claimed week too");
+  assert(!app.isV2(), "…and is still read as v1");
+}
+
+console.log("\nsealing a session, and what an edit does to it afterwards");
+{
   const prog = loadFixture("program.v2.sample.json");
-  const day2 = prog.meta.days[1];
-  app.selectWeek(3);
-  app.selectDay(day2);
-  refresh();
-  is(app.STATE.week, 3, "the selected week is restored, not reset to 1");
-  is(app.STATE.day, day2, "and so is the selected day");
+  const first = app.dayExercises()[0];
+  const c = logCardNode();
+  const inputs = setInputs(c);
+  type(inputs[0], "100"); type(inputs[1], "5");
+  actionBtn(c, /^Log set|^Log final/).onclick();
+  is(app.openState(), "resume", "a session with logged work is open");
 
-  /* The bug this guards: week 5 prescriptions silently becoming week 1's on reload. */
-  app.selectWeek(4);
-  const wk4 = app.dayExercises().map(e => e.id);
-  refresh();
-  is(app.dayExercises().map(e => e.id), wk4, "so the exercises on screen are still that week's");
+  const sealedSession = app.sealSession();
+  assert(app.sealed(sealedSession), "Finish session seals it");
+  assert(/^\d{4}-\d{2}-\d{2}T/.test(sealedSession.sealedAt), "and records when");
+  is(app.openState(), "review", "so the date now reads as a sealed session to review");
+  /* Sealing is local: it must work with the radio off, or a dropped connection would
+     look like an unfinished workout. */
+  is(JSON.parse(store.get(app.sessionKey())).status, "sealed", "and it is stored, not sent");
 
-  /* Clamped against the programme actually loaded, not against what was saved. */
-  store.set("tp_pos_v1", JSON.stringify({ week: 99, day: day2 }));
-  refresh();
-  is(app.STATE.week, 1, "a saved week past the end of the block falls back to week 1");
-  store.set("tp_pos_v1", JSON.stringify({ week: 2, day: "Day 9 (Sun) - not in this program" }));
-  refresh();
-  is(app.STATE.day, prog.meta.days[0], "a saved day this programme lacks falls back to day 1");
-  is(app.STATE.week, 2, "without discarding the week alongside it");
+  /* Editing a sealed session does not un-seal it — un-sealing because a typo was fixed
+     would flip the calendar back to "unfinished", which is a lie about that day. */
+  app.markExported();
+  assert(!app.editedSinceExport(app.getSession()), "exporting is not itself an edit");
+  const s = app.getSession();
+  s.entries[first.id].notes = "felt heavier than it read";
+  app.saveSession(s);
+  assert(app.sealed(app.getSession()), "an edit after sealing leaves the session sealed");
+  is(app.openState(), "review", "so the date's state does not change");
+  assert(app.editedSinceExport(app.getSession()),
+    "but the exported file is now marked stale");
 
-  /* localStorage is hand-editable and survives builds — it must never be trusted. */
-  store.set("tp_pos_v1", "{not json");
-  refresh();
-  is([app.STATE.week, app.STATE.day], [1, prog.meta.days[0]], "corrupt saved position is ignored");
+  /* Re-exporting clears it again. */
+  app.markExported();
+  assert(!app.editedSinceExport(app.getSession()), "re-exporting clears the stale mark");
 
-  /* A fresh import starts at the top of the block, and that has to be written through:
-     otherwise the next refresh restores a position belonging to the replaced programme. */
-  app.selectWeek(4);
+  /* An explicit reopen exists so a mis-tapped Finish is not permanent. */
+  app.unsealSession();
+  is(app.openState(), "resume", "reopening the day is deliberate and available");
+  is(app.getSession().sealedAt, "", "and clears the seal time with it");
+}
+
+console.log("\na rest day, and no programme at all");
+{
+  /* A date the programme does not train has no session and no key — a rest day holds
+     notes, not a workout. The guard matters: a stray autosave must not file a `::null`
+     record that the calendar would then have to explain. */
+  const today = app.todayISO();
+  const wd = app.weekdayOf(today);
+  const other = `Day 1 (${app.weekdayShort(wd % 7 + 1)}) - Not today`;
+  store.clear(); app.SETTINGS = { ...app.SET_DEFAULTS };
+  app.loadProgram({ meta: { schema: "tp-program-2", block: "Rest", athlete: "Sample",
+    athleteId: "sample", weeks: 2, days: [other] },
+    exercises: [{ id: "w1d1e1", week: 1, day: other, name: "Squat", sets: "3", reps: "5",
+      load: "100", rpe: "RPE 7", tempo: "", rest: "", logHint: "", focus: "", progression: "" }] });
+  is(app.STATE.day, null, "today is a rest day for this programme");
+  is(app.openState(), "rest", "and reads as one");
+  is(app.sessionKey(), "", "with no session key");
+  const before = store.size;
+  app.saveSession({ entries: {}, session: {} });
+  is(store.size, before, "a save with no day claimed writes nothing at all");
+  const next = app.nextScheduled(today);
+  is(next && next.date, app.addDays(today, 1), "and the next session is one day out");
+  is(next && next.week, 1, "in week 1 of the block");
+
+  /* Claiming from a rest day is the documented way to train something today. */
+  app.applyClaim(1, other);
+  is(app.openState(), "start", "claiming a day on a rest date gives it a session to start");
+  is(app.dayExercises().length, 1, "with that day's exercises on screen");
+
+  app.PROGRAM = null; app.refreshSchedule();
+  is(app.openState(), "noprogram", "with nothing imported the date has no state to resolve");
+  is(app.nextScheduled(today), null, "and there is no next session");
+}
+
+console.log("\nthe derived schedule");
+{
+  /* Nothing in tp-program-2 carries a date, so the whole calendar hangs off one anchor
+     plus a weekday read out of each day label. Every case below is a documented
+     fallback in docs/date-first-revamp.md, in that order. */
+  const prog = loadFixture("program.v2.sample.json");
+  const sched = app.SCHEDULE;
+  assert(!!sched, "loading a programme derives a schedule");
+  is(sched.days.map(d => d.weekday), [1, 2],
+    "the weekday is parsed out of a real day label's parenthetical");
+  is(app.weekdayOf(sched.anchorMonday), 1, "the anchor is always a Monday");
+  is(sched.anchorMonday, app.mondayOf(app.todayISO()),
+    "and defaults to the Monday of the week the programme was imported");
+  is(JSON.parse(store.get("tp_schedule_v1")).anchorMonday, sched.anchorMonday,
+    "the resolved anchor is persisted, so it keeps meaning 'imported' rather than 'now'");
+  is(sched.weeks, 4, "the schedule knows how many weeks the block runs");
+
+  /* Round-trip, and specifically across a month boundary — the place naive date maths
+     breaks. Anchored on a Monday late in January, week 2 Tuesday lands in February. */
+  app.setAnchorMonday("2026-01-26");
+  is(app.SCHEDULE.anchorMonday, "2026-01-26", "the anchor can be moved in one call");
+  const d1 = prog.meta.days[0], d2 = prog.meta.days[1];
+  is(app.dateFor(1, d1), "2026-01-26", "week 1 day 1 is the anchor itself");
+  is(app.dateFor(2, d2), "2026-02-03", "week 2 day 2 crosses into the next month");
+  is(app.scheduleForDate("2026-02-03"), { week: 2, day: d2 },
+    "and reading that date back gives the same (week, day)");
+  is(app.dateFor(4, d2), "2026-02-17", "the last week of the block still resolves");
+  is(app.scheduleForDate("2026-02-17"), { week: 4, day: d2 }, "and round-trips");
+  /* Every (week, day) in the block, both directions. */
+  let roundTripped = 0, brokeAt = null;
+  for(let w = 1; w <= app.SCHEDULE.weeks; w++) for(const day of [d1, d2]){
+    const iso = app.dateFor(w, day);
+    const back = app.scheduleForDate(iso);
+    if(back && back.week === w && back.day === day) roundTripped++;
+    else brokeAt = brokeAt || `${w} / ${day} -> ${iso}`;
+  }
+  is([roundTripped, brokeAt], [app.SCHEDULE.weeks * 2, null],
+    "every (week, day) in the block round-trips through its date");
+
+  /* Outside the block, and on a weekday the programme doesn't train: null, not a guess. */
+  is(app.scheduleForDate("2026-01-25"), null, "a date before the anchor has nothing on it");
+  is(app.scheduleForDate("2026-01-28"), null, "an untrained weekday is a rest day, not a session");
+  is(app.scheduleForDate("2026-03-30"), null, "a date past the last week has nothing on it");
+  is(app.dateFor(1, "Day 9 (Sun) - not in this program"), "",
+    "a day this programme does not have resolves to no date");
+
+  /* A leap day is a real calendar day and must not be skipped or doubled. */
+  app.setAnchorMonday("2024-02-26");
+  is(app.dateFor(1, d2), "2024-02-27", "…");
+  is(app.dateFor(2, d1), "2024-03-04", "a week spanning 29 February advances exactly seven days");
+}
+
+console.log("\nschedule fallbacks: unlabelled days, and no programme at all");
+{
+  /* Second fallback exhausted: no label parses. Distribute across consecutive weekdays
+     from Monday, which is the documented behaviour — a programme whose labels carry no
+     weekday must still import and be trainable. */
+  const days = ["Session A - Lower", "Session B - Upper", "Session C - Conditioning"];
+  app.loadProgram({ meta: { schema: "tp-program-2", block: "Unlabelled", athlete: "Sample",
+    athleteId: "sample", weeks: 2, days },
+    exercises: days.map((day, i) => ({ id: `w1d${i + 1}e1`, week: 1, day, name: "Squat",
+      sets: "3", reps: "5", load: "100", rpe: "RPE 7", tempo: "", rest: "", logHint: "",
+      focus: "", progression: "" })) });
+  is(app.SCHEDULE.days.map(d => d.weekday), [1, 2, 3],
+    "days with no readable weekday are distributed from Monday");
+  app.setAnchorMonday("2026-01-05");
+  is(app.dateFor(1, days[2]), "2026-01-07", "so they still resolve to real dates");
+
+  /* Mixed: the labels that DO parse keep their weekday, and the rest fill the gaps
+     rather than flattening the whole programme back to Mon/Tue/Wed. */
+  const mixed = ["Day 1 (Mon) - Lower", "Day 2 - Upper", "Day 3 (Thu) - Skill", "Day 4 - Row"];
+  app.loadProgram({ meta: { schema: "tp-program-2", block: "Mixed", athlete: "Sample",
+    athleteId: "sample", weeks: 1, days: mixed },
+    exercises: mixed.map((day, i) => ({ id: `w1d${i + 1}e1`, week: 1, day, name: "Squat",
+      sets: "3", reps: "5", load: "100", rpe: "RPE 7", tempo: "", rest: "", logHint: "",
+      focus: "", progression: "" })) });
+  is(app.SCHEDULE.days.map(d => d.weekday), [1, 2, 4, 3],
+    "a partly-labelled programme keeps the weekdays it declares and fills the gaps");
+
+  /* First fallback: structured fields, which nothing emits yet. Adding them later must
+     be a no-op in the app, so the reader accepts them now. */
+  const structured = [{ label: "Session A - Lower", weekday: 3 },
+                      { label: "Session B - Upper", weekday: "Saturday" }];
+  app.loadProgram({ meta: { schema: "tp-program-2", block: "Structured", athlete: "Sample",
+    athleteId: "sample", weeks: 1, startDate: "2026-03-11", days: structured },
+    exercises: [{ id: "w1d1e1", week: 1, day: "Session A - Lower", name: "Squat",
+      sets: "3", reps: "5", load: "100", rpe: "RPE 7", tempo: "", rest: "", logHint: "",
+      focus: "", progression: "" }] });
+  is(app.SCHEDULE.days.map(d => d.weekday), [3, 6],
+    "a declared weekday is used ahead of anything parsed, as a number or a name");
+  is(app.SCHEDULE.anchorMonday, "2026-03-09",
+    "meta.startDate anchors the block to the Monday of its own week");
+  is(app.dateFor(1, "Session A - Lower"), "2026-03-11", "and the declared weekdays resolve");
+
+  /* "Monostructural" is not Monday. */
+  is(app.parseWeekday("Day 2 (Tue) - Monostructural grind"), 2,
+    "a weekday word inside another word is not mistaken for a weekday");
+  is(app.parseWeekday("Day 1 (Mon) - Sunday long grind"), 1,
+    "the parenthetical convention wins over a weekday word elsewhere in the label");
+  is(app.parseWeekday("Day 3 Thursday - Snatch"), 4, "a bare weekday word is read too");
+
+  /* No programme loaded is one of the honest date states, not an error. */
+  app.PROGRAM = null; app.refreshSchedule();
+  is(app.SCHEDULE, null, "with no programme there is no schedule");
+  is(app.dateFor(1, "Day 1 (Mon) - anything"), "", "and no date resolves");
+  is(app.scheduleForDate(app.todayISO()), null, "and no date has anything on it");
+  is(app.setAnchorMonday("2026-01-05"), "", "and the anchor cannot be set");
+}
+
+console.log("\nsession lifecycle state, read tolerantly");
+{
+  const prog = loadFixture("program.v2.sample.json");
+  const day = prog.meta.days[0];
+
+  /* A record already on a phone has none of the new keys. Absent status means OPEN: a
+     session written before sealing existed cannot have been sealed, and reading it as
+     anything else would flip the calendar's account of a day already finished.
+     Written straight into storage and then OPENED by date, which is how it would really
+     arrive — and the index has to be dropped, exactly as the app's own writes do. */
+  const legacyKey = "tp_sess_v1::2026-05-04::" + day;
+  store.set(legacyKey, JSON.stringify({ block: "x", athlete: "y", week: 1, day,
+    date: "2026-05-04", session: { readiness: "Green" },
+    entries: { [prog.exercises[0].id]: { done: true, load: "100", reps: "5", rpe: "7",
+      painDuring: "1", notes: "", sets: [{ set: 1, load: "100", reps: "5", rpe: "7",
+        painDuring: "1", note: "" }] } } }));
+  app.invalidateSessionIndex();
+  app.openDate("2026-05-04");
+  is([app.STATE.day, app.STATE.week], [day, 1],
+    "a session already on the phone is found by its date and its claim adopted");
+  const legacy = app.getSession();
+  is(legacy.status, "open", "a stored session with no status reads as open");
+  is([legacy.sealedAt, legacy.exportedAt, legacy.lastSetAt], ["", "", ""],
+    "and the other lifecycle fields default to empty rather than undefined");
+  is(legacy.session.readiness, "Green", "without losing what was already logged");
+  is(legacy.entries[prog.exercises[0].id].sets.length, 1, "or the sets that were committed");
+  assert(!app.sealed(legacy), "so it is not treated as sealed");
+
+  /* Sealing is a stored fact, and editing a sealed session must not un-seal it. */
+  legacy.status = "sealed"; legacy.sealedAt = "2026-05-04T18:00:00.000Z";
+  app.saveSession(legacy);
+  const reread = app.getSession();
+  assert(app.sealed(reread), "a sealed session reads back as sealed");
+  is(reread.sealedAt, "2026-05-04T18:00:00.000Z", "with the time it was sealed");
+
+  /* A garbage status is not a third state. */
+  store.set(legacyKey, JSON.stringify({ ...reread, status: "finished-ish" }));
+  is(app.getSession().status, "open", "an unrecognised status falls back to open");
+
+  /* exportedAt vs editedAt: information the app has never had before. */
+  const s = app.getSession();
+  s.status = "sealed"; s.exportedAt = "2026-05-04T18:00:00.000Z";
+  s.editedAt = "2026-05-04T17:00:00.000Z";
+  assert(!app.editedSinceExport(s), "a session exported after its last edit is not stale");
+  app.saveSession(s);
+  assert(app.editedSinceExport(app.getSession()),
+    "but any later edit makes the exported file stale, without un-sealing the session");
+  assert(app.sealed(app.getSession()), "editing a sealed session leaves it sealed");
+}
+
+console.log("\nthe session index");
+{
+  const prog = loadFixture("program.v2.sample.json");
+  const day1 = prog.meta.days[0], day2 = prog.meta.days[1];
+  const first = prog.exercises.find(e => e.day === day1);
+
+  /* Log the same exercise on two earlier dates, then open a third. */
+  const logOn = (date, load) => {
+    app.selectDate(date); app.selectDay(day1);
+    const c = logCardNode();
+    const inputs = setInputs(c);
+    type(inputs[0], load); type(inputs[1], "5");
+    actionBtn(c, /^Log set|^Log final/).onclick();
+  };
+  logOn("2026-05-04", "100");
+  logOn("2026-05-11", "105");
+  app.selectDate("2026-05-18");
+
+  is(app.sessionsOn("2026-05-11").length, 1, "a stored session is indexed on its date");
+  is(app.sessionsOn("2026-05-11")[0].day, day1, "with the day it was logged against");
+  is(app.sessionsOn("2026-05-13").length, 0, "a date with nothing stored resolves to nothing");
+
+  const last = app.lastLoggedFor(first, "2026-05-18");
+  is(last && last.date, "2026-05-11", "'last time' is the most recent EARLIER session");
+  is(last && last.sets[0].load, "105", "and carries what was actually logged");
+  const earlier = app.lastLoggedFor(first, "2026-05-11");
+  is(earlier && earlier.date, "2026-05-04", "asking from an earlier date walks further back");
+  is(app.lastLoggedFor(first, "2026-05-04"), null,
+    "and the first session in the block has nothing before it");
+
+  /* Matching survives a re-generated programme: same names, new ids. */
+  const renamedIds = JSON.parse(JSON.stringify(prog));
+  renamedIds.exercises.forEach((e, i) => { e.id = "regen-" + i; });
+  const regen = renamedIds.exercises.find(e => e.day === day1);
+  const byName = app.lastLoggedFor(regen, "2026-05-18");
+  is(byName && byName.date, "2026-05-11",
+    "a re-generated programme still finds last time by normalised name");
+  is(app.lastLoggedFor({ id: "nope", name: "Nothing ever logged" }, "2026-05-18"), null,
+    "an exercise never logged returns nothing rather than an empty row");
+
+  /* It is a cache. Every write must drop it, or the calendar goes stale mid-block. */
+  app.selectDate("2026-05-18"); app.selectDay(day2);
+  const c = logCardNode();
+  const inputs = setInputs(c);
+  type(inputs[0], "60"); type(inputs[1], "8");
+  actionBtn(c, /^Log set|^Log final/).onclick();
+  is(app.sessionsOn("2026-05-18").length, 1,
+    "a session logged after the index was read appears immediately");
+
+  /* The demo namespace is separate storage, so it must be a separate index. */
+  app.APP.source = "sample"; app.invalidateSessionIndex();
+  is(app.sessionsOn("2026-05-11").length, 0, "sample mode never sees personal sessions");
+  app.APP.source = "personal"; app.invalidateSessionIndex();
+  is(app.sessionsOn("2026-05-11").length, 1, "and personal sessions come back");
+}
+
+console.log("\nthe rest clock's timestamp");
+{
+  const prog = loadFixture("program.v2.sample.json");
+  app.selectDay(prog.meta.days[0]);
+  is(app.getSession().lastSetAt, "", "a session with nothing logged has no last-set time");
+  const c = logCardNode();
+  const inputs = setInputs(c);
+  type(inputs[0], "100"); type(inputs[1], "5");
+  actionBtn(c, /^Log set|^Log final/).onclick();
+  const stamped = app.getSession().lastSetAt;
+  assert(/^\d{4}-\d{2}-\d{2}T/.test(stamped), "committing a set stamps lastSetAt");
+  /* Session-level on purpose: the clock is "time since you last logged anything", which
+     is what you want between exercises as well as between sets. It survives a reload
+     because it is stored, and nothing in the log path reads it back. */
+  is(app.getSession().lastSetAt, stamped, "and it is stored, so it survives a reload");
+}
+
+console.log("\nthe date view: one date, one action, and a claim picker");
+{
+  const today = app.todayISO();
+  const wd = app.weekdayOf(today);
+  const d1 = `Day 1 (${app.weekdayShort(wd)}) - Squat day`;
+  const d2 = `Day 2 (${app.weekdayShort(wd % 7 + 1)}) - Press day`;
+  store.clear(); ACTIVE_ELEMENT = null; app.SETTINGS = { ...app.SET_DEFAULTS };
+  const rows = [];
+  for(let w = 1; w <= 4; w++) for(const day of [d1, d2])
+    rows.push({ id: `w${w}${day === d1 ? "d1" : "d2"}e1`, week: w, day,
+      name: day === d1 ? "Back squat" : "Strict press", sets: "2", reps: "5",
+      load: String(90 + w * 5), rpe: "RPE 7", tempo: "", rest: "", logHint: "",
+      focus: "", progression: "" });
+  app.loadProgram({ meta: { schema: "tp-program-2", block: "Dated", athlete: "Sample",
+    athleteId: "sample", weeks: 4, days: [d1, d2] }, exercises: rows });
+  app.setView("list");
+
+  const head = () => cards().find(c => c.classList.contains("datehead"));
+  const headText = () => { const h = head(); return h ? h.text : ""; };
+  const foot = () => cards().find(c => c.classList.contains("datefoot"));
+
+  assert(!!head(), "the date view leads with the date, not with an exercise");
+  is(head().getAttribute("data-state"), "start", "…in the state the date resolves to");
+  assert(/Today/.test(headText()), "today is named as today");
+  assert(/Week 1/.test(headText()), "with the week the schedule puts it in");
+  assert(!!buttonOf(head(), /^Start session$/), "and one primary action: Start");
+  assert(!foot(), "nothing is offered to finish before anything has started");
+
+  /* The check-in is above the list and below the action, so it never gates Start. */
+  const order = cards().map(c => c.className);
+  const iHead = order.findIndex(c => /datehead/.test(c));
+  const ids = cards().map(c => c.id || "");
+  const iCheck = ids.indexOf("checkinHost");
+  const iCard = order.findIndex(c => /card ov/.test(c));
+  assert(iHead === 0, "the head is first");
+  assert(iCheck > iHead && iCheck < iCard,
+    `the check-in sits between the action and the exercise list (${JSON.stringify(order)})`);
+  assert(!head().findAll(n => n.tagName === "INPUT").length,
+    "and the head itself has no inputs on it");
+
+  /* Start writes the session, which is what makes the date a claim. */
+  buttonOf(head(), /^Start session$/).onclick();
+  is(app.SETTINGS.view, "focus", "Start drops straight into the logger");
+  app.setView("list");
+  is(head().getAttribute("data-state"), "resume", "and the date now reads as in progress");
+  assert(!!buttonOf(head(), /^Resume logging$/), "offering Resume");
+  assert(!!buttonOf(foot(), /^Finish session$/), "with Finish at the end of the list");
+
+  /* Finish seals, behind a confirmation that says what will be kept. */
+  buttonOf(foot(), /^Finish session$/).onclick();
+  assert(/0 of 1 exercises are marked done/.test(stubFor("#sheetCopy").text),
+    `the confirmation says exactly what is being recorded (got ${JSON.stringify(stubFor("#sheetCopy").text)})`);
+  sheetButton(/^Finish session$/).onclick();
+  is(head().getAttribute("data-state"), "review", "the date is now a sealed session");
+  assert(/Finished/.test(headText()), "which it says out loud");
+  assert(/not exported yet/.test(headText()), "including that the file has not been made");
+  assert(!buttonOf(head(), /Start|Resume/), "with no Start or Resume left to offer");
+  assert(!!buttonOf(head(), /^Log more$/), "but editing is still one tap away");
+
+  /* Editing a sealed session does not un-seal it. */
+  const s = app.getSession();
+  s.session.overall = "knee quiet throughout";
+  app.saveSession(s);
+  app.renderMain();
+  is(head().getAttribute("data-state"), "review", "an edit leaves the date sealed");
+
+  /* Reopen is deliberate, and behind its own confirmation. */
+  buttonOf(head(), /^Reopen day$/).onclick();
+  sheetButton(/^Reopen day$/).onclick();
+  is(head().getAttribute("data-state"), "resume", "reopening is available for a mis-tap");
+
+  /* The claim picker: week and day together, current selection preselected. */
+  buttonOf(head(), /Doing a different day\?/).onclick();
+  const sheet = stubFor("#sheetBody");
+  assert(/the schedule suggests Week 1/.test(stubFor("#sheetCopy").text),
+    "the picker says what the schedule suggests");
+  assert(/Nothing is moved/.test(stubFor("#sheetCopy").text),
+    "and that claiming moves nothing — there is no such operation");
+  const weekVal = () => sheet.findAll(n => n.classList.contains("stepval"))[0].text;
+  is(weekVal(), "Week 1", "the week starts where the date already is");
+  const dayBtns = () => sheet.findAll(n => n.classList.contains("dayitem"));
+  is(dayBtns().length, 2, "every day of the programme is offered");
+  is(dayBtns().map(b => b.getAttribute("aria-pressed")), ["true", "false"],
+    "with the day already open preselected");
+  sheet.findAll(n => n.classList.contains("stepbtn"))[1].onclick();
+  is(weekVal(), "Week 2", "the week steps");
+  dayBtns()[1].onclick();
+  is(dayBtns().map(b => b.getAttribute("aria-pressed")), ["false", "true"], "and the day picks");
+  const go = sheet.findAll(n => n.classList.contains("primary"))
+    .find(b => /^Train Week/.test(b.text));
+  is(go.text, "Train Week 2 · D2", "the confirm names both halves of the claim");
+  go.onclick();
+  is([app.STATE.week, app.STATE.day], [2, d2], "confirming claims week AND day together");
+  is(app.dayExercises().map(e => e.load), ["100"], "so the prescriptions follow the week");
+  is(app.openState(), "start", "and the new day has nothing stored yet");
+  is(app.sessionsOn(today).length, 1, "while the session already on this date is untouched");
+
+  /* A scheduled date that has passed with nothing logged stays not-done: greyed and
+     quiet, never red, never rolled forward. Move the anchor back a fortnight so there
+     are passed dates inside the block at all. */
+  app.setAnchorMonday(app.addDays(app.mondayOf(today), -14));
+  app.openDate(app.addDays(today, -7));
+  is(head().getAttribute("data-state"), "start", "a passed scheduled date is still just 'not done'");
+  assert(!!buttonOf(head(), /^Log it late$/), "and offers to be logged late");
+  assert(/days ago|Yesterday/.test(headText()), "saying how far back it is");
+  is(app.STATE.week, 2, "at the week the schedule puts that date in");
+
+  /* A rest day: no action, but the next session and the picker. */
+  app.openDate(nonTrainingDate(app, [d1, d2]));
+  is(head().getAttribute("data-state"), "rest", "an untrained weekday is a rest day");
+  assert(/Rest day/.test(headText()), "and says so");
+  assert(!buttonOf(head(), /Start|Resume|Log it late/), "with no session action at all");
+  assert(/Next session/.test(headText()), "but it points at the next one");
+  assert(!!buttonOf(head(), /Doing a different day\?/), "and the picker is still there");
+  assert(!checkinCard(), "a rest day has no check-in to fill");
+  assert(!foot(), "and nothing to finish");
+}
+
+console.log("\nexport records that the session left the phone");
+{
+  const prog = loadFixture("program.v2.sample.json");
+  const c = logCardNode();
+  const inputs = setInputs(c);
+  type(inputs[0], "100"); type(inputs[1], "5");
+  actionBtn(c, /^Log set|^Log final/).onclick();
+  is(app.getSession().exportedAt, "", "a session that has never been exported says so");
+
+  app.exportSession();
+  const at = app.getSession().exportedAt;
+  assert(/^\d{4}-\d{2}-\d{2}T/.test(at), "a successful export stamps exportedAt");
+  assert(!app.editedSinceExport(app.getSession()), "and is not itself an edit");
+
+  /* Copy JSON is the fallback when the download fails, and also how the JSON gets
+     looked at — neither is a file on disk, so it claims nothing. */
+  const s = app.getSession();
+  s.session.overall = "second look";
+  app.saveSession(s);
+  assert(app.editedSinceExport(app.getSession()), "a later edit marks the file stale");
+  app.setView("list");
+  assert(/edited since export/.test(cards().find(c => c.classList.contains("datehead")).text) ||
+         app.openState() !== "review",
+    "which the date view says while the session is sealed");
+  app.sealSession();
+  app.renderMain();
+  assert(/edited since export/.test(cards().find(c => c.classList.contains("datehead")).text),
+    "…and does say, once it is");
+}
+
+console.log("\nthe hub: today first, the last few sessions, rows to everything else");
+{
+  const today = app.todayISO();
+  const wd = app.weekdayOf(today);
+  const d1 = `Day 1 (${app.weekdayShort(wd)}) - Squat day`;
+  const d2 = `Day 2 (${app.weekdayShort(wd % 7 + 1)}) - Press day`;
+  store.clear(); ACTIVE_ELEMENT = null; app.SETTINGS = { ...app.SET_DEFAULTS };
+  const rows = [];
+  for(let w = 1; w <= 4; w++) for(const day of [d1, d2])
+    rows.push({ id: `w${w}${day === d1 ? "d1" : "d2"}e1`, week: w, day,
+      name: day === d1 ? "Back squat" : "Strict press", sets: "2", reps: "5",
+      load: String(90 + w * 5), rpe: "RPE 7", tempo: "", rest: "", logHint: "",
+      focus: "", progression: "" });
+  app.loadProgram({ meta: { schema: "tp-program-2", block: "Hub block", athlete: "Sample",
+    athleteId: "sample", weeks: 4, days: [d1, d2] }, exercises: rows });
+
+  const home = () => { app.renderHome(); return stubFor("#homeBody"); };
+  const homeText = () => home().text;
+  const homeBtn = re => home().findAll(n => n.tagName === "BUTTON").find(b => re.test(b.text));
+  const rowTitles = () => home().findAll(n => n.classList.contains("hr-title")).map(n => n.text);
+
+  assert(/Hub block/.test(homeText()), "the hub names the block it is for");
+  assert(/Today/.test(homeText()), "and always shows today, never the next thing");
+  assert(/Week 1/.test(homeText()), "with what is on today");
+  assert(!!homeBtn(/^Start session$/), "one primary action: Start");
+  is(rowTitles().slice(-3), ["Calendar", "Programme", "Account"],
+    "and one row each to the calendar, the programme and the account");
+  /* Sync state is a line inside Account, never a badge here. */
+  assert(!/queued|conflict|Syncing/.test(homeText()),
+    "no sync badge competes with today's session for attention");
+
+  /* Start from the hub lands on that date's own view. */
+  homeBtn(/^Start session$/).onclick();
+  is(app.APP.route, "date", "the hub's primary action opens the date");
+  is(app.STATE.date, today, "…which is today");
+  app.startSession();
+  const c = logCardNode();
+  const inputs = setInputs(c);
+  type(inputs[0], "97.5"); type(inputs[1], "5");
+  actionBtn(c, /^Log set|^Log final/).onclick();
+  assert(/Resume/.test(homeText()), "an open session turns the hub's action into Resume");
+  assert(/1 of 1 done|0 of 1 done/.test(homeText()), "with how far through it is");
+
+  app.sealSession();
+  assert(!!homeBtn(/^Review$/), "a sealed session turns it into Review");
+
+  /* Recent sessions appear inline, newest first, and never include today. */
+  const s1 = "tp_sess_v1::" + app.addDays(today, -7) + "::" + d1;
+  const s2 = "tp_sess_v1::" + app.addDays(today, -14) + "::" + d2;
+  const s3 = "tp_sess_v1::" + app.addDays(today, -21) + "::" + d1;
+  const body = (date, day, week, status) => JSON.stringify({ block: "Hub block",
+    athlete: "Sample", week, day, date, status,
+    session: {}, entries: { [`w${week}${day === d1 ? "d1" : "d2"}e1`]:
+      { done: true, sets: [{ set: 1, load: "100", reps: "5", rpe: "7", painDuring: "", note: "" }] } } });
+  store.set(s1, body(app.addDays(today, -7), d1, 3, "sealed"));
+  store.set(s2, body(app.addDays(today, -14), d2, 2, "open"));
+  store.set(s3, body(app.addDays(today, -21), d1, 1, "sealed"));
+  app.invalidateSessionIndex();
+  const recent = app.recentSessions(3, today).map(r => r.date);
+  is(recent, [app.addDays(today, -7), app.addDays(today, -14), app.addDays(today, -21)],
+    "the last three sessions are newest first");
+  assert(!recent.includes(today), "and never repeat the date the hub already shows");
+  assert(/Recent/.test(homeText()), "they are inline on the hub, not a destination");
+  const recentRow = home().findAll(n => n.classList.contains("homerow"))
+    .find(b => new RegExp(app.fmtDateLong(app.addDays(today, -7)).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).test(b.text));
+  assert(!!recentRow, "each is a row you can open");
+  recentRow.onclick();
+  is(app.STATE.date, app.addDays(today, -7), "which opens that date");
+  is(app.STATE.week, 3, "at the week it was claimed for");
+
+  /* A rest day: no action, but the next session and the missed one behind. */
+  const restProgram = { meta: { schema: "tp-program-2", block: "Rest block",
+    athlete: "Sample", athleteId: "sample", weeks: 4, days: [d2] },
+    exercises: [{ id: "w1d2e1", week: 1, day: d2, name: "Press", sets: "2", reps: "5",
+      load: "60", rpe: "RPE 7", tempo: "", rest: "", logHint: "", focus: "", progression: "" }] };
+  store.clear(); app.loadProgram(restProgram);
+  app.setAnchorMonday(app.addDays(app.mondayOf(today), -7));
+  is(app.dateStateOf(today).kind, "rest", "today is a rest day for this programme");
+  assert(/Rest day/.test(homeText()), "the hub says so");
+  assert(!homeBtn(/^Start session$|^Resume$|^Review$/), "with no session action");
+  assert(/Next session/.test(homeText()), "but points at the next one");
+  const missed = app.lastMissed(today);
+  assert(!!missed, "and finds the scheduled day just behind, unlogged");
+  assert(!!homeBtn(/^Log .* late$/), "offering to log it late");
+  homeBtn(/^Log .* late$/).onclick();
+  is(app.STATE.date, missed.date, "which opens that date");
+
+  /* Once the last scheduled day HAS been trained, nothing is offered — a missed date
+     stays quiet, and this is an offer rather than a list of accusations. */
+  app.startSession();
+  is(app.lastMissed(today), null, "a trained last-scheduled-day silences the offer");
+
+  /* No programme is a state, not an error. */
+  app.PROGRAM = null; app.refreshSchedule(); app.invalidateSessionIndex();
+  assert(/No programme loaded/.test(homeText()), "no programme is an honest hub state");
+  assert(!!homeBtn(/^Import a programme$/), "with the one action that fixes it");
+}
+
+console.log("\nthe calendar: every date resolves to exactly one state");
+{
+  const today = app.todayISO();
+  const wd = app.weekdayOf(today);
+  const d1 = `Day 1 (${app.weekdayShort(wd)}) - Squat day`;
+  store.clear(); ACTIVE_ELEMENT = null; app.SETTINGS = { ...app.SET_DEFAULTS };
+  app.loadProgram({ meta: { schema: "tp-program-2", block: "Cal", athlete: "Sample",
+    athleteId: "sample", weeks: 3, days: [d1] },
+    exercises: [1, 2, 3].map(w => ({ id: `w${w}d1e1`, week: w, day: d1, name: "Back squat",
+      sets: "2", reps: "5", load: "100", rpe: "RPE 7", tempo: "", rest: "", logHint: "",
+      focus: "", progression: "" })) });
+
+  /* Sessions already in localStorage — written by an older build, with no status and no
+     new keys — must appear on their correct dates with NO migration. This is the whole
+     justification for keeping the existing tp_sess_v1::<date>::<day> key. */
+  const oldDate = app.addDays(today, -7);
+  store.set(`tp_sess_v1::${oldDate}::${d1}`, JSON.stringify({ block: "Cal", athlete: "Sample",
+    week: 2, day: d1, date: oldDate, session: { amPainOnWaking: "5" },
+    entries: { w2d1e1: { done: true, load: "100", reps: "5", rpe: "7", painDuring: "1",
+      notes: "", sets: [{ set: 1, load: "100", reps: "5", rpe: "7", painDuring: "1", note: "" }] } } }));
+  app.invalidateSessionIndex();
+  is(app.sessionsOn(oldDate).length, 1, "a pre-existing session is found on its own date");
+  is(app.calendarMark(oldDate), "part", "and marked as logged but not finished");
+
+  is(app.calendarMark(today), "scheduled", "a scheduled date with nothing on it is 'scheduled'");
+  is(app.calendarMark(app.addDays(today, 1)), "none", "an untrained weekday has no mark");
+  app.gotoDate(today, "calendar");
+  app.startSession();
+  is(app.calendarMark(today), "claimed", "a started session with nothing logged is 'claimed'");
+  const c = logCardNode();
+  const inputs = setInputs(c);
+  type(inputs[0], "100"); type(inputs[1], "5");
+  actionBtn(c, /^Log set|^Log final/).onclick();
+  is(app.calendarMark(today), "part", "logging turns it into 'part'");
+  app.sealSession();
+  is(app.calendarMark(today), "sealed", "and finishing into 'sealed'");
+  is(app.calendarMark(app.addDays(today, -400)), "none", "a date far outside the block is plain");
+
+  /* Exactly one state, for every date in a two-month sweep. */
+  const seen = new Set();
+  let bad = null;
+  for(let i = -30; i <= 30; i++){
+    const iso = app.addDays(today, i);
+    const mark = app.calendarMark(iso);
+    seen.add(mark);
+    if(!["sealed", "part", "claimed", "scheduled", "none"].includes(mark)) bad = iso + " -> " + mark;
+    const kind = app.dateStateOf(iso).kind;
+    if(!["noprogram", "rest", "start", "resume", "review"].includes(kind))
+      bad = bad || iso + " -> " + kind;
+  }
+  is(bad, null, "every date over two months resolves to one known state");
+  assert(seen.has("scheduled") && seen.has("none") && seen.has("sealed"),
+    `and the sweep actually covers several of them (${[...seen].join(", ")})`);
+
+  /* The pain tick is gated on the athlete tracking it at all: no mark, and no legend
+     entry, for someone who doesn't — not a greyed one. */
+  is(app.calendarPain(oldDate), 5, "a pain-on-waking reading above zero shows on the calendar");
+  app.SETTINGS.painOnWaking = false;
+  is(app.calendarPain(oldDate), 0, "an athlete who does not track it sees no mark");
+  const legendOff = app.calendarLegend().text;
+  app.SETTINGS.painOnWaking = true;
+  const legendOn = app.calendarLegend().text;
+  assert(/on waking/.test(legendOn) && !/on waking/.test(legendOff),
+    "…and no legend entry either");
+
+  /* The calendar renders, covers the block plus a week either side, and the week labels
+     name the block's weeks. */
+  app.renderCalendar();
+  const page = stubFor("#pageBody");
+  const cells = page.findAll(n => n.classList.contains("cal-cell"));
+  const weeks = page.findAll(n => n.classList.contains("cal-week")).map(n => n.text);
+  assert(cells.length >= 35, `the calendar is a continuous scroll of weeks (${cells.length} cells)`);
+  is(cells.length % 7, 0, "always whole weeks");
+  assert(weeks.includes("W1") && weeks.includes("W3"), "labelled W1–Wn across the block");
+  assert(weeks.includes("·"), "with dates outside the block still present but plain");
+  is(page.findAll(n => n.classList.contains("cal-dow")).map(n => n.text),
+    ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], "one column per weekday, Monday first");
+  const todayCells = cells.filter(n => n.getAttribute("data-today") === "true");
+  is(todayCells.length, 1, "exactly one cell is today");
+  todayCells[0].onclick();
+  is([app.APP.route, app.STATE.date, app.APP.from], ["date", today, "calendar"],
+    "tapping a date opens it, and remembers it came from the calendar");
+  app.backFromDate();
+  is(app.APP.route, "calendar", "so back returns to the calendar rather than the hub");
+}
+
+console.log("\nrouting: five surfaces, one place that decides");
+{
+  const seen = {};
+  ["entry", "home", "calendar", "date", "programme", "account"].forEach(route => {
+    app.showRoute(route);
+    seen[route] = {
+      entry: !stubFor("#profileView").hidden, home: !stubFor("#homeView").hidden,
+      page: !stubFor("#pageView").hidden, date: !stubFor("#workoutView").hidden
+    };
+  });
+  is(seen.entry, { entry: true, home: false, page: false, date: false }, "the gate stands alone");
+  is(seen.home, { entry: false, home: true, page: false, date: false }, "so does the hub");
+  is(seen.calendar, { entry: false, home: false, page: true, date: false },
+    "the calendar shares the page chrome");
+  is(seen.programme, { entry: false, home: false, page: true, date: false }, "so does Programme");
+  is(seen.account, { entry: false, home: false, page: true, date: false }, "and Account");
+  is(seen.date, { entry: false, home: false, page: false, date: true }, "and the date view is its own");
+  app.showRoute("nonsense");
+  is(app.APP.route, "entry", "an unknown route falls back to the gate rather than showing nothing");
+  app.showRoute("date");
+  is(app.APP.surface, "workout", "the older `surface` question still answers correctly");
+  app.showRoute("home");
+  is(app.APP.surface, "profile", "…in both directions");
+}
+
+console.log("\nthe focus logger: the instruments, and the regressions this can reintroduce");
+{
+  const prog = loadFixture("program.v2.sample.json");
+  const exs = app.dayExercises();
+  const first = exs[0];
+
+  /* ---- the reported regressions, first, because this phase can bring each one back ---- */
+  const c = logCardNode();
+  const inputs = setInputs(c);
+  const rpe = c.findAll(n => n.classList.contains("pickerbtn"))[0];
+  assert(!!rpe, "RPE is still a picker, not a keyboard field");
+  /* Typing a full 7.5 through the picker must not move focus or rebuild the row. */
+  ACTIVE_ELEMENT = inputs[0];
+  inputs[0].value = "100"; inputs[0].oninput();
+  is(ACTIVE_ELEMENT, inputs[0], "an oninput never moves focus off the field it fired from");
+  is(setInputs(exCards()[0])[0], inputs[0],
+    "and never replaces the input node — the old focus-loss bug");
+  chooseRpe(c, 7.5);
+  is(app.getSession().entries[first.id].draft.rpe, "7.5",
+    "a half-point RPE is stored exactly as picked");
+
+  /* metricOf() still drives the reps field: a 45-second hold must not get a digits-only
+     keypad, and the label has to say what the number means. */
+  const holdEx = { name: "Spanish squat isometric", sets: "3", reps: "45 sec" };
+  is(app.metricOf(holdEx).fieldLabel, "Hold (s)", "a 45-second hold is a Hold, in seconds");
+  is(app.metricOf(holdEx).placeholder, "45", "with the prescription as its placeholder");
+  is(app.metricOf({ reps: "8-10 min" }).fieldLabel, "Time (min)", "a warm-up is minutes");
+  is(app.metricOf({ reps: "20 m" }).fieldLabel, "Dist (m)", "a sled drag is metres");
+  is(app.metricOf({ reps: "5 cleans + 15 cal bike" }).inputmode, "text",
+    "and prose gets a full keyboard, never a numeric keypad");
+  const holdCard = (() => {
+    loadSynthetic([{ name: "Spanish squat isometric", sets: "3", reps: "45 sec" }]);
+    return logCardNode();
+  })();
+  const holdInput = setInputs(holdCard)[1];
+  is(holdInput.getAttribute("inputmode"), "decimal",
+    "the rendered field opens a keyboard that can type a decimal, not a digits-only pad");
+  is(holdInput.getAttribute("placeholder"), "45", "…with the prescribed hold in it");
+
+  /* ---- the rest clock ---- */
   loadFixture("program.v2.sample.json");
-  is(JSON.parse(store.get("tp_pos_v1")).week, 1, "importing a programme resets the saved week");
-  refresh();
-  is(app.STATE.week, 1, "so a refresh straight after an import stays at week 1");
+  is(app.parseRestSeconds({ rest: "90 sec" }), 90, "a rest in seconds is read as seconds");
+  is(app.parseRestSeconds({ rest: "2.5-3 min" }), 150,
+    "a range takes its lower bound — the mark is 'you may go', not 'you must wait'");
+  is(app.parseRestSeconds({ rest: "EMOM / 90 sec" }), 90, "and prose around it is ignored");
+  is(app.parseRestSeconds({ rest: "~90 sec between rounds" }), 90, "…in either direction");
+  is(app.parseRestSeconds({ rest: "1 min easy between" }), 60, "minutes too");
+  /* A unit is REQUIRED: guessing at a bare number would read 90 as an hour and a half. */
+  is(app.parseRestSeconds({ rest: "90" }), 0, "a bare number is never guessed at");
+  is(app.parseRestSeconds({ rest: "-" }), 0, "and prose simply leaves the clock unmarked");
+  is(app.parseRestSeconds({ rest: "Included" }), 0, "…as does 'Included'");
+  is(app.parseRestSeconds({}), 0, "…and a missing rest");
 
-  /* v1 has no per-week rows, but the athlete still moves through weeks against the
-     progression banner, so the selection has to stick there too. */
-  loadFixture("program.sample.json");
-  app.selectWeek(5);
-  refresh();
-  is(app.STATE.week, 5, "a v1 programme restores its week as well");
+  is(app.restSeconds({ lastSetAt: "" }), null,
+    "with nothing logged there is no rest to show — not zero");
+  is(app.restSeconds({ lastSetAt: "not a date" }), null, "corrupt storage shows nothing");
+  const t0 = Date.parse("2026-05-04T10:00:00.000Z");
+  is(app.restSeconds({ lastSetAt: "2026-05-04T10:00:00.000Z" }, t0 + 95000), 95,
+    "otherwise it is exactly now minus lastSetAt");
+  is(app.fmtClock(95), "1:35", "shown as minutes and seconds");
+  is(app.fmtClock(0), "0:00", "including the moment a set lands");
+  is(app.fmtClock(605), "10:05", "and past ten minutes");
 
-  /* Date is deliberately NOT restored — it keys the stored session, so reopening the app
-     the next morning must open a new day, not yesterday's file. */
-  app.selectDate("2020-01-01");
-  is(JSON.parse(store.get("tp_pos_v1")).week, 5, "changing the date leaves the position alone");
-  assert(!/2020-01-01/.test(store.get("tp_pos_v1")), "and the date itself is never persisted");
+  /* It is stored, so it survives a reload, a backgrounded tab and a killed PWA — there
+     is no timer state to lose. */
+  const card = logCardNode();
+  const ins = setInputs(card);
+  type(ins[0], "100"); type(ins[1], "5");
+  actionBtn(card, /^Log set|^Log final/).onclick();
+  const stamped = app.getSession().lastSetAt;
+  assert(/^\d{4}-\d{2}-\d{2}T/.test(stamped), "committing a set stamps the clock's origin");
+  const clock = exCards()[0].findAll(n => n.classList.contains("restclock"))[0];
+  assert(!!clock, "the logger shows a rest clock");
+  assert(!clock.hidden, "…once something has been logged");
+  assert(/^\d+:\d{2}$/.test(clock.findAll(n => n.classList.contains("rc-value"))[0].text),
+    "reading as a clock");
+  /* Reload: fresh STATE, same storage. The clock comes back because it is derived. */
+  app.STATE = { week: app.STATE.week, day: app.STATE.day, date: app.STATE.date,
+    focus: 0, setEdit: null };
+  app.invalidateSessionIndex();
+  is(app.getSession().lastSetAt, stamped, "and it is still there after a reload");
+  /* Nothing in the log path reads it, so it can never interfere with logging. The
+     payload's own `exportedAt` is stamped at build time, so it is the one key that
+     legitimately differs between two builds. */
+  const payload = () => { const p = app.buildSessionExport(); delete p.exportedAt;
+    return JSON.stringify(p); };
+  const before = payload();
+  app.getSession();
+  is(payload(), before, "and it never reaches an export or changes one");
+  assert(!/lastSetAt|sealedAt|editedAt|"status"/.test(before),
+    "…nor do any of the other lifecycle fields");
+
+  /* ---- "last time" ---- */
+  /* Its own programme, with a genuinely multi-set exercise: the fixture's day 1 opens
+     with a one-set warm-up, and one commit there finishes the exercise and advances. */
+  const day1 = "Day 1 (Mon) - Squat day";
+  store.clear(); app.SETTINGS = { ...app.SET_DEFAULTS };
+  app.loadProgram({ meta: { schema: "tp-program-2", block: "Last time", athlete: "Sample",
+    athleteId: "sample", weeks: 2, days: [day1] },
+    exercises: [1, 2].map(w => ({ id: `w${w}d1e1`, week: w, day: day1, name: "Back squat",
+      sets: "4", reps: "5", load: "100", rpe: "RPE 7", tempo: "", rest: "2-3 min",
+      logHint: "", focus: "", progression: "" })) });
+  app.openDate("2026-06-01"); app.applyClaim(1, day1);
+  const log = (load, reps) => { const k = logCardNode(); const i = setInputs(k);
+    type(i[0], load); type(i[1], reps);
+    actionBtn(k, /^Log set|^Log final/).onclick(); };
+  log("100", "5"); log("105", "5");
+  app.openDate("2026-06-08"); app.applyClaim(1, day1);
+  const lt = () => { const k = logCardNode();
+    return k.findAll(n => n.classList.contains("lasttime"))[0]; };
+  const line = lt();
+  assert(!!line, "the logger shows what was lifted last time");
+  assert(/Set 1 last time/.test(line.text), "matched to the set about to be logged");
+  assert(/100/.test(line.text), "with that set's actual load");
+  assert(/days ago|yesterday|weeks ago/.test(line.text), "and how long ago it was");
+  /* Not a target: it must not borrow the colour that means "logged". */
+  const value = line.findAll(n => n.classList.contains("lt-value"))[0];
+  assert(!!value && !/good|accent/.test(String(value.className)),
+    "and it is not coloured as a target — it is a fact about the past");
+  /* Set 2 of this session reads set 2 of last time. */
+  log("100", "5");
+  assert(/Set 2 last time/.test(lt().text), "the second set reads the second set last time");
+  assert(/105/.test(lt().text), "…with the load that set actually carried");
+  /* Past the end of last time's sets, it falls back to the top set. */
+  log("100", "5"); log("100", "5");
+  assert(/Top set last time/.test(lt().text),
+    "past the end of last time's sets it falls back to the top set");
+  assert(/105/.test(lt().text), "which is the heaviest one, not the last one");
+  /* Silent rather than empty when there is nothing to compare against. */
+  app.openDate("2026-05-01"); app.applyClaim(1, day1);
+  is(lt(), undefined, "an exercise with nothing before it prints no row at all");
+  is(app.agoWords(0), "today", "…");
+  is([app.agoWords(1), app.agoWords(6), app.agoWords(21), app.agoWords(120)],
+    ["yesterday", "6 days ago", "3 weeks ago", "4 months ago"],
+    "how long ago is worded at the scale it matters");
+
+  /* ---- a typed-but-unlogged set still reaches sets[] ---- */
+  /* Two exercises, so Next has somewhere to go. */
+  const twoDay = "Day 1 (Mon) - Two lifts";
+  const twoProgram = { meta: { schema: "tp-program-2", block: "Flush", athlete: "Sample",
+    athleteId: "sample", weeks: 2, days: [twoDay] },
+    exercises: [1, 2].flatMap(w => ["Back squat", "Strict press"].map((name, i) => ({
+      id: `w${w}d1e${i + 1}`, week: w, day: twoDay, name, sets: "4", reps: "5",
+      load: "100", rpe: "RPE 7", tempo: "", rest: "2 min", logHint: "", focus: "",
+      progression: "" }))) };
+  const paths = {};
+  const setup = () => {
+    store.clear(); app.SETTINGS = { ...app.SET_DEFAULTS };
+    app.loadProgram(twoProgram);
+    app.openDate("2026-07-06"); app.applyClaim(1, twoDay);
+    const k = logCardNode(); const i = setInputs(k);
+    type(i[0], "123"); type(i[1], "7");
+    return k;
+  };
+  const loads = () => app.buildSessionExport().entries[0].sets.map(r => r.load);
+  setup(); endExercise(exCards()[0]);
+  paths.finish = loads();
+  setup(); app.stepFocus(1);
+  paths.next = loads();
+  setup(); app.openDate("2026-07-07");
+  app.openDate("2026-07-06"); app.applyClaim(1, twoDay);
+  paths.dateChange = loads();
+  setup(); app.applyClaim(2, twoDay); app.applyClaim(1, twoDay);
+  paths.weekChange = loads();
+  setup(); app.setView("list");
+  paths.viewChange = loads();
+  is(paths, { finish: ["123"], next: ["123"], dateChange: ["123"], weekChange: ["123"],
+    viewChange: ["123"] },
+    "a typed-but-unlogged set reaches sets[] on Finish, Next, a date change, a week change and a view change");
+}
+
+console.log("\ncircuits keep all five kinds and three modes, in their own composition");
+{
+  /* Losing a mode would be a downgrade dressed as a simplification. */
+  const kinds = {
+    rounds: app.circuitOf({ sets: "4 rounds" }),
+    amrap: app.circuitOf({ sets: "12 min AMRAP" }),
+    emom: app.circuitOf({ sets: "10 min EMOM" }),
+    fortime: app.circuitOf({ sets: "For time" }),
+    ladder: app.circuitOf({ sets: "21-15-9" })
+  };
+  is(Object.keys(kinds).filter(k => kinds[k] && kinds[k].kind).length, 5,
+    "all five circuit kinds are still recognised");
+  is(kinds.rounds.kind, "rounds", "…rounds");
+  is(kinds.amrap.kind, "amrap", "…AMRAP");
+  is(kinds.emom.kind, "emom", "…EMOM");
+  is(kinds.fortime.kind, "fortime", "…for time");
+  /* "3 rounds for time" is deliberately still ROUNDS — it has a round count to tick off —
+     but it defaults to the final-result mode, because the time is the answer. */
+  const roundsForTime = app.circuitOf({ sets: "3 rounds for time" });
+  is([roundsForTime.kind, roundsForTime.defaultMode, roundsForTime.target],
+    ["rounds", "final", 3], "…and rounds-for-time is rounds with a final result");
+  is(kinds.ladder.kind, "ladder", "…and a ladder");
+  is([app.circuitModeName("quick"), app.circuitModeName("details"), app.circuitModeName("final")],
+    ["Quick rounds", "Round details", "Final result"], "and all three modes are named");
+
+  loadSynthetic([{ name: "MetCon", sets: "4 rounds",
+    reps: "5 TnG power cleans + 15/12 cal bike", logHint: "Round splits" }]);
+  const card = logCardNode();
+  const counter = card.findAll(n => n.classList.contains("roundcount"))[0];
+  assert(!!counter, "a circuit gets a large round counter, not a three-numeral readout");
+  is(counter.findAll(n => n.classList.contains("rn-value"))[0].text, "0/4",
+    "reading rounds done against rounds prescribed");
+  assert(!card.findAll(n => n.classList.contains("setgrid")).length,
+    "and none of the strength row's fields, two of which would be meaningless");
+  const done = buttonOf(card, /Complete round|Complete final/);
+  assert(!!done, "with one large tap per completed round");
+  done.onclick();
+  const after = exCards()[0].findAll(n => n.classList.contains("rn-value"))[0].text;
+  is(after, "1/4", "and the counter follows");
+  /* The rest clock is just as useful between rounds as between sets. */
+  assert(!!exCards()[0].findAll(n => n.classList.contains("restclock"))[0],
+    "a circuit still has the rest clock");
+  assert(/^\d{4}/.test(app.getSession().lastSetAt), "which a completed round stamps");
+}
+
+console.log("\ntwo settings scopes: what follows the account, and what stays on the phone");
+{
+  /* Which optional fields you track and what you call them are about WHO YOU ARE, so
+     they follow the account. Appearance is about WHERE YOU ARE STANDING, so it does not.
+     Getting a key into the wrong scope is the quiet failure this guards. */
+  is(app.ACCOUNT_KEYS.slice().sort(),
+    ["bodyweight", "hrvNote", "painLabel", "painOnWaking", "painPerExercise", "readiness", "sleep"],
+    "the tracked fields and the pain label follow the account");
+  is(app.DEVICE_KEYS.slice().sort(), ["mode", "palette", "sv", "view"],
+    "appearance and which view the app opens on stay on the device");
+  app.DEVICE_KEYS.forEach(key =>
+    assert(!app.accountScoped(key), `${key} is device-scoped`));
+  app.ACCOUNT_KEYS.forEach(key =>
+    assert(app.accountScoped(key), `${key} is account-scoped`));
+
+  store.clear();
+  app.SETTINGS = { ...app.SET_DEFAULTS };
+  app.ACCOUNT_SETTINGS = { values: {}, at: {} };
+
+  /* A device write goes to the device record only, with no timestamp — there is nothing
+     to resolve, because it never leaves this phone. */
+  app.setSetting("palette", "b");
+  is(JSON.parse(store.get("tp_settings_v1")).palette, "b", "a device setting is stored locally");
+  assert(!("palette" in JSON.parse(store.get("tp_account_settings_v1") || '{"values":{}}').values),
+    "and never reaches the account record");
+
+  /* An account write is stamped, because the conflict rule is per-field last-write-wins. */
+  app.setSetting("painOnWaking", false);
+  const account = JSON.parse(store.get("tp_account_settings_v1"));
+  is(account.values.painOnWaking, false, "an account setting is stored in the account record");
+  assert(/^\d{4}-\d{2}-\d{2}T/.test(account.at.painOnWaking),
+    "with the timestamp last-write-wins needs");
+  assert(!("painOnWaking" in JSON.parse(store.get("tp_settings_v1"))),
+    "and is stripped from the device record, so a stale copy cannot confuse a reader");
+
+  /* A reload rebuilds the one read model from both halves. */
+  app.SETTINGS = { ...app.SET_DEFAULTS };
+  app.loadSettings();
+  is(app.SETTINGS.palette, "b", "a reload restores the device half");
+  is(app.SETTINGS.painOnWaking, false, "…and the account half");
+  is(app.SETTINGS.readiness, true, "with defaults for anything never set");
+
+  /* An install that predates the split has its tracked fields in the DEVICE record.
+     They move across with the athlete's real values rather than reverting to defaults. */
+  store.clear();
+  store.set("tp_settings_v1", JSON.stringify({ palette: "b", mode: "light", view: "focus",
+    sv: 1, painOnWaking: false, painLabel: "Achilles", sleep: false }));
+  app.SETTINGS = { ...app.SET_DEFAULTS };
+  app.ACCOUNT_SETTINGS = { values: {}, at: {} };
+  app.loadSettings();
+  is([app.SETTINGS.painOnWaking, app.SETTINGS.painLabel, app.SETTINGS.sleep],
+    [false, "Achilles", false], "an older install keeps its tracked-field choices");
+  const moved = JSON.parse(store.get("tp_account_settings_v1"));
+  is(moved.values.painLabel, "Achilles", "…by being moved into the account record");
+  assert(/^\d{4}-\d{2}-\d{2}T/.test(moved.at.painLabel),
+    "and stamped, because a migration is a write like any other");
+  is([app.SETTINGS.palette, app.SETTINGS.mode], ["b", "light"],
+    "while appearance stays exactly where it was");
+
+  /* A merged record arriving from another device is adopted, not ignored. */
+  app.adoptAccountSettings({ values: { painOnWaking: true, painLabel: "Knee" },
+    at: { painOnWaking: "2030-01-01T00:00:00.000Z", painLabel: "2030-01-01T00:00:00.000Z" } });
+  is([app.SETTINGS.painOnWaking, app.SETTINGS.painLabel], [true, "Knee"],
+    "a record from another device reaches the read model");
+  is(app.SETTINGS.palette, "b", "without disturbing this device's appearance");
+  /* A field the incoming record does not mention falls back to its default rather than
+     keeping a stale value from the record it replaced. */
+  app.adoptAccountSettings({ values: {}, at: {} });
+  is(app.SETTINGS.painLabel, app.SET_DEFAULTS.painLabel,
+    "and a field the account has never set reads as its default");
+
+  store.clear(); app.SETTINGS = { ...app.SET_DEFAULTS };
+  app.ACCOUNT_SETTINGS = { values: {}, at: {} };
+}
+
+console.log("\nnothing renders a tracked field that is switched off");
+{
+  const today = app.todayISO();
+  const wd = app.weekdayOf(today);
+  const day = `Day 1 (${app.weekdayShort(wd)}) - Squat day`;
+  store.clear(); app.SETTINGS = { ...app.SET_DEFAULTS };
+  app.ACCOUNT_SETTINGS = { values: {}, at: {} };
+  app.loadProgram({ meta: { schema: "tp-program-2", block: "Fields", athlete: "Sample",
+    athleteId: "sample", weeks: 1, days: [day] },
+    exercises: [{ id: "w1d1e1", week: 1, day, name: "Back squat", sets: "2", reps: "5",
+      load: "100", rpe: "RPE 7", tempo: "", rest: "2 min",
+      logHint: "Top load; knee pain during", focus: "", progression: "" }] });
+  app.applyClaim(1, day);
+  const s = app.getSession();
+  s.session.amPainOnWaking = "5";
+  app.saveSession(s);
+
+  /* On: the check-in column, the logger's own 0–10 row, the calendar mark and its legend
+     entry all exist, and every one of them uses the athlete's word for it. */
+  app.setSetting("painLabel", "Achilles");
+  /* The check-in only renders on the date view, so ask for it there — logCardNode()
+     below switches to the logger. */
+  app.setView("list");
+  assert(labelsIn(checkinCard()).some(t => /Achilles pain on waking/.test(t)),
+    "the check-in uses the athlete's own label");
+  assert(labelsIn(logCardNode()).includes("Achilles"),
+    "so does the logger's per-set row");
+  assert(/achilles pain/.test(app.statusLine({}, { done: true, painDuring: "2",
+    sets: [{ load: "100", reps: "5", rpe: "7", painDuring: "2", note: "" }] })),
+    "and the Overview summary line");
+  assert(/achilles/i.test(app.calendarLegend().text), "and the calendar legend");
+  is(app.calendarPain(today), 5, "with a mark on the date it was read");
+
+  /* Off: no column, no row, no mark, no legend entry — not a greyed one. */
+  app.setSetting("painOnWaking", false);
+  app.setView("list");
+  assert(!labelsIn(checkinCard()).some(t => /on waking/.test(t)),
+    "switching it off removes the check-in column entirely");
+  is(app.calendarPain(today), 0, "and the calendar mark");
+  assert(!/on waking/i.test(app.calendarLegend().text), "and its legend entry");
+  is(app.getSession().session.amPainOnWaking, "5",
+    "…while the reading already logged is never deleted");
+
+  app.setSetting("painPerExercise", false);
+  assert(!labelsIn(logCardNode()).includes("Achilles"),
+    "switching off per-exercise pain removes the logger's row");
+  const out = app.buildSessionExport();
+  is([out.tracking.painOnWaking, out.tracking.painPerExercise], [false, false],
+    "and the export says which fields this athlete does not collect");
+  is(out.tracking.painLabel, "Achilles", "along with what they call them");
+
+  app.setSetting("painOnWaking", true);
+  app.setSetting("painPerExercise", true);
+  app.setSetting("painLabel", "Knee");
 }
 
 console.log(failures ? `\n${failures} FAILED\n` : "\nall passed\n");
