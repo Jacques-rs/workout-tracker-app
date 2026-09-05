@@ -59,6 +59,25 @@ EX_PROSE = ["sets", "reps", "load", "rpe", "tempo", "rest",
 
 KNOWN_SCHEMAS = ("tp-program-1", "tp-program-2")
 
+# The category vocabulary the app resolves, slots plus aliases. An unrecognised
+# value still renders - it gets a derived colour and is shown verbatim - but it
+# resolves to no slot, and `tendon` is the slot painAsked() reads to accent the
+# pain field and nudge on Finish. So an invented word for prehab work silently
+# switches that off. Contract owner: docs/data-contracts.md.
+CATEGORY_SLOTS = ("warmup", "tendon", "skill", "strength", "cond", "accessory",
+                  "cooldown")
+CATEGORY_ALIASES = ("metcon", "conditioning", "aerobic", "cardio", "prehab",
+                    "rehab", "isometric", "warm-up", "prep", "cool-down",
+                    "mobility", "technique", "olympic", "lift", "main",
+                    "auxiliary", "core")
+KNOWN_CATEGORIES = set(CATEGORY_SLOTS) | set(CATEGORY_ALIASES)
+
+
+def category_known(value):
+    """Mirror the app's catOf() normalisation: case, spaces and underscores."""
+    k = re.sub(r"[\s_]+", "-", str(value).strip().lower())
+    return k in KNOWN_CATEGORIES or k.replace("-", "") in KNOWN_CATEGORIES
+
 
 class Report:
     """Collected problems for one file. Errors block; warnings inform."""
@@ -237,6 +256,16 @@ def _check_exercises(rep, exercises, days, v2):
         if not str(e.get("load", "")).strip() and not str(e.get("reps", "")).strip():
             rep.warn(f"{where}: neither 'load' nor 'reps' is set")
 
+        cat = e.get("category")
+        if "category" in e and not isinstance(cat, str):
+            rep.error(f"{where}: 'category' must be a string, got {cat!r}")
+        elif isinstance(cat, str) and cat.strip() and not category_known(cat):
+            rep.warn(f"{where}: category {cat.strip()!r} is not one of "
+                     f"{', '.join(CATEGORY_SLOTS)} (or their aliases). It will "
+                     "render, but it resolves to no slot - so prehab/tendon work "
+                     "named this way loses the accented pain field and the "
+                     "Finish nudge")
+
         sets_val = e.get("sets")
         if isinstance(sets_val, str) and sets_val.strip() and not re.search(r"\d", sets_val):
             # The tracker logs one set at a time and reads `sets` to decide how many
@@ -252,10 +281,19 @@ def _check_exercises(rep, exercises, days, v2):
                for e in exercises if isinstance(e, dict)):
         rep.warn("no exercise has a 'logHint'; the blue 'Log:' line is what "
                  "tells the athlete which data the coach actually needs")
-    if not any("category" in e for e in exercises if isinstance(e, dict)):
+    rows = [e for e in exercises if isinstance(e, dict)]
+    declared = [e for e in rows if str(e.get("category", "")).strip()]
+    if not declared:
         rep.warn("no exercise declares 'category'; the app will guess from the "
-                 "exercise name and show no tag where it cannot. Harmless, but "
-                 "declaring it beats inferring it")
+                 "exercise name and leave the rail neutral where it cannot. "
+                 "Harmless, but declaring it beats inferring it")
+    elif len(declared) != len(rows):
+        # Half-declared is worse than none: the undeclared rows fall back to the
+        # keyword guess, so one day's rail mixes declared and inferred colours
+        # and the reason is invisible in the file.
+        rep.warn(f"{len(declared)} of {len(rows)} exercises declare 'category'; "
+                 "the rest fall back to the name guess. Declare it on all of "
+                 "them or none")
 
 
 def _check_week_coverage(rep, exercises, meta, days, allow_partial=False):

@@ -81,7 +81,7 @@ strict. Do not move the strictness into the app.
 | `exercises[].sets`, `reps`, `load`, `rpe`, `tempo`, `rest` | **string** | skill | Renders empty. **Never numbers** — they hold ranges and prose (`"8-10 min"`, `"~115-135 kg"`). |
 | `exercises[].logHint` | string | skill | No blue "Log:" line. |
 | `exercises[].focus`, `progression` | string | skill | Section collapsed/absent. |
-| `exercises[].category` | string | skill | Guessed from `name`; no tag if nothing matches. Purely presentational — nothing filters or gates on it. |
+| `exercises[].category` | string | skill | Guessed from `name`; neutral rail if nothing matches. Colours the rail, and `tendon` additionally makes the app ask for a pain reading — see below. |
 
 ## `tp-session-*` — required
 
@@ -180,12 +180,15 @@ every prescription — never assume one parses numerically.
 | `logHint` | Comes from the spreadsheet's "Completed Notes" column. It tells the athlete which data actually matters for this movement, and the app now **parses it** rather than just printing it: split on semicolons into a row of `Capture` chips (four at most), and scanned for pain cues (`pain`, `sore`, `stiff`, `response`, a named joint…) to decide which exercises get an accented pain field and a one-off nudge on Finish. Nothing is ever *hidden* on the strength of it. Semicolons are therefore load-bearing punctuation — `"Top load; RPE-1; knee pain during + next AM"` reads as three instructions, and a `+` inside one stays part of it. Empty string for warm-ups. |
 | `focus` | Coaching cues (spreadsheet "Focus / Notes"). Collapsed by default. |
 | `progression` | Spreadsheet "Progression Rule". **Meaning changed in v2:** it is now *rationale* — why this week's prescription differs from last week's, plus the hold/stop gate. In v1 it was an instruction the athlete had to execute. Collapsed by default either way. |
-| `category` | **Optional.** Drives the coloured left rail and the tag on each exercise card. Not currently emitted by `program-builder` — see below. |
+| `category` | **Optional.** Drives the coloured left rail, and `tendon` gates the pain ask. Emitted by `program-builder` from the `Category` column of `rows.json` — see below. |
 
 ### Optional: `exercises[].category`
 
-Purely presentational — it groups a day visually (skill vs strength vs conditioning) so the
-card list is scannable. **The app never filters, reorders or gates anything on it.**
+Mostly presentational: it colours each card's left rail so a day is scannable (skill vs
+strength vs conditioning). Nothing filters, reorders or hides on it — but **it is not inert.**
+`painAsked()` treats the `tendon` slot as pain-relevant, so a declared `tendon` (or an alias:
+`prehab`, `rehab`, `isometric`) accents the pain field and nudges once on Finish **even when the
+exercise has no `logHint` saying so.** That is the one behaviour a wrong category changes.
 
 Recognised values, each with a fixed *slot* whose colour comes from the active theme
 (`--cat-*`): `warmup`, `tendon`, `skill`, `strength`,
@@ -198,18 +201,20 @@ Recognised values, each with a fixed *slot* whose colour comes from the active t
 generator does not currently emit the field at all:
 
 1. **Declared and recognised** → that category's label + colour.
-2. **Declared but unrecognised** (e.g. `"Grip work"`) → the string is shown verbatim as the
-   tag, with a colour derived deterministically from it. A generator can invent its own
-   vocabulary without the UI breaking or falling back to grey.
+2. **Declared but unrecognised** (e.g. `"Grip work"`) → a colour derived deterministically
+   from the string. A generator can invent its own vocabulary without the UI breaking or
+   falling back to grey — but an invented word resolves to no slot, so prehab work named that
+   way loses the pain ask above. `validate_program.py` warns on one for exactly that reason.
 3. **Absent** → guessed from keywords in `exercises[].name`. Ordered, so skill lifts win
    before the EMOM/interval rule (`Hang power clean (EMOM every 90s)` is skill, not
    conditioning).
-4. **Absent and no keyword matches** → **no tag at all**, neutral rail. The app never
-   asserts a category it had to invent.
+4. **Absent and no keyword matches** → neutral rail, no colour. The app never asserts a
+   category it had to invent.
 
-Because step 3 is a guess, adding a real `category` to the generator is the honest fix — it
-would replace inference with declaration for every exercise. That is a `program-builder`
-change; until then step 3/4 carry the UI and are correct on the current sample programme.
+Step 3 is a guess, so declaring beats inferring: `program-builder` emits the field from the
+`Category` column, and its validator warns when a file declares one on some exercises and not
+others — the undeclared rows then fall back to the guess, and nothing in the file says why.
+The bundled samples deliberately declare none, because they are what exercises steps 3 and 4.
 
 ### Day label format
 
@@ -239,7 +244,7 @@ python3 samples/validatortest.py     # fixtures pass; every known breakage is re
 | | |
 |---|---|
 | **ERROR** (exit 1, blocks the write) | The app will visibly do the wrong thing: a missing required field, a wrong type, a `day` not in `meta.days`, duplicate ids, a v2 week with no rows. |
-| **WARNING** (printed, never fatal) | Plausibly deliberate but usually an authoring slip: a week missing one day, no `logHint` anywhere, no `category` declared, a v1 file, an `exercises[].sets` with no digit in it. |
+| **WARNING** (printed, never fatal) | Plausibly deliberate but usually an authoring slip: a week missing one day, no `logHint` anywhere, a category declared on only some exercises or spelled outside the recognised vocabulary, a v1 file, an `exercises[].sets` with no digit in it. |
 
 Note the division of labour with `rows_common.load_rows`, which validates the builder's
 **input**. They answer different questions, and the second cannot be folded into the first: a
@@ -537,22 +542,15 @@ against `meta.version`.
 
 ### Consumer expectations (the review step)
 
-The coach reads the newest `athlete/<slug>/logs/*.json` and compares logged load/reps/RPE against `prescribed`, checks `painDuring` and the morning pain field against the pain-monitoring rules, reads `readiness`/`sleep` for the autoregulation call, and then recommends the smallest effective adjustment. Keep that in mind before dropping any field. That step is the `review-workout-log` skill in `athlete/skills/` — its `SKILL.md` is the authoritative description of how these files are read.
+The coach reads the newest `athlete/<slug>/logs/*.json` and compares logged load/reps/RPE against `prescribed`, checks `painDuring` and the morning pain field against the pain-monitoring rules, reads `readiness`/`sleep` for the autoregulation call, and then recommends the smallest effective adjustment. **Keep that in mind before dropping any field** — that is the reason this section exists.
 
-**Read `schema` first**, then `tracking`, then the entries.
+**Read `schema` first**, then `tracking`, then the entries. Everything a reader needs to do that
+is above: the two tables, "Per-set logging", "Circuit logging", "Morning pain" and
+"`programVersion`".
 
-- `schema` tells you which fields exist. `tp-session-1`, `-2` and `-3` must all be readable; a
-  block spans the boundaries. v1 has no `sets[]`; v1 and v2 have `amPainNextDay` rather than
-  `amPainOnWaking`, and the two describe **different mornings**.
-- **`tracking`**: if `painPerExercise` / `painOnWaking` (or `painNextMorning` on an older file)
-  are `false`, the pain-monitoring rules simply don't apply to that athlete — absent pain data is
-  a configuration choice, not a missing log or a clean week.
-- **`programVersion`** against the current `meta.version` answers "did they train off this
-  programme?" in one comparison. On a v1/v2 log the field is absent — fall back to diffing
-  `prescribed`.
-- Review the athlete whose folder the file is in. `athleteId` (v2) confirms it; a file that
-  landed in the wrong folder is a filing mistake, not a licence to apply another athlete's
-  loading rules.
+What to *do* with those facts — the order of the review, which deviations are findings, how an
+adjustment is sized and gated — belongs to the `review-workout-log` skill in `athlete/skills/`,
+not here. This document owns the shape of the file; the skill owns the procedure.
 
 ## Account portability file (`tp-account-export-1`)
 

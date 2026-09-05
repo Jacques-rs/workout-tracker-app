@@ -1,13 +1,15 @@
 ---
 name: review-workout-log
-description: Use when an athlete or coach wants a logged training session reviewed and the upcoming week adjusted. Reads the newest exported session log (tp-session-1, -2 or -3) for that athlete, compares every logged load/reps/RPE/pain against the prescription for that exact week and day, applies the pain-monitoring and readiness rules from the profile and phase map, and proposes the smallest effective adjustment plus pre-authorised conditional rules the athlete can apply alone at the gym. Stops at an approval gate; only on approval does it revise program.json, snapshot the old revision and bump the version. Triggers on "review my last session", "here's my log", "how did that session go", "what do we do next", "adjust the programme".
+description: Use when an athlete or coach wants a logged training session reviewed and the upcoming week adjusted. Reads the newest exported session log (tp-session-1, -2 or -3) for that athlete, compares every logged load/reps/RPE/pain against the prescription for that exact week and day, applies the pain-monitoring and readiness rules from the profile and phase map, and proposes the smallest effective adjustment plus pre-authorised conditional rules the athlete can apply alone at the gym. Stops at an approval gate; only on approval does it revise program.json, snapshot the old revision and bump the version. Do NOT use this to scope a new block — that is the program-planner skill — or to write a programme from an approved plan, which is program-builder. Triggers on "review my last session", "here's my log", "how did that session go", "what do we do next", "adjust the programme".
 ---
 
 # Review Workout Log
 
 The third step of the coaching loop: **plan** (`program-planner`) → **build** (`program-builder`) → **train** (the tracker PWA) → **review** (this skill).
 
-Reviewing used to happen ad hoc in chat, and the adjustments never made it back into `program.json` — so the app kept showing the original prescription while the coaching advice lived in a chat scrollback the athlete could not read under a barbell. This skill closes that loop: the review ends in an actual revised week, a version bump, and a changelog entry that records **why**.
+A review that ends in chat has not been delivered: the app goes on showing the original
+prescription, and the advice sits in a scrollback the athlete cannot read under a barbell. So a
+review ends in an actual revised week, a version bump, and a changelog entry recording **why**.
 
 ## When NOT to use
 - No log file yet — the athlete has trained but not exported. Ask them to export from the app and save it into `athlete/<slug>/logs/`.
@@ -21,26 +23,19 @@ Reviewing used to happen ad hoc in chat, and the adjustments never made it back 
 2. **Smallest effective change.** One bad session is not a reason to redesign a block. If nothing needs to change, say so plainly — "as written, no change" is a valid and common outcome.
 3. **Never restructure an existing programme folder.** Work with the layout you find (see "The block folder").
 4. **Snapshot before overwrite.** A revision that loses the superseded version has destroyed the record the next block's planning depends on. Use `scripts/snapshot_revision.py`; it refuses to clobber an existing snapshot.
-5. **Read the athlete whose folder the log is in.** Never apply one athlete's loading rules to another's log.
-
-## Which athlete
-
-Everything lives under `athlete/<slug>/` — `personal-profile.md`, `plans/`, `programs/`, `logs/`. Establish the athlete **before reading anything**: from the request, or from the folder the log file sits in. If more than one folder exists under `athlete/` and the request is ambiguous, ask. `athleteId` (present from `tp-session-2` on) confirms which athlete it belongs to; a file that landed in the wrong folder is a filing mistake, not a licence to review it against another person's rules.
+5. **Read the athlete whose folder the log is in**, established **before opening any file** —
+   from the request, or from the folder the log sits in. Never apply one athlete's loading rules
+   to another's log. Procedure, and what `athleteId` does and does not settle:
+   `athlete/README.md`.
 
 ## The block folder
 
-**The block folder is the directory containing the active `program.json`.** Everything for that block — `rows.json`, the `.xlsx`, the phase map, `revisions/`, `CHANGELOG.md` — lives beside it.
+**The block folder is the directory containing the active `program.json`**, and everything for
+that block lives beside it. Two layouts exist and both work — `athlete/README.md` has them, and
+hard rule 3 above says to leave the one you find alone.
 
-That definition is deliberate, because two layouts exist in the wild:
-
-```
-programs/program.json                     flat: the block folder IS programs/
-programs/<block-slug>/program.json        nested: the block folder is the subfolder
-```
-
-Both work. **Prefer nested for a new block** — a flat `programs/` can only hold one `program.json`, so a second block collides. Do not migrate an existing flat block to get there; a block folder that moves mid-block breaks every path in the chat history and the athlete's own mental model. Let the next block start nested.
-
-If a folder holds more than one `program.json`, ask which block is active rather than guessing by modification time.
+The case that matters here: **if a folder holds more than one `program.json`, ask which block is
+active.** Do not guess by modification time.
 
 ## Process
 
@@ -55,37 +50,48 @@ If a folder holds more than one `program.json`, ask which block is active rather
 
 ### 2. Read the log correctly
 
-**Read `schema` first, then `tracking`, then the entries.** Full field-by-field detail is in `docs/data-contracts.md`; the traps that actually cause misreadings:
+**Read `schema` first, then `tracking`, then the entries.** The file's *shape* — every version's
+fields, `sets[]` and circuit semantics, the morning-pain tables — is owned by
+`docs/data-contracts.md`; read it if anything below is unfamiliar. What follows is only the
+handful of readings that change a **conclusion**.
 
-- **`tp-session-1`, `-2` and `-3` must all be readable.** A block spans the version boundaries. v1 has no `sets[]`; v1 and v2 have `amPainNextDay` instead of `amPainOnWaking` and no `programVersion`.
-- **`programVersion` vs the current `meta.version`** answers "did they train off this programme?" in one comparison. If it is lower, the athlete never re-imported after a revision — read every deviation below against what their app actually showed them, and say so before drawing conclusions. `0` or absent means the log predates the field; fall back to diffing `prescribed`.
-- **For ordinary exercises, `sets[]` wins when non-empty.** It is strictly more information. **Do not average it into one load** — the shape of a session (100 → 80 → 80) *is* the signal. Fall back to the flat fields when `sets` is `[]` or absent.
-- **Circuits are the exception.** A quick or detailed circuit uses each `sets[]` row as one completed round; `reps: "As prescribed"` explicitly means the full movement list in `prescribed.reps` was completed for that round. The flat `reps` complements those rows with the final round count, time, or partial work, so read both. AMRAP, EMOM, for-time work and ladders can be logged in Final result mode with `sets: []` and the outcome in the flat fields — that is trained work, not an empty entry.
-- **The flat `load`/`reps`/`rpe` are the athlete's own headline, auto-filled from `sets[]` as each set is confirmed but always editable.** When they disagree with `sets[]`, that is usually a deliberate correction rather than an independent judgement call — worth naming in the review, not just accepted silently.
-- **RPE can carry a half point** (`"7.5"`). It is still a string field; parse as a float if you parse it at all.
-- **`tracking` disambiguates an empty value.** `painDuring: ""` with `tracking.painPerExercise: true` means *no pain logged this time*; with `false` it means *this athlete does not track pain at all*, and the pain-monitoring rules simply do not apply. Absent pain data is not a clean week. A missing `tracking` key (older files) means treat everything as true.
-- **`done: false` entries are data.** `entries` covers every exercise for the day including untouched ones. What was skipped is often the most informative part of the log.
-- **Everything the athlete typed is a string**, ranges and prose included ("60/70/80 kg", "8-10 min"). Never assume a prescription or a logged value parses numerically.
-- **`prescribed` is denormalised into each entry.** It is the fallback stale-revision check for logs with no `programVersion`: if it does not match the current `program.json` for that week and day, **the athlete trained off an older revision**. Either way, say so before drawing any conclusion from a deviation — you may be reading an athlete who followed their instructions perfectly.
+- **First, did they train off this programme?** Compare the log's `programVersion` against the
+  current `meta.version`. On a v1/v2 log the field does not exist — diff the denormalised
+  `prescribed` for that week and day instead. If it is behind, every deviation below has to be
+  read against what their app actually showed them, and you must say so before concluding
+  anything: you may be reading an athlete who followed their instructions perfectly.
+- **Never average `sets[]`.** For ordinary exercises it wins whenever it is non-empty, because
+  the *shape* of a session (100 → 80 → 80) is the signal. Circuits are the exception — round
+  rows and the flat final result are complementary, so read both, and `sets: []` on an AMRAP or
+  for-time piece is a logged outcome, not an empty entry.
+- **A flat field disagreeing with `sets[]` is usually a deliberate correction**, not a bug. Name
+  it in the review rather than silently preferring one.
+- **`tracking` decides what an empty value means.** `painDuring: ""` with
+  `tracking.painPerExercise: true` means *no pain logged this time*; with `false` the athlete
+  does not track pain at all and the pain-monitoring rules simply do not apply. Absent pain data
+  is never a clean week. A missing `tracking` key (older files) means treat everything as true.
+- **`done: false` entries are data.** `entries` covers every exercise for the day, including
+  untouched ones. What was skipped is often the most informative part of the file.
+- **Nothing parses.** Every logged and prescribed value is a string — ranges, prose, and an RPE
+  that may carry a half point (`"7.5"`). Read the unit off `prescribed.reps`.
 
 #### Morning pain — read the date gap, not just the number
 
-For a tendon block this is the single most important number in the file, and it is the one most easily misread, because **the field changed meaning at `tp-session-3`**:
+For a tendon block this is the most important number in the file, and the easiest to misread,
+because **the field changed meaning at `tp-session-3`**: v3's `session.amPainOnWaking` describes
+**this** morning — the response to the **previous** session — while v1/v2's `amPainNextDay`
+describes the morning after **this** one. Prefer `amPainOnWaking`, fall back to `amPainNextDay`,
+and **never merge them into one series without shifting the older one by a day**: a chart that
+ignores the flip shows a tendon improving while it is getting worse.
 
-| schema | field | describes |
-|---|---|---|
-| `tp-session-3` | `session.amPainOnWaking` | this morning, i.e. the response to the **previous** session |
-| `tp-session-1`, `-2` | `session.amPainNextDay` | the morning after **this** session |
+On a v3 log, attribute by **days since the previous log for that athlete**. Exactly one day is
+the 24h response to that session, and the decision-grade reading. More than one day is a current
+**baseline** that no single exposure explains — nobody was asked on the morning that mattered —
+so use it for the week-over-week trend, not to judge one session. No previous log is baseline
+only. **Say which one you are doing.**
 
-Prefer `amPainOnWaking` when present, fall back to `amPainNextDay`, and **never merge the two into one series without shifting the older one by a day** — they describe different mornings, and a chart that ignores that will show a tendon improving when it is getting worse.
-
-For a v3 log, attribute by **days since the previous log for that athlete**:
-
-- **1 day** → the 24h response to that session. This is the decision-grade reading.
-- **More than 1 day** → a current **baseline**, not attributable to any one exposure; rest days mean nobody was asked on the morning that mattered. Use it for the week-over-week trend, not to judge a single session. Say which one you are doing.
-- **No previous log** → baseline only.
-
-Check `tracking.painOnWaking` (or `painNextMorning` on an older file) before reading an empty value as zero.
+Check `tracking.painOnWaking` (or `painNextMorning` on an older file) before reading an empty
+value as zero.
 
 ### 3. Compare against the prescription, explicitly
 
@@ -134,27 +140,30 @@ In this order. The snapshot comes first because it is the step that cannot be un
 
 1. **Snapshot the current revision.**
    ```bash
-   python3 <skills>/review-workout-log/scripts/snapshot_revision.py \
+   python3 athlete/skills/review-workout-log/scripts/snapshot_revision.py \
      --program athlete/<slug>/programs/<block>/program.json \
      --changed "W5 Day 1: front squat -> low-bar primary; sled held at 80 kg" \
      --reason  "Sharp 6/10 knee pain on the W4 sled progression; front squat depth cued it"
    ```
    This copies `program.json` (and `rows.json` if it is beside it) into `revisions/` as `program-v<N>.json`, appends the `CHANGELOG.md` entry, and prints the next version number. It refuses to overwrite an existing snapshot — if it does, the previous revision was never rebuilt and you should stop and work out why.
 
-2. **Edit `rows.json`** — the affected weeks only. `rows.json` is the single source both outputs are built from; editing `program.json` directly guarantees it drifts from the workbook. Put the conditional rules from step 6 into the `Progression Rule` cells.
+2. **Edit `rows.json`** — the affected weeks only. `rows.json` is the single source both outputs
+   are built from; editing `program.json` directly guarantees it drifts from the workbook. Put
+   the conditional rules from step 6 into the `Progression Rule` cells. Rows are 14 fields wide
+   (`Category` last); a block authored before that column is 13 and loads fine, but a row you
+   edit should come back the width it went in.
 
-3. **Rebuild both outputs from the edited `rows.json`**, passing the version the script printed:
+3. **Rebuild both outputs from the edited `rows.json`.** `snapshot_revision.py` printed the exact
+   `build_program_json.py` command, with this block's name, athlete, week count and the next
+   version already filled in from `meta` — **use it** rather than retyping the arguments. Then
+   rebuild the workbook from the same file:
    ```bash
-   python3 <skills>/program-builder/scripts/build_program_json.py \
-     --input  athlete/<slug>/programs/<block>/rows.json \
-     --output athlete/<slug>/programs/<block>/program.json \
-     --block "<Block name>" --athlete "<Display Name>" --weeks <n> --version <next>
-
-   python3 <skills>/program-builder/scripts/build_xlsx.py \
+   python3 athlete/skills/program-builder/scripts/build_xlsx.py \
      --input  athlete/<slug>/programs/<block>/rows.json \
      --output "athlete/<slug>/programs/<block>/<Block name> - Programme.xlsx"
    ```
-   Rebuild **both**. A workbook that disagrees with `program.json` is the exact failure `rows_common.py` exists to prevent.
+   Rebuild **both**. A workbook that disagrees with `program.json` is the exact failure
+   `rows_common.py` exists to prevent.
 
 4. **Check the changelog entry reads as an explanation**, not a diff. The "why" is what makes the next block's planning better; "W5 load reduced" tells a future reader nothing.
 
@@ -164,13 +173,13 @@ In this order. The snapshot comes first because it is the step that cannot be un
 
 | | |
 |---|---|
-| `meta.version` | Integer in `program.json`. `1` on the initial build, +1 per revision. Optional and ignored by the app — it exists so a snapshot, a changelog entry and a file can be lined up. A programme with no `version` predates this convention; treat it as v1. |
+| `meta.version` | Integer in `program.json`. `1` on the initial build, +1 per revision. Optional; nothing about rendering depends on it. It exists so a snapshot, a changelog entry and a file line up. A programme with no `version` predates the convention — treat it as v1 for snapshotting, though the app shows nothing rather than claim a number it cannot know. |
 | `revisions/program-v<N>.json` | The superseded programme, byte-for-byte. Its own date is in `meta.generated`. |
 | `revisions/rows-v<N>.json` | The rows it was built from, so a past revision's workbook can be rebuilt. Written only if `rows.json` sits beside `program.json`. |
 | `CHANGELOG.md` | One entry per revision, in the block folder: date, version, **what changed**, and **why**. Newest first. |
-| Re-import | Manual, by the athlete, after every revision. The app has no version display and no prompt — see `docs/roadmap.md`. |
+| Re-import | Manual, by the athlete, after every revision. The app shows `· v<N>` beside the block name but has **no prompt** to fetch a new one, so nothing tells them to. |
 
-`tp-session-3` logs carry `programVersion`, so a log states which revision it was trained off; the app also shows `v<N>` next to the block name. Older logs don't — for those, compare the denormalised `prescribed` against the current `program.json` instead.
+`tp-session-3` logs carry `programVersion`, so a log states which revision it was trained off. Older logs don't — for those, compare the denormalised `prescribed` against the current `program.json` instead.
 
 ## Output
 
@@ -178,22 +187,25 @@ A single chat response, structured as `reference/review-output-template.md`. No 
 
 ## Verification checklist (before presenting the review)
 
-- The right athlete's profile was read, and the rules applied are from **that** profile.
-- The prescription compared against is the one for the **logged week and day**, not week 1.
-- `programVersion` matches the current `meta.version` (or `prescribed` matches, on an older log) — or the mismatch is called out first.
-- The morning pain reading was attributed by **date gap**, and the right field was read for the log's schema.
-- `tracking` was checked before interpreting any empty pain field.
-- Ordinary `sets[]` rows were used where present and not averaged; circuit rows and the flat final result were read together.
-- Skipped exercises (`done: false`) are accounted for.
+- The **right athlete's** profile was read, and every rule applied comes from *that* profile.
+- The prescription compared against is the one for the **logged week and day** — and either
+  `programVersion` matches the current `meta.version` (or `prescribed` matches, on an older log),
+  or the mismatch is called out before any deviation is interpreted.
+- The morning pain reading was attributed **by date gap**, the right field was read for the log's
+  schema, and `tracking` was checked before any empty pain value was read as a zero.
+- The entries were read as written: `sets[]` used where present and never averaged, circuit rows
+  and the flat final result read together, and `done: false` exercises accounted for.
 - The pain trend is assessed **across weeks**, not from this session alone.
 - Every proposed change names its reason, and one variable moves per exercise.
-- Every "it depends how you feel" is written as a bounded conditional rule with every branch authorised.
-- The response ends at an approval gate and states that nothing has been written.
+- Every "it depends how you feel" is a bounded conditional rule with **every branch authorised**,
+  and it is written where the app will show it.
+- The response ends at an approval gate and says that nothing has been written.
 
-After approval, additionally:
+After approval, the scripts carry most of it — `snapshot_revision.py` refuses to clobber an
+existing snapshot, and `build_program_json.py` refuses a programme with a missing week. Exit 0
+from both is the check. What they cannot tell you:
 
-- `snapshot_revision.py` exited 0 and the snapshot exists.
-- `build_program_json.py` exited 0 **without** `--allow-partial-weeks`, and its "Rows per week" line still shows every week of the block.
-- The workbook was rebuilt from the same `rows.json`.
-- `CHANGELOG.md` has the new entry, with a why.
-- The last line of the response tells the athlete to re-import.
+- The **workbook** was rebuilt too, from the same `rows.json`.
+- The `CHANGELOG.md` entry reads as an **explanation**, not a diff. "W5 load reduced" tells the
+  next block's planning nothing.
+- The **last line** of the response tells the athlete to re-import.

@@ -3,6 +3,8 @@
 *Date: <YYYY-MM-DD> · Status: DRAFT FOR REVIEW*
 
 > Fill each section from established facts (cite the athlete profile where a fact came from it) and from the answers to any gap questions. Mark anything inferred as an assumption. Do not include exercises, sets, reps, or loads here — this doc is decisions and structure only.
+>
+> **`program-builder` reads this doc and not the profile.** Sections 1, 3 and 7 therefore carry durable facts forward *in full* rather than pointing at `personal-profile.md` — that is a deliberate copy into the builder's single input, not a second home for the fact. Sections 2, 4, 5, 6 and 8 are decided fresh for this block.
 
 ## 1. Athlete Snapshot
 Age, bodyweight, archetype, training age, relevant strength baselines, technical proficiencies. Note the source of each fact (profile vs. newly asked).
@@ -21,7 +23,9 @@ Age, bodyweight, archetype, training age, relevant strength baselines, technical
 ## 4. Proposed Structure
 - **Training days:** (which days) · **Sessions/week:** · **Session time cap:**
 - **Session roles:** what each training day prioritises.
-- **Block length:** and the **loading / deload rhythm**, with a one-line justification (do NOT default to 3+1 — justify from training age, goal, fatigue cost, symptoms, recovery history, events).
+- **Block length in weeks:** the number of weeks that will actually be **built**, including a transition week if one is needed. This is what `program-builder` passes to `--weeks` and validates every week against.
+- **Consecutive loading weeks on arrival:** the number, and its source (counted from the previous block's files, or the athlete's account). **How the block opens as a result** — see "Week 1 is not week 1" in `SKILL.md`. If a transition week is needed it is authored as Week 1 and everything below is numbered from there.
+- **Loading / deload rhythm**, with a one-line justification (do NOT default to 3+1 — justify from training age, goal, fatigue cost, symptoms, recovery history, events).
 
 ## 5. Conditioning & Modality Plan
 Energy-system emphasis and the impact-appropriate modalities to be used (and any modalities to avoid). Keep aligned with the injury constraints and footprint.

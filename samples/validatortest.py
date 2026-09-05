@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
-validatortest.py - tests for the tp-program-* contract validator.
+validatortest.py - tests for the program-builder's two contracts: the rows.json
+it reads and the program.json it emits.
 
 apptest.js proves the app reads a good programme correctly. This proves the
-builder refuses to emit a bad one. Both fixtures are exercised, and every case
+builder refuses to emit a bad one, and still reads the rows files already on
+disk. Both fixtures are exercised, and every case
 below is a real failure mode that reached the app at some point or would have.
 
 The negative cases matter more than the positive ones: a validator that passes
@@ -17,10 +19,13 @@ import copy
 import json
 import os
 import sys
+import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "athlete", "skills", "program-builder",
                                 "scripts"))
+import rows_common  # noqa: E402
+from build_program_json import build  # noqa: E402
 from validate_program import validate, validate_file  # noqa: E402
 
 failures = []
@@ -66,6 +71,47 @@ _no_digit["exercises"][0]["sets"] = "AMRAP"
 rep = validate(_no_digit, "fixture")
 check("a 'sets' value with no digit warns, not errors",
       not rep.errors and any("no digit" in w for w in rep.warnings))
+
+
+# --- category: declared, guessed, or invented -------------------------------
+# The app resolves an unrecognised category to no slot. It still renders, so this
+# can never be an error - but `tendon` is the slot painAsked() reads, so prehab
+# work named something invented loses its accented pain field silently.
+_odd_cat = copy.deepcopy(base)
+_odd_cat["exercises"][0]["category"] = "Grip work"
+rep = validate(_odd_cat, "fixture")
+check("an unrecognised category warns, not errors",
+      not rep.errors and any("resolves to no slot" in w for w in rep.warnings))
+
+for good in ("tendon", "Prehab", "warm up", "METCON"):
+    _ok_cat = copy.deepcopy(base)
+    for e in _ok_cat["exercises"]:
+        e["category"] = good
+    rep = validate(_ok_cat, "fixture")
+    check(f"accepts category {good!r} in the app's own spelling rules",
+          not any("resolves to no slot" in w for w in rep.warnings))
+
+# Half-declared is the slip worth catching: the undeclared rows fall back to the
+# name guess, so one day's rail mixes declared and inferred colours invisibly.
+_half = copy.deepcopy(base)
+_half["exercises"][0]["category"] = "strength"
+rep = validate(_half, "fixture")
+check("a partially categorised programme warns",
+      not rep.errors and any("fall back to the name guess" in w
+                             for w in rep.warnings))
+
+_all_cat = copy.deepcopy(base)
+for e in _all_cat["exercises"]:
+    e["category"] = "strength"
+rep = validate(_all_cat, "fixture")
+check("a fully categorised programme says nothing about categories",
+      not any("category" in w for w in rep.warnings))
+
+# The shipped fixtures declare none on purpose - they exercise the app's guess
+# path, which apptest.js asserts. That must read as one warning, not as noise.
+rep = validate(base, "fixture")
+check("a fixture declaring no category warns exactly once",
+      sum("category" in w for w in rep.warnings) == 1)
 
 
 def mutated(fn):
@@ -129,6 +175,8 @@ CASES = {
         lambda p: p.__setitem__("exercises", []),
     "meta missing entirely":
         lambda p: p.pop("meta"),
+    "category emitted as a number":
+        lambda p: p["exercises"][0].__setitem__("category", 3),
 }
 
 for name, fn in CASES.items():
@@ -145,6 +193,48 @@ check("allow_partial_weeks still warns about it", bool(rep.warnings))
 rep = validate(mutated(CASES["duplicate exercise id"]), "fixture",
                allow_partial_weeks=True)
 check("allow_partial_weeks does not relax anything else", bool(rep.errors))
+
+# --- rows.json: the builder's INPUT contract --------------------------------
+# Category was appended as column 14, never inserted, because every archived
+# rows.json under a block's revisions/ is 13 wide and snapshot_revision.py exists
+# so those stay rebuildable. Both widths must load, and a 13-wide row must emit
+# no `category` key at all rather than an empty one.
+_ROW13 = ["1", "Day 1 (Mon) - Strength", "Back squat", "4", "5", "100 kg",
+          "7", "", "3 min", "", "Top load; RPE-1", "Brace hard", "opener"]
+
+
+def _rows_file(rows):
+    fh = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False,
+                                     encoding="utf-8")
+    json.dump(rows, fh)
+    fh.close()
+    return fh.name
+
+
+loaded = rows_common.load_rows(_rows_file([list(_ROW13)]))
+check("a 13-field row still loads", len(loaded) == 1)
+check("...and is padded with an empty Category",
+      len(loaded[0]) == rows_common.N_COLS and loaded[0][rows_common.CATEGORY] == "")
+
+loaded14 = rows_common.load_rows(_rows_file([_ROW13 + ["strength"]]))
+check("a 14-field row loads with its Category",
+      loaded14[0][rows_common.CATEGORY] == "strength")
+
+prog = build(loaded, "B", "Test Athlete", 1, False)
+check("a 13-wide row emits no 'category' key at all",
+      "category" not in prog["exercises"][0])
+prog = build(loaded14, "B", "Test Athlete", 1, False)
+check("a 14-wide row carries its category into program.json",
+      prog["exercises"][0].get("category") == "strength")
+
+# 12 or 15 fields are still a hard error - the relaxation is exactly one column.
+for n, label in ((12, "too few"), (15, "too many")):
+    try:
+        rows_common.load_rows(_rows_file([_ROW13[:n] if n < 13
+                                          else _ROW13 + ["a", "b"]]))
+        check(f"rejects a row with {n} fields ({label})", False, "loaded anyway")
+    except SystemExit:
+        check(f"rejects a row with {n} fields ({label})", True)
 
 # --- Bad input to the validator itself --------------------------------------
 check("rejects a non-object top level", bool(validate([], "fixture").errors))

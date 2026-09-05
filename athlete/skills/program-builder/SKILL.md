@@ -1,6 +1,6 @@
 ---
 name: program-builder
-description: Use when the user asks to GENERATE, build, or write an actual training programme from an approved Program Planning Doc. Reads the approved plan plus that athlete's profile doc and any coaching sources, applies an evidence-informed coaching framework, and outputs three things — a "Programme Architecture & Phase Map" (Markdown), a colour-banded Excel workbook with one tab per week (.xlsx), and program.json for the tracker app. Authors every week of the block explicitly. Does not produce a TSV. Requires an approved plan first (from the program-planner skill). Triggers on "generate the programme", "build the block", "write the programme now", "turn the plan into the programme".
+description: Use when the user asks to GENERATE, build, or write an actual training programme from an approved Program Planning Doc. Reads the approved plan plus that athlete's profile doc and any coaching sources, applies an evidence-informed coaching framework, and outputs three things — a "Programme Architecture & Phase Map" (Markdown), a colour-banded Excel workbook with one tab per week (.xlsx), and program.json for the tracker app. Authors every week of the block explicitly, and declares each exercise's category. Requires an approved plan first (from the program-planner skill). Do NOT use this to review a logged session or revise a running block — that is the review-workout-log skill. Triggers on "generate the programme", "build the block", "write the programme now", "turn the plan into the programme".
 ---
 
 # Program Builder
@@ -12,27 +12,22 @@ An approved planning doc must exist (produced by `program-planner`). If you cann
 
 ## Which athlete
 
-Everything lives under `athlete/<slug>/` — `personal-profile.md`, `plans/`, `programs/`,
-`logs/`. Establish the athlete **before reading anything**: use the one named in the request,
-or the one whose planning doc you were pointed at. If more than one folder exists under
-`athlete/` and the request is ambiguous, ask — do not guess, and never read one athlete's
-profile while building another's programme.
-
-Write all outputs to that athlete's `programs/` folder and pass their display name to
-`--athlete`. The skill itself stays general: injury rules, pain-monitoring protocols and
-readiness hard stops come from the profile and plan you are reading, never from memory of a
-previous athlete. See `athlete/README.md`.
+Establish this **before opening any file**, and never read one athlete's profile while building
+another's programme. Write every output to that athlete's `programs/` folder and pass their
+display name to `--athlete`. Procedure: `athlete/README.md`.
 
 ## When NOT to use
 - No plan yet, or the plan is unapproved / still has open questions → use `program-planner`.
+- A block is running and a logged session should adjust it → use `review-workout-log`, which
+  revises through these same scripts and archives the superseded revision first.
 - The user only wants a small in-place edit to an existing programme → make the edit directly.
 
 ## Process
 
-1. **Read the inputs.** The approved planning doc (authoritative for all decisions), `athlete/<slug>/personal-profile.md`, any coaching source material (`athlete/sources/`), and the previous programme's notes/feedback if present.
+1. **Read the inputs.** The approved planning doc (authoritative for all decisions), `athlete/<slug>/personal-profile.md`, and the previous programme's notes/feedback if present. Reach for `athlete/sources/` only where the plan leaves a choice genuinely open — the plan already settled the programme-level decisions, and re-deriving them from the framework is how a build drifts from what was approved.
 2. **Apply the coaching framework** (see "Programming rules" below) to turn the plan into concrete training.
 3. **Author every week of the block in full** — one row per exercise per day *per week*. See "Authoring all weeks" below; this is a hard requirement, not an option.
-4. **Produce the deliverables** (see "Outputs"). No TSV.
+4. **Produce the deliverables** (see "Outputs").
 5. **Verify** against the checklist, then present the files with a concise summary and the review trigger.
 
 ## Authoring all weeks (do not shortcut this)
@@ -40,24 +35,24 @@ previous athlete. See `athlete/README.md`.
 Write Week 1 through Week N as real rows in `rows.json`. Week 4 gets its own rows with its
 own exercises, loads, reps and RPE — not a Week 1 row plus a sentence saying what to change.
 
-**Why this is a hard rule.** The tracker app renders the week the athlete selected. When only
-Week 1 existed, the app showed Week 1 prescriptions in every week and the athlete had to
-decode a progression string mid-session. That directly caused load and RPE drift — the app
-showed front squats in a week that called for low-bar. Progressions are coaching judgement;
-they belong in your output, not in the athlete's head under a loaded barbell.
+**Why this is a hard rule.** The app renders the week the athlete selected, so a week described
+only in prose is a week they train off wrong — and progressions are coaching judgement, which
+belongs in your output rather than in the athlete's head under a loaded barbell.
+`build_program_json.py` **refuses** to emit a programme with missing weeks; if it errors, author
+them. Do not reach for `--allow-partial-weeks`.
 
-`build_program_json.py` **refuses** to emit a programme with missing weeks. If it errors,
-author the missing weeks — do not reach for `--allow-partial-weeks`.
-
-**The Progression Rule column survives, but its meaning changes.** It is now *rationale*:
-why this week differs from the last, plus the hold/stop gate that would make you deviate
-("hold load if pain >5/10 or next-morning stiffness"). It is no longer an instruction the
-athlete executes. Write it in the past/declarative voice ("volume up one set; load held
-because W2 RPE ran high"), not the imperative ("W4: add 2.5 kg").
+**The Progression Rule column is therefore *rationale*, not instruction:** why this week differs
+from the last, plus the hold/stop gate that would make you deviate ("hold load if pain >5/10 or
+next-morning stiffness"). Write it declaratively ("volume up one set; load held because W2 RPE
+ran high"), never as an imperative ("W4: add 2.5 kg").
 
 Practical approach: design Week 1 properly, then walk the phase map week by week and write
 each week's rows, changing **one variable per microcycle** as the programming rules require.
 Deload weeks are authored like any other week, with their actual reduced prescription.
+
+**A transition week is an ordinary authored Week 1.** When the plan opens with one (see "Week 1
+is not week 1" in `program-planner`), it gets real rows carrying a deload's reduced prescription,
+the rest of the block shifts up by one, and `--weeks` is the **total including it**.
 
 ## Programming rules (apply every time)
 
@@ -73,7 +68,42 @@ Deload weeks are authored like any other week, with their actual reduced prescri
 - **Loading/deload rhythm comes from the plan**, not a default 3+1.
 - **Footprint:** honour the environment constraint — build conditioning that uses one station, or at most two, when in a shared commercial gym.
 
-## Outputs (three files, no TSV)
+## Writing strings the app reads
+
+Four columns are parsed by the tracker rather than just displayed, and what you write in them
+decides how fast the athlete can log with chalked hands. The full tables are in
+`docs/data-contracts.md`; these are the authoring rules.
+
+- **`Reps` picks the athlete's input field.** The app reads the unit off the prescription:
+  `"45 sec"` → `Hold (s)`, `"8-10 min"` → `Time (min)`, `"20 m"` → `Dist (m)`, `"15/12 cal"` →
+  `Work (cal)`, a plain count or range → `Reps`, anything composite → a free-text `Result`. That
+  choice sets the label, the on-screen keyboard, the placeholder and the unit on the logged
+  summary — so **write the unit form**: `"45 sec"`, not `"45s"` or `"0:45"`. `Result` is right
+  for genuinely composite work and wrong for a lift that is really N reps of one thing.
+- **`Sets` decides how many set chips materialise.** A plain integer, a plain numeric range
+  (lower bound used) or an integer followed by a word (`"4 rounds"`) gives that many; anything
+  else — `"AMRAP"`, `"1 + 3"`, a decorated range like `"8-10 min"` — collapses to a single
+  "Set 1 of 1". That is the right shape for AMRAP and interval work and an authoring slip for an
+  even-sets lift, so **prefer a plain integer** ("4", not "3-4") whenever the exercise really is
+  that many even sets: it is what makes a lift log itself in the fewest taps.
+- **`Completed Notes` is parsed, not printed.** It becomes the blue "Log:" line, split on
+  **semicolons** into at most four Capture chips — so write two to four short instructions
+  (`"Top load; RPE-1; knee pain during + next AM"`), never a sentence, and never more than four.
+  A `+` inside a clause stays part of that clause. Pain words (`pain`, `sore`, `stiff`,
+  `response`, or a named joint) accent the pain field on that exercise and nudge once if it is
+  finished without a reading; a named joint is picked up as the site. `Focus / Notes` is scanned
+  the same way, so a cue mentioning pain has the same effect.
+- **`Category` colours the card's rail, and `tendon` turns on the pain ask.** Use one of the
+  seven slots — `warmup`, `tendon`, `skill`, `strength`, `cond`, `accessory`, `cooldown` — or a
+  recognised alias (`prehab`/`rehab`/`isometric` → tendon, `metcon`/`conditioning`/`aerobic` →
+  cond, `technique`/`olympic` → skill, `main`/`lift` → strength, `core`/`auxiliary` → accessory,
+  `mobility` → cooldown). A declared `tendon` accents the pain field and nudges on Finish **even
+  with no pain cue in the notes**, so every tissue-monitoring exercise must declare it. An
+  invented word still renders, with a derived colour, but resolves to no slot and loses that
+  behaviour. Declare it on **every** row or on none: half-declared, the rest fall back to a guess
+  from the exercise name and nothing in the file says which is which. The validator warns on both.
+
+## Outputs (three files)
 
 ### 1. `<Block name> - Architecture & Phase Map.md`
 Sections in this order:
@@ -86,8 +116,8 @@ Sections in this order:
 Build it with `scripts/build_xlsx.py` so formatting is identical every time. The workbook
 gets **one tab per week** ("Week 1", "Week 2", …), split automatically from the Week column.
 
-**Columns — exactly these 13, in this order:**
-`Week | Day | Exercise | Sets | Reps | Load | Intensity (RPE) | Tempo | Rest | Completed | Completed Notes | Focus / Notes | Progression Rule`
+**Columns — exactly these 14, in this order:**
+`Week | Day | Exercise | Sets | Reps | Load | Intensity (RPE) | Tempo | Rest | Completed | Completed Notes | Focus / Notes | Progression Rule | Category`
 
 **Row rules:**
 - One row per exercise per day **per week**. Every row states its own week in column 1.
@@ -95,19 +125,21 @@ gets **one tab per week** ("Week 1", "Week 2", …), split automatically from th
   filter and the workbook's colour bands line up.
 - Leave **Completed** blank.
 - Populate **Completed Notes** only for important lifts, conditioning, and recovery-sensitive work — with the specific data that will guide later decisions (actual load, reps, RPE-1, pain during + pain on waking (captured at the *next* session's check-in), technical quality, HR/erg response, or reason for modification). Warm-ups/mobility can be blank.
-- **Focus / Notes** carries coaching cues + any footprint note. **Progression Rule** carries the *rationale* for this week's prescription plus the hold/stop gate — not instructions for future weeks, which are now authored as their own rows.
-- **Sets: prefer a plain integer** ("4", not "3-4" or "AMRAP") when the exercise really is that many even sets. The tracker logs one set at a time and materialises exactly that many chips from a plain integer; a range falls back to its lower bound and prose collapses to a single set — both are the right behaviour for AMRAP/interval work, but a plain count is what makes an even-sets lift log itself with the fewest taps.
+- **Focus / Notes** carries coaching cues + any footprint note. **Progression Rule** carries the *rationale* for this week's prescription plus the hold/stop gate — see "Authoring all weeks".
+- **Sets, Reps, Completed Notes and Category are parsed by the app** — see "Writing strings the app reads" above before filling any of them.
 - **No tabs or line breaks inside any cell.** Use `;` or `|` inside notes.
 - Every row must align with the phase map and include a clear progression or hold/stop rule.
 
-**Formatting (handled by the script):** Arial 10; dark header row (white, bold, wrapped, frozen at A2); each training day gets its own fill band with a medium top-border divider where the day changes; wrapped text on Load / Completed Notes / Focus-Notes / Progression Rule; gridlines off; sensible column widths. Day band palette: Day 1 blue `DDEBF7`, Day 2 green `E2EFDA`, Day 3 peach `FCE4D6`, Day 4 lilac `EDE7F6`, Day 5 yellow `FFF2CC`, Day 6 grey `E7E6E6` (the script extends automatically).
+**Formatting is entirely the script's** — fonts, frozen header, per-day colour bands and
+dividers, wrapping, column widths. It is identical every time and there is nothing to specify or
+match by hand; `build_xlsx.py` is where those values live.
 
 **How to run the script:** write **all** rows, every week, to a working JSON file
-(`athlete/<slug>/programs/rows.json` — internal, not a deliverable) as a list of 13-item
+(`athlete/<slug>/programs/rows.json` — internal, not a deliverable) as a list of 14-item
 lists in column order. Both scripts take absolute or relative paths; run them from wherever
 is convenient and point `--input` at that file:
 ```
-python3 <skills>/program-builder/scripts/build_xlsx.py \
+python3 athlete/skills/program-builder/scripts/build_xlsx.py \
   --input  athlete/<slug>/programs/rows.json \
   --output "athlete/<slug>/programs/<Block name> - Programme.xlsx"
 ```
@@ -118,17 +150,20 @@ order rows identically — the workbook and `program.json` cannot describe diffe
 programmes. Rejected outright: wrong column count, tabs or newlines in any cell, a Week that
 isn't a positive integer, an empty Day or Exercise. Fix the rows; do not work around it.
 
+A **13-field** row is also accepted and padded with an empty Category, so a `rows.json` archived
+under `revisions/` before that column existed still rebuilds. Write 14 for anything new.
+
 ### 3. `program.json` (feeds the phone tracker app)
 Emit the same programme as structured JSON so the athlete's tracker PWA can ingest it. Build it from the **same** `rows.json` with:
 ```
-python3 <skills>/program-builder/scripts/build_program_json.py \
+python3 athlete/skills/program-builder/scripts/build_program_json.py \
   --input  athlete/<slug>/programs/rows.json \
   --output athlete/<slug>/programs/program.json \
   --block "<Block name>" --athlete "<display name>" --weeks <n>
 ```
 `--version` defaults to `1` and should be left alone here — the initial build of a block is always v1. It is bumped only by `review-workout-log` when a week is revised mid-block.
 
-Schema (`tp-program-2`): `{ "meta": {block, athlete, athleteId, weeks, version, generated, days[], schema}, "exercises": [{id, week, day, name, sets, reps, load, rpe, tempo, rest, logHint, focus, progression}] }`, where `logHint` = the Completed Notes text (tells the app which fields to prompt for) and `athleteId` is the `athlete/<slug>/` folder name, derived from `--athlete`. Exercise ids are `w<week>d<day>e<index>` and are unique across the whole file, where `<day>` is the number in the `Day N` label (so `Day 3` is `d3`, matching its colour band in the workbook). Keep `program.json` and the `.xlsx` in sync — both come from the one `rows.json`.
+Schema (`tp-program-2`): `{ "meta": {block, athlete, athleteId, weeks, version, generated, days[], schema}, "exercises": [{id, week, day, name, sets, reps, load, rpe, tempo, rest, logHint, focus, progression, category}] }`, where `logHint` = the Completed Notes text (tells the app which fields to prompt for), `category` is omitted entirely when the Category cell is blank, and `athleteId` is the `athlete/<slug>/` folder name, derived from `--athlete`. Exercise ids are `w<week>d<day>e<index>` and are unique across the whole file, where `<day>` is the number in the `Day N` label (so `Day 3` is `d3`, matching its colour band in the workbook). Keep `program.json` and the `.xlsx` in sync — both come from the one `rows.json`.
 
 The script **exits non-zero if any week of the block has no rows.** That is the guard against
 regressing to a Week-1-only programme; fix the rows rather than overriding it.
@@ -143,7 +178,7 @@ with the rows). Errors block the write; warnings — a week missing one day, no 
 `category` — print and continue. To check a file the builder didn't just produce:
 
 ```
-python3 <skills>/program-builder/scripts/validate_program.py path/to/program.json
+python3 athlete/skills/program-builder/scripts/validate_program.py path/to/program.json
 ```
 
 The strictness lives here and **not in the app on purpose.** The app validates almost nothing
@@ -152,28 +187,38 @@ hard-fail in front of an athlete who came to train. That leniency is only safe b
 runs first. The full contract is `docs/data-contracts.md`; if you add a rule to the validator,
 add it there too.
 
-**Round-trip / review convention:** the athlete imports `program.json` into the tracker, logs a session offline, and exports `session-<date>-<day>.json` into `athlete/<slug>/logs/`. Reviewing that log is **not this skill's job** — hand off to `review-workout-log`, which compares the log against the prescription for that week and day, proposes the smallest effective adjustment behind an approval gate, and on approval edits `rows.json` and re-runs these same two scripts with a bumped `--version`. Revising through the builder is what keeps the workbook and `program.json` in step.
+**Round-trip:** the athlete imports `program.json`, logs offline, and exports
+`session-<date>-<day>.json` into `athlete/<slug>/logs/`. Reviewing that log is **not this skill's
+job** — hand off to `review-workout-log`, which revises by editing `rows.json` and re-running
+these same two scripts with a bumped `--version`. Revising through the builder is what keeps the
+workbook and `program.json` in step.
 
-Write the block folder so that is possible: put `rows.json`, `program.json`, the workbook and the phase map **together in one folder**, and prefer `programs/<block-slug>/` over a flat `programs/` for a new block — a flat folder can only hold one `program.json`. See `athlete/README.md`.
+Write the block folder so that is possible: `rows.json`, `program.json`, the workbook and the
+phase map **together in one folder**, laid out as `athlete/README.md` describes.
 
 ## Verification checklist (run before presenting)
-- **Every week of the block has its own rows.** `build_program_json.py` exited 0 without
-  `--allow-partial-weeks`, and its "Rows per week" line shows W1..Wn.
-- **The contract validator passed** — it runs automatically inside the build, so exit 0 means
-  it passed. Read any WARNING lines rather than skipping past them; each one is a plausible
-  authoring slip.
-- The workbook has one tab per week, and the day labels are identical string-for-string
-  across weeks.
-- No Progression Rule reads as a future instruction ("W4: add 2.5 kg"). They state why this
+
+**The scripts already refuse** a wrong column count, a tab or newline in any cell, a missing
+week, a day label that is not in `meta.days`, a duplicate exercise id, and a `--weeks` count that
+disagrees with the rows. Exit 0 without `--allow-partial-weeks` means all of that passed — do not
+re-check it by hand. Do **read the WARNING lines** rather than scrolling past them: each is legal
+under the contract and usually an authoring slip, and they are the only findings the build will
+not stop for.
+
+What no script can check, and what this list is for:
+
+- Every row matches the phase map for **its own week**, and **exactly one variable changes**
+  between consecutive weeks for a given exercise.
+- No Progression Rule reads as a future instruction ("W4: add 2.5 kg"). Each states why this
   week's prescription is what it is, plus the hold/stop gate.
-- Outputs are in `athlete/<slug>/programs/`, and `meta.athlete` / `athleteId` name the right person.
-- `program.json` present and parses; its exercise set matches the `.xlsx` rows (same week/day/name/prescription).
-- 13 columns in the exact order; every `Completed` cell blank; no stray tabs/newlines in any cell.
-- Day colour-bands and dividers present; one row per exercise per day per week.
-- Every tissue/knee-loading item has a pain-monitoring rule and a symptom-logging Completed Note.
-- Concurrent rule respected (heavy lower ≥24h from hard conditioning; strength before conditioning same day).
-- ≤2–3 high-central-fatigue exposures in the week.
-- Conditioning footprint ≤1–2 stations if the environment is a shared gym.
-- Exactly one variable changes between consecutive weeks' rows for a given exercise.
-- Every decision in the planning doc is reflected; every athlete dislike / constraint is honoured.
-- The two output files are consistent with each other.
+- Every tissue/tendon item declares `Category: tendon` **and** carries a pain-monitoring rule and
+  a symptom-logging Completed Note. Category is declared on every row, or on none.
+- Concurrent rule respected (heavy lower ≥24h from hard conditioning; strength before
+  conditioning when they share a day), ≤2–3 high-central-fatigue exposures in a week, and
+  conditioning footprint ≤1–2 stations in a shared gym.
+- Every **Completed** cell is blank — that column belongs to the athlete, and nothing checks it.
+- Every decision in the planning doc is reflected and every athlete dislike or constraint is
+  honoured, and the block length matches the plan **including a transition week** if it called
+  for one.
+- The three outputs sit together in one folder under `athlete/<slug>/programs/`, and
+  `meta.athlete` / `athleteId` name the right person.
