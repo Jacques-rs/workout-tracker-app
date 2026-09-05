@@ -18,6 +18,7 @@ Run from the repo root:
 import copy
 import json
 import os
+import re
 import sys
 import tempfile
 
@@ -25,6 +26,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "athlete", "skills", "program-builder",
                                 "scripts"))
 import rows_common  # noqa: E402
+import validate_program  # noqa: E402
 from build_program_json import build  # noqa: E402
 from validate_program import validate, validate_file  # noqa: E402
 
@@ -112,6 +114,35 @@ check("a fully categorised programme says nothing about categories",
 rep = validate(base, "fixture")
 check("a fixture declaring no category warns exactly once",
       sum("category" in w for w in rep.warnings) == 1)
+
+# The validator's vocabulary is a second copy of index.html's CATS/CAT_ALIASES -
+# they can't share code across the JS/Python boundary, so nothing stops them
+# drifting apart except this check. Parse the app's tables out of the source
+# rather than hand-copying them here, so a real edit to either side is what
+# fails, not a paraphrase of one.
+_html = open(os.path.join(ROOT, "index.html"), encoding="utf-8").read()
+_cats_block = re.search(r"const CATS=\{(.*?)\};", _html, re.DOTALL)
+_alias_block = re.search(r"const CAT_ALIASES=\{(.*?)\};", _html, re.DOTALL)
+check("index.html still defines CATS and CAT_ALIASES",
+      bool(_cats_block and _alias_block))
+if _cats_block and _alias_block:
+    js_slots = set(re.findall(r'key:"(\w+)"', _cats_block.group(1)))
+    js_aliases = set()
+    for m in re.finditer(r'(?:^|,)\s*(?:"([\w-]+)"|(\w+))\s*:',
+                         _alias_block.group(1)):
+        js_aliases.add(m.group(1) or m.group(2))
+    js_vocab = js_slots | js_aliases
+    py_vocab = validate_program.KNOWN_CATEGORIES
+    check("validate_program's category vocabulary matches index.html's "
+          "CATS/CAT_ALIASES",
+          js_vocab == py_vocab,
+          f"only in index.html: {sorted(js_vocab - py_vocab)}; "
+          f"only in validate_program.py: {sorted(py_vocab - js_vocab)}")
+    check("validate_program's CATEGORY_SLOTS matches index.html's CATS keys",
+          js_slots == set(validate_program.CATEGORY_SLOTS),
+          f"only in index.html: {sorted(js_slots - set(validate_program.CATEGORY_SLOTS))}; "
+          f"only in validate_program.py: "
+          f"{sorted(set(validate_program.CATEGORY_SLOTS) - js_slots)}")
 
 
 def mutated(fn):
