@@ -616,17 +616,41 @@ console.log("\nlogging one set at a time — the commit flow");
   actionBtn(c2, /Log final set/).onclick();
   is(stored().sets.length, before2 + 1, "logging another set after the prescribed count still works");
 
-  /* Committing an entirely empty draft must be a no-op, not a phantom set. The only way
-     to get an empty draft is if the athlete clears every field by hand — simulate that
-     directly rather than through the UI, since a fresh draft is never blank on its own. */
+  /* Every planned set logged but not finished — reachable by reopening, or by a session
+     stored by an older build. The editor must offer Finish, never invent set N+1. */
   const s3 = app.getSession();
-  s3.entries[ex.id].draft = app.blankDraft();
   s3.entries[ex.id].done = false;
   app.saveSession(s3);
   app.goFocus(originalIndex);
-  const beforeEmpty = stored().sets.length;
-  actionBtn(card(), /Log another/).onclick();
-  is(stored().sets.length, beforeEmpty, "committing a wholly empty draft does nothing");
+  const logged = stored().sets.length;
+  let C3 = card();
+  is(setInputs(C3).length, 0, "planned sets reached: no draft fields");
+  assert(!/Set \d+ of/.test(C3.text), "…and no 'Set N+1 of N+1' label");
+  is(chipsOf(C3).length, logged, "…and no chip beyond the logged sets");
+  assert(/All \d+ planned sets logged/.test(C3.text), "…it says the plan is complete instead");
+  actionBtn(C3, /Add another set/).onclick();
+  C3 = card();
+  is(setInputs(C3).length > 0, true, "Add another set opens a draft");
+  assert(/Log final set/.test(actionBtn(C3, /Log final set/).text), "…for exactly one set more than logged");
+
+  /* Committing an entirely empty draft must be a no-op, not a phantom set. The only way
+     to get an empty draft is if the athlete clears every field by hand — simulate that
+     directly rather than through the UI, since a fresh draft is never blank on its own. */
+  const s4 = app.getSession();
+  s4.entries[ex.id].draft = app.blankDraft();
+  app.saveSession(s4);
+  app.goFocus(originalIndex);
+  actionBtn(card(), /Log final set/).onclick();
+  is(stored().sets.length, logged, "committing a wholly empty draft does nothing");
+
+  /* Finish exercise is the same path as Log final set: done, and on to the next. */
+  s4.entries[ex.id].setTarget = logged;
+  app.saveSession(s4);
+  app.goFocus(originalIndex);
+  actionBtn(card(), /Finish exercise/).onclick();
+  is(stored().done, true, "Finish exercise marks the exercise done");
+  is(stored().sets.length, logged, "…without adding a set");
+  is(app.STATE.focus, originalIndex + 1, "…and advances to the next exercise");
 }
 
 console.log("\nediting and deleting a committed set");
@@ -642,7 +666,7 @@ console.log("\nediting and deleting a committed set");
       { set: 2, load: "80",  reps: "4", rpe: "7", painDuring: "", note: "" },
       { set: 3, load: "80",  reps: "4", rpe: "7", painDuring: "", note: "" }
     ],
-    draft: { load: "80", reps: "4", rpe: "7", painDuring: "", note: "" }, summaryAuto: true });
+    draft: { load: "80", reps: "4", rpe: "7", painDuring: "", note: "" }, summaryAuto: true, setTarget: 4 });
   app.applyDerivedSummary(e);
   app.saveSession(s);
 

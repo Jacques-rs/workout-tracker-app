@@ -3707,9 +3707,12 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
   }
   const editIdx=(STATE.setEdit!=null&&STATE.setEdit>=0&&STATE.setEdit<rows.length)?STATE.setEdit:null;
   const draftMode=editIdx===null;
+  /* Every planned set is logged and nothing is typed: offer Finish, never a set N+1 that
+     nobody asked for. A typed draft past the plan is still shown — hiding it would lose it. */
+  const reached=draftMode&&rows.length>=target&&!draftDirty(e);
   const curPos=draftMode?rows.length:editIdx;
   const curNum=curPos+1;
-  const total=Math.max(target,curNum,rows.length+(draftMode?1:0));
+  const total=reached?rows.length:Math.max(target,curNum,rows.length+(draftMode?1:0));
 
   /* What has actually gone in, spelled out. Without it, committing changes almost nothing
      on screen — the next draft is seeded from the set just logged, so the fields read the
@@ -3748,6 +3751,22 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
      height on every warm-up and every AMRAP row — which is what pushes the primary action
      off a 320px screen. */
   if(total>1)host.append(chips);
+
+  if(reached){
+    host.append(el("div",{className:"setlabelrow"},
+      el("div",{className:"setlabel"},`All ${rows.length} planned sets logged`)));
+    const mainrow=el("div",{className:"setactions mainrow"});
+    const finish=el("button",{className:"primary"},"Finish exercise");
+    finish.onclick=()=>{e.done=true;saveSession(s);
+      advanceFrom(ex,e,s,idx,onchange,`Exercise complete · ${rows.length} sets logged`);};
+    mainrow.append(finish);
+    const subrow=el("div",{className:"setactions subrow"});
+    const add=el("button",{className:"ghost"},"Add another set");
+    add.onclick=()=>{e.setTarget=Math.min(12,rows.length+1);saveSession(s);onchange("");};
+    subrow.append(add);
+    host.append(mainrow,subrow);
+    return;
+  }
 
   const labelRow=el("div",{className:"setlabelrow"});
   labelRow.append(el("div",{className:"setlabel"},`Set ${curNum} of ${total}`));
