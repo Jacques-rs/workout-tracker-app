@@ -45,9 +45,14 @@ would shorten it.
 **7. `localStorage` housekeeping.** `tp_sess_v1::*` keys accumulate forever. Harmless at this
 volume, but a "clear sessions older than N months" action — after a backup — keeps it tidy.
 
+**8. Log an earlier block's session late.** The claim picker offers the weeks of the block that
+owns the date, so the old block's last session, done on the new block's first Monday, can only be
+claimed by moving the new block's start. A "from the previous block" choice in the picker, shown
+only in a block's first week or two, would cover it.
+
 ## Lower value / speculative
 
-**8. Plate calculator.** The athlete does this arithmetic automatically.
+**9. Plate calculator.** The athlete does this arithmetic automatically.
 
 ## Deferred on purpose
 

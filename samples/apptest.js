@@ -2603,5 +2603,99 @@ console.log("\nnothing renders a tracked field that is switched off");
   app.setSetting("painLabel", "Knee");
 }
 
+console.log("\na new block: earlier blocks keep their dates and their own programme");
+{
+  /* Exercise ids are positional, so two blocks both have a "w1d1e1". Read against the
+     wrong programme, last block's sets turn up under this block's exercise names. */
+  const day = "Day 1 (Mon) - Lower";
+  const block = (name, weeks, lift, version) => ({ meta: { schema: "tp-program-2", block: name,
+    athlete: "Sample", athleteId: "sample", weeks, version: version || 1, days: [day] },
+    exercises: Array.from({ length: weeks }, (_, i) => ({ id: `w${i + 1}d1e1`, week: i + 1, day,
+      name: lift, sets: "1", reps: "5", load: "100", rpe: "RPE 7", tempo: "", rest: "",
+      logHint: "", focus: "", progression: "" })) });
+  const A = block("Strength A", 3, "Back squat"), B = block("Hypertrophy B", 2, "Leg press");
+  const thisMonday = app.mondayOf(app.todayISO());
+  const startA = app.addDays(thisMonday, -14);   /* this week is A's last */
+  store.clear(); ACTIVE_ELEMENT = null; app.SETTINGS = { ...app.SET_DEFAULTS };
+  app.loadProgram(A);
+  app.setAnchorMonday(startA);
+  app.gotoDate(startA, "calendar");
+  app.startSession();
+  const c = logCardNode();
+  type(setInputs(c)[0], "100"); type(setInputs(c)[1], "5");
+  actionBtn(c, /^Log set|^Log final/).onclick();
+  app.sealSession();
+  /* A record from before blocks existed carries no programKey — only the block's name. */
+  const legacyDate = app.addDays(startA, 7);
+  store.set(`tp_sess_v1::${legacyDate}::${day}`, JSON.stringify({ block: "Strength A",
+    athlete: "Sample", week: 2, day, date: legacyDate, status: "sealed", session: {},
+    entries: { w2d1e1: { done: true, sets: [{ set: 1, load: "105", reps: "5" }] } } }));
+
+  app.loadProgram(B);
+  const archived = JSON.parse(store.get("tp_blocks_v1") || "[]");
+  is(archived.map(b => b.program.meta.block), ["Strength A"],
+    "importing a different block archives the trained one it replaces");
+  is(app.SCHEDULE.anchorMonday, app.addDays(thisMonday, 7),
+    "and the new block starts the Monday after the old one ends, not on the import week");
+  assert(!!sheetButton(/^Start block$/), "with a sheet to confirm or change that start");
+  assert(!!stubFor("#sheetBody").find(n => /this week · ends “Strength A” 1 week early/.test(n.text)),
+    "…which says what starting this week would cost the old block");
+  is(app.scheduleForDate(thisMonday), { week: 3, day },
+    "this week is still the old block's last week on the schedule");
+  is(app.blocks().map(b => b.program.meta.block), ["Strength A", "Hypertrophy B"],
+    "the timeline holds both blocks, oldest first");
+
+  app.gotoDate(startA, "calendar");
+  is(app.dayExercises().map(e => e.name), ["Back squat"],
+    "an old date shows the exercises it was trained off, not the new block's");
+  app.setView("list"); app.renderHeader();
+  is(stubFor("#ctxLine").text, "Strength A", "and names its own block in the header");
+  const out = app.buildSessionExport();
+  is([out.block, out.entries[0].exercise, out.entries[0].sets.length], ["Strength A", "Back squat", 1],
+    "and exports against that block");
+  is(app.progressWords(app.recordProgress(app.sessionsOn(startA)[0])), "1 of 1 done",
+    "the hub and calendar count it against its own programme");
+  app.gotoDate(legacyDate, "calendar");
+  is([app.STATE.block, app.dayExercises()[0].name], [app.programKeyOf(A), "Back squat"],
+    "a session saved before blocks existed is placed by its block name");
+  app.gotoDate(app.addDays(thisMonday, 7), "home");
+  is([app.STATE.block, app.dayExercises()[0].name], [app.programKeyOf(B), "Leg press"],
+    "and a date in the new block reads the new programme");
+
+  /* Starting early: the old block is cut short at the new anchor, its logged dates are not. */
+  sheetButton(/this week/).onclick();
+  sheetButton(/^Start block$/).onclick();
+  is(app.SCHEDULE.anchorMonday, thisMonday, "the sheet can start the new block this week instead");
+  is(app.blockForDate(thisMonday).program.meta.block, "Hypertrophy B", "which then owns this week");
+  is(app.blockForDate(startA).program.meta.block, "Strength A", "while the old block keeps its earlier weeks");
+  is(app.setAnchorMonday(startA), "", "two blocks can never start on the same Monday");
+
+  /* A revision keeps its key: no archive entry, no moved anchor. */
+  app.loadProgram(block("Hypertrophy B", 2, "Leg press", 2));
+  is([JSON.parse(store.get("tp_blocks_v1")).length, app.SCHEDULE.anchorMonday], [1, thisMonday],
+    "a revised version of the same block is not a new block");
+  /* An untrained block is simply replaced — a mis-import must not push the next start back. */
+  app.loadProgram(block("Wrong file", 2, "Curl"));
+  is(JSON.parse(store.get("tp_blocks_v1")).map(b => b.program.meta.block), ["Strength A"],
+    "a block nobody trained is replaced, not archived");
+  /* Re-activating an archived block brings back its own anchor. */
+  app.loadProgram(A);
+  is([app.SCHEDULE.anchorMonday, JSON.parse(store.get("tp_blocks_v1")).length], [startA, 0],
+    "re-activating an archived block restores its anchor and leaves the archive");
+
+  /* A phone that replaced a block before archiving existed: the library puts it back. */
+  store.delete("tp_blocks_v1"); app.invalidateSessionIndex();
+  app.loadProgram(B);
+  store.delete("tp_blocks_v1"); app.refreshSchedule();
+  is(app.blocks().length, 1, "(the old block is lost from the device)");
+  sandbox.TPPrograms = sandbox.window.TPPrograms = { resolveSessionProgram: s => s.block === "Strength A" ? { id: "row-a", payload: A } : null,
+    getActiveIdentity: () => null };
+  is(app.recoverBlocks(), 1, "the library's copy of the old block is recovered");
+  is(app.blocks().map(b => [b.program.meta.block, b.sched.anchorMonday])[0], ["Strength A", startA],
+    "anchored where its sessions say week 1 began");
+  is(app.recoverBlocks(), 0, "and recovering again finds nothing new");
+  delete sandbox.TPPrograms; delete sandbox.window.TPPrograms;
+}
+
 console.log(failures ? `\n${failures} FAILED\n` : "\nall passed\n");
 process.exit(failures ? 1 : 0);

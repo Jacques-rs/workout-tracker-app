@@ -115,10 +115,11 @@ invariants:
 
 - **`showRoute()` is the only thing that touches a surface's `hidden` flag.** Never toggle one from
   a handler.
-- **`STATE.week` / `STATE.day` must always be read off the claim, never re-derived from the
-  schedule.** `saveSession()` writes them from `STATE` on every keystroke, so a `STATE` re-derived
-  from the schedule silently rewrites the claim — and the athlete trains off the wrong week. This is
-  the subtlest way to break the date-first model.
+- **`STATE.week` / `STATE.day` / `STATE.block` must always be read off the claim, never re-derived
+  from the schedule.** `saveSession()` writes them from `STATE` on every keystroke, so a `STATE`
+  re-derived from the schedule silently rewrites the claim — and the athlete trains off the wrong
+  week. This is the subtlest way to break the date-first model. Likewise, anything that draws or
+  exports a session asks `dateProgram()`, never `PROGRAM`: exercise ids repeat across blocks.
 - **Editing a sealed session does not un-seal it.** It sets the edited-since-export flag. Un-sealing
   because a typo was fixed would flip the calendar back to "unfinished", which is a lie about that day.
 - **The check-in never gates Start**, and the primary action sits above it.

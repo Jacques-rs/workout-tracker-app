@@ -267,6 +267,8 @@
   .cal-week{display:grid;place-items:center;font-size:var(--t-xs);font-weight:800;
     color:var(--accent-ink);font-variant-numeric:tabular-nums}
   .cal-week.out{color:var(--placeholder);font-weight:600}
+  .cal-block{grid-column:1/-1;padding:var(--s3) 2px 2px;font-size:var(--t-xs);font-weight:800;
+    color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .cal-cell{position:relative;aspect-ratio:1/1;min-height:34px;padding:0;display:grid;
     place-content:center;justify-items:center;background:transparent;
     border:1px solid transparent;border-radius:var(--r-sm);color:var(--muted)}
@@ -996,6 +998,9 @@ const el = (t,props={},kids=[])=>{const n=document.createElement(t);
 const LS = { prog:"tp_program_v1", set:"tp_settings_v1",
   /* The block anchor — one stored date per programme. See the schedule section. */
   sched:"tp_schedule_v1", demoSched:"tp_demo_schedule_v1",
+  /* Earlier blocks that were trained, kept so their dates still read against their own
+     programme. Personal only. See the block timeline section. */
+  blocks:"tp_blocks_v1",
   /* The account half of the settings — see the settings section for the scope split. */
   acct:"tp_account_settings_v1",
   sessPrefix:"tp_sess_v1::", demoSessPrefix:"tp_demo_sess_v1::",
@@ -1003,7 +1008,8 @@ const LS = { prog:"tp_program_v1", set:"tp_settings_v1",
   demoSess:(d,day)=>`tp_demo_sess_v1::${d}::${day}` };
 /* `date` is the primary axis and always starts at TODAY — the app never opens "the next
    thing", because a screen that silently shows another day gets you doing the wrong
-   session. `week` and `day` are DERIVED from it: read off the claim when a session is
+   session. `week`, `day` and `block` (the programKey of the block the date is read
+   against) are DERIVED from it: read off the claim when a session is
    stored on that date, else the schedule's suggestion. Nothing about the position is
    stored separately: a stored position can disagree with the claim, and when it does it
    shows the wrong week's prescriptions. `focus` is the index of the exercise
@@ -1016,7 +1022,7 @@ const LS = { prog:"tp_program_v1", set:"tp_settings_v1",
 /* Retired keys, removed when a programme is cleared so a stale copy can never be picked
    up by a reader that has no business reading it. */
 const LEGACY_KEYS=["tp_pos_v1","tp_demo_pos_v1"];
-let PROGRAM=null, STATE={week:1,day:null,date:todayISO(),focus:0,setEdit:null};
+let PROGRAM=null, STATE={week:1,day:null,block:"",date:todayISO(),focus:0,setEdit:null};
 /* Cold starts always land on the entry gate. `route` is which of the five surfaces is
    showing; `source` changes the local session namespace while a workout is open. Both
    are runtime-only and neither reaches an export.
@@ -1154,7 +1160,7 @@ function openCachedWorkout(){
   if(!cachedAccess()){showSurface("profile");if(window.TPAuthUI)TPAuthUI.open("sign-in");return;}
   const value=cachedProgram();
   if(!value){toast("Import a programme first");showSurface("profile");return;}
-  PROGRAM=value;APP.source="personal";STATE={week:1,day:null,date:todayISO(),focus:0,setEdit:null};
+  PROGRAM=value;APP.source="personal";STATE={week:1,day:null,block:"",date:todayISO(),focus:0,setEdit:null};
   refreshSchedule();invalidateSessionIndex();adoptDate(todayISO());openWorkout("personal");
 }
 async function openSampleWorkout(){
@@ -1167,7 +1173,7 @@ async function openSampleWorkout(){
     if(!SAMPLE_PROGRAM||!SAMPLE_PROGRAM.meta||!Array.isArray(SAMPLE_PROGRAM.exercises))
       throw new Error("invalid sample");
     PROGRAM=SAMPLE_PROGRAM;APP.source="sample";
-    STATE={week:1,day:null,date:todayISO(),focus:0,setEdit:null};
+    STATE={week:1,day:null,block:"",date:todayISO(),focus:0,setEdit:null};
     refreshSchedule();invalidateSessionIndex();adoptDate(todayISO());openWorkout("sample");
   }catch(e){toast("Sample programme is unavailable offline. Try again when connected.");}
 }
@@ -1547,12 +1553,13 @@ function catOf(ex){
    A phone can be mid-block on a v1 programme in localStorage, so v1 must keep
    working indefinitely — this is the one place the difference is decided, and
    everything else asks dayExercises(). See docs/data-contracts.md. */
-function isV2(){return !!(PROGRAM&&PROGRAM.meta&&PROGRAM.meta.schema==="tp-program-2");}
+function isV2(){const p=dateProgram();return !!(p&&p.meta&&p.meta.schema==="tp-program-2");}
 /* The exercises on screen right now. v2 filters by day AND week; v1 by day only,
    because under v1 every row is week 1 and filtering on week would empty the list. */
 function dayExercises(){
-  if(!PROGRAM||!Array.isArray(PROGRAM.exercises))return [];
-  return PROGRAM.exercises.filter(e=>
+  const p=dateProgram();
+  if(!p||!Array.isArray(p.exercises))return [];
+  return p.exercises.filter(e=>
     e.day===STATE.day && (!isV2() || Number(e.week)===Number(STATE.week)));
 }
 /* A v2 row whose `week` isn't a number matches no week at all, so the exercise would
@@ -1561,22 +1568,24 @@ function dayExercises(){
    UI can say so out loud rather than quietly dropping work. */
 function orphanExercises(){
   if(!isV2())return [];
-  return PROGRAM.exercises.filter(e=>e.day===STATE.day&&!Number.isFinite(Number(e.week)));
+  return dateProgram().exercises.filter(e=>e.day===STATE.day&&!Number.isFinite(Number(e.week)));
 }
 /* meta.athleteId names the athlete/<slug>/logs/ folder an export belongs in. v1
    programmes predate it; derive the same slug from the display name so a log file
    is still filed correctly. A label, never a selector — the app has no profiles. */
 function athleteId(){
-  if(!PROGRAM||!PROGRAM.meta)return "";
-  return PROGRAM.meta.athleteId||slug(PROGRAM.meta.athlete)||"";
+  const p=dateProgram();
+  if(!p||!p.meta)return "";
+  return p.meta.athleteId||slug(p.meta.athlete)||"";
 }
 /* Revision of the loaded programme. A week gets revised mid-block after a review, and
    re-importing is a manual step with no prompt — so this is shown next to the block name
    and stamped on every export, to answer "is the phone on the current version?" without
    diffing prescriptions. 0 means the programme predates versioning; the UI stays silent
-   rather than claiming "v1", which would be a guess. */
-function progVersion(){
-  const v=PROGRAM&&PROGRAM.meta?Number(PROGRAM.meta.version):NaN;
+   rather than claiming "v1", which would be a guess. Defaults to the open date's block. */
+function progVersion(program){
+  const p=program||dateProgram();
+  const v=p&&p.meta?Number(p.meta.version):NaN;
   return Number.isFinite(v)&&v>0?Math.floor(v):0;
 }
 /* Prescribed set count, when the generator gave a plain number or a plain range —
@@ -1740,7 +1749,7 @@ function programPainSite(){
    what every exercise row's own `day` is compared against. dayLabels() is the only
    correct way to read meta.days, because a structured day is an object and letting one
    reach STATE.day would break the session key, the day filter and the header at once. */
-function dayLabels(program){return dayEntries(program||PROGRAM).map(d=>d.label);}
+function dayLabels(program){return dayEntries(program||dateProgram()).map(d=>d.label);}
 function firstDay(){return dayLabels()[0]||null;}
 
 /* ---------- the derived schedule ----------
@@ -1828,7 +1837,7 @@ function anchorFor(program){
   const declared=(program&&program.meta&&program.meta.startDate)||"";
   return mondayOf(parseISO(declared)?declared:todayISO());
 }
-function scheduleFor(program){
+function scheduleFor(program,anchor){
   if(!program||!program.meta)return null;
   const weeks=Math.max(1,Math.floor(Number(program.meta.weeks)||1));
   const days=dayEntries(program).map(d=>({label:d.label,
@@ -1845,7 +1854,7 @@ function scheduleFor(program){
     while(next<=7&&taken.has(next))next++;
     d.weekday=Math.min(next,7);taken.add(d.weekday);next++;
   });
-  return {anchorMonday:anchorFor(program),weeks,days};
+  return {anchorMonday:anchor||anchorFor(program),weeks,days};
 }
 /* The live schedule for the loaded programme. null with no programme loaded, which every
    caller has to tolerate — "no programme" is one of the honest date states. */
@@ -1853,14 +1862,19 @@ let SCHEDULE=null;
 function refreshSchedule(){
   SCHEDULE=PROGRAM?scheduleFor(PROGRAM):null;
   if(SCHEDULE&&PROGRAM)saveAnchor(PROGRAM,SCHEDULE.anchorMonday);
+  /* Which block owns a date, and so which block every stored session reads against,
+     hangs off this anchor. */
+  BLOCKS=null;invalidateSessionIndex();
   return SCHEDULE;
 }
 /* One tap in the UI; the value is always normalised to a Monday so week arithmetic
-   cannot drift by a few days. */
+   cannot drift by a few days. Two blocks on one Monday would leave one of them owning no
+   dates at all, so that is refused rather than resolved. */
 function setAnchorMonday(iso){
   if(!PROGRAM)return "";
-  const monday=saveAnchor(PROGRAM,iso);
-  if(!monday)return "";
+  const monday=mondayOf(iso);
+  if(!monday||blocks().some(b=>!b.active&&b.sched.anchorMonday===monday))return "";
+  saveAnchor(PROGRAM,monday);
   refreshSchedule();
   return monday;
 }
@@ -1881,14 +1895,163 @@ function dateFor(week,dayLabel,sched){
 /* …and the other direction. null means the schedule has nothing on that date: before the
    block, past its last week, or a weekday the programme does not train — a rest day. */
 function scheduleForDate(date,sched){
-  const s=sched||SCHEDULE;
-  if(!s)return null;
+  if(!sched){const b=blockForDate(date);return b?scheduleForDate(date,b.sched):null;}
+  const s=sched;
   const diff=daysBetween(s.anchorMonday,date);
   if(diff==null||diff<0)return null;
   const week=Math.floor(diff/7)+1;
   if(week>s.weeks)return null;
   const day=s.days.find(d=>d.weekday===(diff%7)+1);
   return day?{week,day:day.label}:null;
+}
+
+/* ---------- the block timeline ----------
+   A block that is replaced by a DIFFERENT block — a different programKey; a revision
+   keeps its key — is archived with its anchor once it has been trained, so its dates keep
+   its weeks, its schedule and, above all, its exercises. Exercise ids are positional
+   ("w1d1e1"), so a session read against the next block's programme would file last
+   block's sets under this block's names. Blocks never overlap: each owns its own weeks,
+   cut short at the next block's anchor. The active block is just the one in
+   tp_program_v1; ownership is decided by date order alone. */
+function readArchive(){
+  try{
+    const v=JSON.parse(localStorage.getItem(LS.blocks)||"[]");
+    return Array.isArray(v)?v.filter(b=>b&&parseISO(b.anchorMonday)&&b.program&&
+      b.program.meta&&Array.isArray(b.program.exercises)):[];
+  }catch(e){return [];}
+}
+function writeArchive(list){
+  try{localStorage.setItem(LS.blocks,JSON.stringify(list));}catch(e){}
+  BLOCKS=null;invalidateSessionIndex();
+}
+/* Derived cache, oldest first: {key, program, sched, until, active}. `until` is the
+   Monday after the block's last owned week. Dropped by refreshSchedule and writeArchive. */
+let BLOCKS=null;
+function blocks(){
+  if(BLOCKS)return BLOCKS;
+  const list=[];
+  const activeKey=PROGRAM?programKeyOf(PROGRAM):"";
+  (APP.source==="sample"?[]:readArchive()).forEach(b=>{
+    const key=programKeyOf(b.program);
+    if(key===activeKey||list.some(x=>x.key===key))return;
+    list.push({key,program:b.program,sched:scheduleFor(b.program,mondayOf(b.anchorMonday)),active:false});
+  });
+  if(PROGRAM&&SCHEDULE)list.push({key:activeKey,program:PROGRAM,sched:SCHEDULE,active:true});
+  list.sort((a,b)=>a.sched.anchorMonday<b.sched.anchorMonday?-1:a.sched.anchorMonday>b.sched.anchorMonday?1:0);
+  list.forEach((b,i)=>{
+    const natural=addDays(b.sched.anchorMonday,b.sched.weeks*7),next=list[i+1];
+    b.until=next&&next.sched.anchorMonday<natural?next.sched.anchorMonday:natural;
+  });
+  BLOCKS=list;
+  return list;
+}
+function blockByKey(key){return blocks().find(b=>b.key===key)||null;}
+/* The block whose weeks hold this date, or null: before the first, between two, or past
+   the last. */
+function blockForDate(iso){
+  return blocks().find(b=>iso>=b.sched.anchorMonday&&iso<b.until)||null;
+}
+/* For a date no block owns, the one it most plausibly belongs to — the latest that had
+   started by then, else the first. Used for a rest day's claim picker, never to schedule. */
+function contextBlock(iso){
+  const list=blocks();
+  return blockForDate(iso)||list.filter(b=>b.sched.anchorMonday<=iso).pop()||list[0]||null;
+}
+/* Does this stored session belong to this programme? A session written since blocks
+   existed carries its programKey. An older one carries the block and athlete names it
+   was created under, which is what tells two blocks apart. */
+function sessionOfProgram(v,program){
+  if(!v||!program||!program.meta)return false;
+  if(txt(v.programKey))return v.programKey===programKeyOf(program);
+  return txt(v.block)===txt(program.meta.block)&&
+    (!txt(v.athlete)||txt(v.athlete)===txt(program.meta.athlete));
+}
+/* The block a stored session reads against. Its own record wins; the date only breaks
+   a tie, or places a session no known block claims. */
+function blockOfSession(v,date){
+  const named=blocks().filter(b=>sessionOfProgram(v,b.program));
+  if(named.length===1)return named[0];
+  if(named.length)return named.find(b=>b===blockForDate(date))||named[named.length-1];
+  return contextBlock(date);
+}
+/* The programme and schedule of the open date. Everything that draws or exports a
+   session asks these rather than PROGRAM, which is only the block being imported into. */
+function dateProgram(){const b=STATE.block?blockByKey(STATE.block):null;return b?b.program:PROGRAM;}
+function dateSchedule(){const b=STATE.block?blockByKey(STATE.block):null;return b?b.sched:SCHEDULE;}
+/* Retire the active personal block before a different one replaces it — or it is
+   removed. Archived only when something was logged in it: a block nobody trained has
+   nothing on the calendar worth keeping, and keeping a mis-import would push the next
+   block's start back for no reason. Returns the archived entry, or null. */
+function retireActiveBlock(nextKey){
+  const prog=cachedProgram();
+  if(!prog)return null;
+  const key=programKeyOf(prog);
+  if(key===nextKey)return null;
+  let anchor="";
+  try{
+    const v=JSON.parse(localStorage.getItem(LS.sched)||"null");
+    if(v&&v.programKey===key&&parseISO(v.anchorMonday))anchor=mondayOf(v.anchorMonday);
+  }catch(e){}
+  if(!anchor||!readPersonalSessions().some(r=>sessionOfProgram(r.session,prog)))return null;
+  const list=readArchive().filter(b=>programKeyOf(b.program)!==key);
+  const entry={anchorMonday:anchor,program:prog};
+  list.push(entry);
+  writeArchive(list);
+  return entry;
+}
+/* Re-activating an archived block takes it back out of the archive, anchor and all. */
+function unarchiveBlock(key){
+  const list=readArchive();
+  const hit=list.find(b=>programKeyOf(b.program)===key);
+  if(!hit)return "";
+  writeArchive(list.filter(b=>b!==hit));
+  return mondayOf(hit.anchorMonday);
+}
+/* Where a new block should start: the Monday after the latest earlier block ends, or
+   this week if that has already passed. A programme's own meta.startDate wins. */
+function suggestedStart(program){
+  const declared=(program&&program.meta&&program.meta.startDate)||"";
+  const thisMonday=mondayOf(todayISO());
+  const prev=readArchive().slice().sort((a,b)=>a.anchorMonday<b.anchorMonday?-1:1).pop();
+  const prevEnd=prev?addDays(mondayOf(prev.anchorMonday),
+    Math.max(1,Math.floor(Number(prev.program.meta.weeks)||1))*7):"";
+  if(parseISO(declared)&&(!prev||mondayOf(declared)>mondayOf(prev.anchorMonday)))
+    return {monday:mondayOf(declared),why:"declared",prev,prevEnd};
+  if(prevEnd&&prevEnd>thisMonday)return {monday:prevEnd,why:"after",prev,prevEnd};
+  return {monday:thisMonday,why:"now",prev,prevEnd};
+}
+/* A device that replaced a trained block before blocks were archived has its sessions
+   but not the programme they were trained off. The library still holds it, so this
+   puts it back — anchored where most of its sessions say week 1 began. Called from the
+   library's own updates, never from a render path. */
+function recoverBlocks(){
+  if(!PROGRAM||APP.source!=="personal"||!window.TPPrograms||!TPPrograms.resolveSessionProgram)return 0;
+  const known=blocks().map(b=>b.program);
+  const found=new Map();
+  readPersonalSessions().forEach(({key,session})=>{
+    if(known.some(p=>sessionOfProgram(session,p)))return;
+    let hit=null;
+    try{hit=TPPrograms.resolveSessionProgram(session);}catch(e){}
+    if(!hit||!hit.payload||!hit.payload.meta)return;
+    const pk=programKeyOf(hit.payload);
+    if(pk===programKeyOf(PROGRAM))return;
+    const rest=key.slice(LS.sessPrefix.length),date=rest.slice(0,rest.indexOf("::"));
+    if(!parseISO(date))return;
+    const week=Math.max(1,Math.floor(Number(session.week)||1));
+    const anchor=addDays(mondayOf(date),-(week-1)*7);
+    if(!found.has(pk))found.set(pk,{program:hit.payload,votes:new Map()});
+    const votes=found.get(pk).votes;
+    votes.set(anchor,(votes.get(anchor)||0)+1);
+  });
+  if(!found.size)return 0;
+  const list=readArchive();
+  found.forEach(f=>{
+    let best="",n=0;
+    f.votes.forEach((c,a)=>{if(c>n||(c===n&&a<best)){best=a;n=c;}});
+    if(best&&!list.some(b=>mondayOf(b.anchorMonday)===best))list.push({anchorMonday:best,program:f.program});
+  });
+  writeArchive(list);
+  return found.size;
 }
 
 /* ---------- what a date is ----------
@@ -1921,30 +2084,32 @@ function dateStateOf(iso){
   if(claims.length){
     const pick=claims[0];
     return {kind:pick.status==="sealed"?"review":"resume",
-      date,week:pick.week,day:pick.day,claims};
+      date,week:pick.week,day:pick.day,block:pick.block,claims};
   }
   const suggestion=scheduleForDate(date);
-  if(suggestion)return {kind:"start",date,week:suggestion.week,day:suggestion.day,claims:[]};
-  return {kind:"rest",date,week:suggestedWeek(date),day:null,claims:[]};
+  const ctx=contextBlock(date);
+  if(suggestion)return {kind:"start",date,week:suggestion.week,day:suggestion.day,
+    block:blockForDate(date).key,claims:[]};
+  return {kind:"rest",date,week:suggestedWeek(date),day:null,block:ctx?ctx.key:"",claims:[]};
 }
 /* A rest day has no (week, day) to show, but the claim picker still needs a sensible
    week preselected — the week the block is in on that date, clamped to the block. */
 function suggestedWeek(iso){
-  if(!SCHEDULE)return 1;
-  const diff=daysBetween(SCHEDULE.anchorMonday,iso);
+  const b=contextBlock(iso);
+  if(!b)return 1;
+  const diff=daysBetween(b.sched.anchorMonday,iso);
   if(diff==null)return 1;
-  return Math.min(SCHEDULE.weeks,Math.max(1,Math.floor(diff/7)+1));
+  return Math.min(b.sched.weeks,Math.max(1,Math.floor(diff/7)+1));
 }
-/* The next date at or after `from` that the schedule has a session on. Bounded by the
-   block rather than searching forward forever, and used only to point at the next
-   session from a rest day — never to move anything. */
+/* The next date at or after `from` that the schedule has a session on, in whichever
+   block. Bounded by the last block rather than searching forward forever, and used only
+   to point at the next session from a rest day — never to move anything. */
 function nextScheduled(from){
-  if(!SCHEDULE)return null;
+  const list=blocks();
+  if(!list.length)return null;
   const start=parseISO(from)?from:todayISO();
-  const diff=daysBetween(SCHEDULE.anchorMonday,start);
-  if(diff==null)return null;
-  const last=addDays(SCHEDULE.anchorMonday,SCHEDULE.weeks*7-1);
-  for(let d=diff<0?SCHEDULE.anchorMonday:start;d&&d<=last;d=addDays(d,1)){
+  const first=list[0].sched.anchorMonday,last=addDays(list[list.length-1].until,-1);
+  for(let d=start<first?first:start;d&&d<=last;d=addDays(d,1)){
     const hit=scheduleForDate(d);
     if(hit)return {date:d,week:hit.week,day:hit.day};
   }
@@ -1968,7 +2133,7 @@ function openState(s){
    being opened, before there is anything on screen to update. */
 function adoptDate(iso){
   const d=dateStateOf(iso);
-  STATE.date=d.date;STATE.week=d.week;STATE.day=d.day;STATE.setEdit=null;
+  STATE.date=d.date;STATE.week=d.week;STATE.day=d.day;STATE.block=d.block||"";STATE.setEdit=null;
   resetFocus();
   return d;
 }
@@ -2038,20 +2203,29 @@ function markExported(){
 
 function loadProgram(obj){
   if(!obj||!obj.meta||!Array.isArray(obj.exercises))throw new Error("Not a valid program.json (need meta + exercises).");
-  PROGRAM=obj;APP.source="personal";localStorage.setItem(LS.prog,JSON.stringify(obj));
+  const key=programKeyOf(obj);
+  /* A different block retires the one it replaces; a revision keeps its key and passes
+     straight through with its anchor. */
+  APP.source="personal";
+  retireActiveBlock(key);
+  PROGRAM=obj;localStorage.setItem(LS.prog,JSON.stringify(obj));
   const demo=$("#demoBanner");if(demo)demo.hidden=true;
-  /* A fresh import starts at the top of the block — and that reset has to be persisted,
-     or the next refresh would restore the position from the programme just replaced. */
-  /* The anchor is resolved and persisted here, so "the Monday of the week the programme
-     was imported" is a fact about this import rather than about whenever it is next
-     opened. The session index belongs to the previous programme's namespace. */
+  /* The anchor is resolved and persisted here, so it is a fact about this import rather
+     than about whenever it is next opened. A block coming back out of the archive brings
+     its own; a new one gets the suggested start, and the sheet to change it. */
+  let fresh=null;
+  if(!storedAnchor(obj)){
+    const back=unarchiveBlock(key);
+    if(back)saveAnchor(obj,back);
+    else{fresh=suggestedStart(obj);saveAnchor(obj,fresh.monday);}
+  }
   refreshSchedule();
-  invalidateSessionIndex();
   /* A fresh import lands on TODAY, like every other entry point (see STATE). Today may
      well be a rest day, and the date view says so, offering the next session and the
      claim picker. */
   adoptDate(todayISO());
   renderAll();resetViewScroll();
+  if(fresh)offerBlockStart(fresh);
 }
 function acceptProgramImport(obj,fromProfile=APP.surface==="profile"){
   if(window.TPPrograms&&TPPrograms.importProgram){
@@ -2072,12 +2246,14 @@ function acceptProgramImport(obj,fromProfile=APP.surface==="profile"){
   toast(fromProfile?"Programme ready on this device":"Program loaded");
 }
 function clearCachedProgram(){
+  /* Its sessions stay, so the programme they were trained off has to stay with them. */
+  retireActiveBlock("");
   localStorage.removeItem(LS.prog);
   LEGACY_KEYS.forEach(k=>localStorage.removeItem(k));
   /* The anchor is a fact about a programme, not about the device — it goes with it.
      Sessions are deliberately kept: they are the training record. */
   localStorage.removeItem(LS.sched);
-  SCHEDULE=null;invalidateSessionIndex();
+  SCHEDULE=null;BLOCKS=null;invalidateSessionIndex();
   if(APP.source==="personal"||APP.surface==="profile")PROGRAM=null;
   if(window.TPProfileUI)TPProfileUI.render();
 }
@@ -2089,6 +2265,18 @@ async function boot(){
     getCachedProgram:cachedProgram,
     onActivate:loadProgram,
     onClearActive:clearCachedProgram
+  });
+  /* Once per library listing: a block replaced before blocks were archived is put back
+     from the library. The date view is left alone — it may hold a field mid-word. */
+  let recoveredFrom="";
+  if(window.TPPrograms&&TPPrograms.subscribe)TPPrograms.subscribe(state=>{
+    if(!state||state.status!=="ready")return;
+    const sig=(state.items||[]).map(i=>i.id+":"+i.revision).join(",");
+    if(sig===recoveredFrom)return;
+    recoveredFrom=sig;
+    if(!recoverBlocks())return;
+    toast("Earlier block restored to the calendar");
+    if(APP.route!=="date")showRoute(APP.route);
   });
   /* Account-scoped settings, initialised before the surfaces that render them. A merged
      record arriving from another device is adopted rather than ignored. */
@@ -2174,7 +2362,7 @@ async function boot(){
 /* Drop the loaded programme and everything derived from it, without touching the
    sessions on disk — those are the training record, not a cache. */
 function forgetProgram(){
-  PROGRAM=null;SCHEDULE=null;APP.source=null;invalidateSessionIndex();
+  PROGRAM=null;SCHEDULE=null;BLOCKS=null;APP.source=null;invalidateSessionIndex();
 }
 /* Where a cold start lands. The hub answers "what am I doing today", which needs the
    cached programme in hand — so it is loaded here rather than on the way into a workout. */
@@ -2412,7 +2600,8 @@ function getSession(){
       }
     }catch(e){}
   }
-  if(!s)s={block:PROGRAM?PROGRAM.meta.block:"",athlete:PROGRAM?PROGRAM.meta.athlete:"",
+  const prog=dateProgram();
+  if(!s)s={block:prog?prog.meta.block:"",athlete:prog?prog.meta.athlete:"",
     week:STATE.week,day:STATE.day,date:STATE.date,
     status:"open",sealedAt:"",exportedAt:"",editedAt:"",lastSetAt:"",
     session:{...BLANK_SESSION},entries:{}};
@@ -2431,6 +2620,8 @@ function saveSession(s,opts){
      `::null` record that the calendar would then have to explain. */
   if(!txt(STATE.day)){updateProgress(s);return;}
   s.week=STATE.week;s.day=STATE.day;s.date=STATE.date;
+  /* Local only — buildSessionPayload names every exported key. */
+  if(STATE.block)s.programKey=STATE.block;
   s.editedAt=nextStamp(s.editedAt);
   /* Exporting is not an edit. Stamping both from the same instant is what keeps
      "edited since export" false until the athlete actually changes something after. */
@@ -2446,9 +2637,16 @@ function saveSession(s,opts){
      it snapshots the contract into a durable queue and schedules network work elsewhere,
      so a keystroke never waits for Supabase. Demo sessions never cross this boundary. */
   if(saved&&APP.source==="personal"&&PROGRAM&&window.TPSessions&&window.TPPrograms){
-    const active=TPPrograms.getActiveIdentity&&TPPrograms.getActiveIdentity();
-    if(active&&active.id){
-      try{TPSessions.stage(sessionKey(),active.id,buildSessionPayload(s,PROGRAM));}catch(e){}
+    /* An earlier block's session belongs to that block's library row, not the active
+       one. Unresolvable offline is fine: the queue backfill resolves it the same way. */
+    const prog=dateProgram();
+    let target=null;
+    try{
+      target=prog===PROGRAM?TPPrograms.getActiveIdentity&&TPPrograms.getActiveIdentity()
+        :TPPrograms.resolveSessionProgram&&TPPrograms.resolveSessionProgram(s);
+    }catch(e){}
+    if(target&&target.id){
+      try{TPSessions.stage(sessionKey(),target.id,buildSessionPayload(s,prog));}catch(e){}
     }
   }
   updateProgress(s);
@@ -2493,6 +2691,8 @@ function buildSessionIndex(){
       status:v.status==="sealed"?"sealed":"open",
       sealedAt:txt(v.sealedAt),exportedAt:txt(v.exportedAt),editedAt:txt(v.editedAt),
       lastSetAt:txt(v.lastSetAt),record:v};
+    const owner=blockOfSession(v,date);
+    rec.block=owner?owner.key:"";
     if(!byDate.has(date))byDate.set(date,[]);
     byDate.get(date).push(rec);
     const entries=(v.entries&&typeof v.entries==="object")?v.entries:{};
@@ -2629,9 +2829,10 @@ function renderHeader(){
     ctx.classList.toggle("off",!today);
     $("#ctxSub").textContent=STATE.day?dayTheme(STATE.day):"No training days in this program";
   }else{
-    ctx.textContent=PROGRAM.meta.block||"Training block";
+    const prog=dateProgram();
+    ctx.textContent=prog.meta.block||"Training block";
     ctx.classList.remove("off");
-    $("#ctxSub").textContent=`Week ${STATE.week} of ${PROGRAM.meta.weeks||"?"}`
+    $("#ctxSub").textContent=`Week ${STATE.week} of ${prog.meta.weeks||"?"}`
       +(rev?` · v${rev}`:"");
   }
 }
@@ -2758,7 +2959,7 @@ function renderMain(){
      has to apply the progression rule themselves. v2 authors every week, so the
      prescription shown IS this week's and the banner would be a lie. */
   if(!isV2()){
-    const authoredWeeks=PROGRAM.exercises.map(e=>Number(e.week)||1);
+    const authoredWeeks=dateProgram().exercises.map(e=>Number(e.week)||1);
     if(authoredWeeks.length&&STATE.week>Math.max(...authoredWeeks))
       m.append(el("div",{className:"banner"},`Week ${STATE.week}: prescriptions below are the Week-1 template — apply each exercise's Progression Rule for this week.`));
   }
@@ -2939,7 +3140,8 @@ function openClaimPicker(){
   if(!PROGRAM)return;
   const days=dayLabels();
   if(!days.length){toast("This programme lists no training days.");return;}
-  const weeks=SCHEDULE?SCHEDULE.weeks:1;
+  const sched=dateSchedule();
+  const weeks=sched?sched.weeks:1;
   const suggestion=scheduleForDate(STATE.date);
   let week=Math.min(weeks,Math.max(1,Number(STATE.week)||(suggestion?suggestion.week:1)));
   let day=txt(STATE.day)||(suggestion?suggestion.day:days[0]);
@@ -3078,7 +3280,8 @@ function dateFoot(s){
    takes a stored record or an ISO date. */
 /* Progress for a session we are not standing in, so it cannot call dayExercises(). */
 function recordProgress(rec){
-  const exs=sessionExercises(PROGRAM,rec.week,rec.day);
+  const b=blockByKey(rec.block);
+  const exs=sessionExercises(b?b.program:PROGRAM,rec.week,rec.day);
   const entries=(rec.record&&rec.record.entries)||{};
   const states=exs.map(ex=>entryState(entries[ex.id]));
   return {total:exs.length,
@@ -3100,12 +3303,11 @@ function recentSessions(n,exclude){
    as soon as the last scheduled day WAS trained, so this is an offer and never a list of
    accusations — a missed date stays quiet and greyed, exactly as the calendar shows it. */
 function lastMissed(from){
-  if(!SCHEDULE)return null;
+  const list=blocks();
+  if(!list.length)return null;
   for(let i=1;i<=14;i++){
     const d=addDays(from,-i);
-    if(!d)break;
-    const off=daysBetween(SCHEDULE.anchorMonday,d);
-    if(off==null||off<0)break;
+    if(!d||d<list[0].sched.anchorMonday)break;
     const hit=scheduleForDate(d);
     if(!hit)continue;
     if(sessionsOn(d).length)return null;
@@ -3205,12 +3407,13 @@ function renderHome(){
     host.append(box);
   }
   const rows=el("div",{className:"homesection"});
-  const weeks=SCHEDULE?SCHEDULE.weeks:0;
-  const here=SCHEDULE?suggestedWeek(today):0;
+  const now=blockForDate(today);
   rows.append(homeRow("Calendar",
-    weeks?`Week ${here} of ${weeks} · every date in the block`:"Every date, once a programme is loaded",
+    now?`Week ${suggestedWeek(today)} of ${now.sched.weeks} · ${txt(now.program.meta.block)||"every date in the block"}`
+      :SCHEDULE&&SCHEDULE.anchorMonday>today?`Next block starts ${fmtDate(SCHEDULE.anchorMonday)}`
+      :SCHEDULE?"Every date in the block":"Every date, once a programme is loaded",
     chev(),openCalendarPage));
-  const rev=progVersion();
+  const rev=progVersion(PROGRAM);
   rows.append(homeRow("Programme",PROGRAM
     ?[txt(PROGRAM.meta.athlete),`${PROGRAM.meta.weeks||"?"}-week block`,rev?"v"+rev:""]
       .filter(Boolean).join(" · ")
@@ -3222,14 +3425,15 @@ function renderHome(){
 }
 
 /* ---------- the calendar ----------
-   The block's weeks labelled W1–Wn, dates outside it present but plain. A cell holds the
-   date number and one state mark and nothing more — see .cal for the width budget that
-   forces that. */
+   Every block's weeks labelled W1–Wn under its own name, dates outside them present but
+   plain. A cell holds the date number and one state mark and nothing more — see .cal for
+   the width budget that forces that. */
 const CAL_DOW=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 function calendarRange(){
   const today=todayISO();
-  let first=SCHEDULE?addDays(SCHEDULE.anchorMonday,-7):mondayOf(today);
-  let last=SCHEDULE?addDays(SCHEDULE.anchorMonday,SCHEDULE.weeks*7+6):addDays(mondayOf(today),13);
+  const list=blocks();
+  let first=list.length?addDays(list[0].sched.anchorMonday,-7):mondayOf(today);
+  let last=list.length?addDays(list[list.length-1].until,6):addDays(mondayOf(today),13);
   /* A session logged outside the block still has to be findable. */
   sessionIndex().byDate.forEach((_,date)=>{
     if(date<first)first=mondayOf(date);
@@ -3291,9 +3495,13 @@ function renderCalendar(){
   grid.append(el("div",{className:"cal-corner",attrs:{"aria-hidden":"true"}},""));
   CAL_DOW.forEach(d=>grid.append(el("div",{className:"cal-dow"},d)));
   let todayCell=null;
+  const many=blocks().length>1;
   for(let monday=range.first;monday&&monday<=range.last;monday=addDays(monday,7)){
-    const off=SCHEDULE?daysBetween(SCHEDULE.anchorMonday,monday):null;
-    const week=(off!=null&&off>=0&&off%7===0&&off/7<SCHEDULE.weeks)?off/7+1:0;
+    const b=blockForDate(monday);
+    const week=b?daysBetween(b.sched.anchorMonday,monday)/7+1:0;
+    /* Only worth a row once there is a second block to tell it from. */
+    if(many&&week===1)grid.append(el("div",{className:"cal-block"},
+      txt(b.program.meta.block)||"Training block"));
     grid.append(el("div",{className:"cal-week"+(week?"":" out")},week?"W"+week:"·"));
     for(let i=0;i<7;i++){
       const iso=addDays(monday,i);
@@ -3332,6 +3540,12 @@ function anchorPanel(){
     return box;
   }
   box.append(el("div",{className:"panel-value tnum"},fmtDate(SCHEDULE.anchorMonday)));
+  /* The block this one follows, and where it now stops — moving this Monday is what
+     decides that, so it is said here rather than discovered on the calendar. */
+  const list=blocks(),at=list.findIndex(x=>x.active);
+  const before=at>0?list[at-1]:null;
+  if(before)box.append(el("p",{className:"page-copy"},
+    `Follows “${txt(before.program.meta.block)||"the last block"}”, which ends ${fmtDate(addDays(before.until,-1))}.`));
   box.append(el("p",{className:"page-copy"},
     "Week 1 starts on this Monday, and every date the app suggests is counted from it. Sessions you have already logged keep their own dates — moving this moves the suggestion, never the record."));
   /* The derived weekdays, so the anchor can actually be checked rather than trusted. */
@@ -3349,8 +3563,8 @@ function anchorPanel(){
       const set=setAnchorMonday(inp.value);
       anchorEditing=false;
       /* Normalised to a Monday, so week arithmetic can never drift by a few days. */
-      toast(set?"Block starts "+fmtDate(set):"Pick a valid date");
-      invalidateSessionIndex();renderProgrammePage();
+      toast(set?"Block starts "+fmtDate(set):inp.value?"Another block already starts that week":"Pick a valid date");
+      renderProgrammePage();
     };
     box.append(el("div",{className:"panel-edit"},inp));
   }else{
@@ -3359,6 +3573,59 @@ function anchorPanel(){
     box.append(el("div",{className:"panel-edit"},edit));
   }
   return box;
+}
+/* The one question a new block asks: which Monday is week 1. The suggestion is already
+   saved before this opens, so closing it keeps that — the import is never undone by a
+   dismissed sheet. */
+function offerBlockStart(fresh){
+  if(!PROGRAM)return;
+  const prevName=fresh.prev?txt(fresh.prev.program.meta.block)||"the last block":"";
+  const thisMonday=mondayOf(todayISO()),nextMonday=addDays(thisMonday,7);
+  const early=m=>{
+    const n=fresh.prevEnd&&fresh.prevEnd>m?daysBetween(m,fresh.prevEnd)/7:0;
+    return n?` · ends “${prevName}” ${n} week${n>1?"s":""} early`:"";
+  };
+  const opts=[];
+  const add=(monday,note)=>{if(monday&&!opts.some(o=>o.monday===monday))opts.push({monday,note});};
+  add(fresh.monday,fresh.why==="declared"?"the programme's own start date"+early(fresh.monday)
+    :fresh.why==="after"?`after “${prevName}” ends`:"this week");
+  add(thisMonday,"this week"+early(thisMonday));
+  add(nextMonday,"next week"+early(nextMonday));
+  let pick=fresh.monday;
+  const wrap=el("div");
+  const list=el("div",{className:"daylist"});
+  const other=el("input",{type:"date",value:"",attrs:{"aria-label":"Another start date"}});
+  const confirm=el("button",{className:"primary"},"Start block");
+  const paint=()=>{
+    list.innerHTML="";
+    opts.forEach(o=>{
+      const b=el("button",{className:"dayitem",attrs:{"aria-pressed":String(o.monday===pick)}},[
+        el("span",{className:"dwrap"},[el("span",{className:"dday"},fmtDate(o.monday)),
+          el("span",{className:"dtheme"},o.note)])]);
+      b.onclick=()=>{pick=o.monday;other.value="";paint();};
+      list.append(b);
+    });
+  };
+  other.onchange=()=>{
+    const m=mondayOf(other.value);
+    if(!m)return;
+    add(m,"the Monday of the week you picked"+early(m));
+    pick=m;paint();
+  };
+  confirm.onclick=()=>{
+    sheetClose();
+    const set=setAnchorMonday(pick);
+    toast(set?"Week 1 starts "+fmtDate(set):"Another block already starts that week");
+    adoptDate(STATE.date);
+    if(APP.route==="date")renderAll();else showRoute(APP.route);
+  };
+  paint();
+  const row=el("div",{className:"sheet-actions"});
+  row.append(confirm);
+  wrap.append(list,el("div",{className:"panel-edit"},other),row);
+  sheetOpen(`Week 1 of “${txt(PROGRAM.meta.block)||"this block"}” starts on…`,
+    "Every date the calendar suggests is counted from this Monday. Sessions already logged keep their own dates, and you can change this later on the Programme screen.",
+    wrap);
 }
 function renderProgrammePage(){
   const host=$("#pageBody");if(!host)return;
@@ -4322,7 +4589,7 @@ function buildSessionPayload(stored,program){
     })
   };
 }
-function buildSessionExport(){return buildSessionPayload(getSession(),PROGRAM);}
+function buildSessionExport(){return buildSessionPayload(getSession(),dateProgram());}
 function sessionFilename(data){return `session-${data.date}-${slug(data.day)||"day"}.json`;}
 function downloadSessionPayload(data){
   if(!data||!data.schema)throw new Error("Workout details are unavailable on this device.");

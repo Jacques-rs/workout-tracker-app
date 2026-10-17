@@ -72,35 +72,36 @@ order in the file** — keep additions in the matching section, and if you add o
 10. **what the programme says to capture** — `parseHints(ex)` (the `Capture` chips), `painAsked(ex)`/`programPainSite()`. Read-only readers of the prescription, all pure.
 11. **where the athlete is in the block** — `suggestedWeek()` and the position helpers. Position is always derived, never stored.
 12. **the derived schedule** — `WEEKDAYS`/`parseWeekday()`, `dayEntries()`, `programKeyOf()`, `anchorFor()`/`saveAnchor()`/`setAnchorMonday()`, `scheduleFor(program)`, `refreshSchedule()` and the live `SCHEDULE`, then the two directions: `dateFor(week, dayLabel)` and `scheduleForDate(date)`.
-13. **what a date is** — `dateStateOf(iso)` (the five states), `nextScheduled()`, `sessionStored()`, `openState()`, `adoptDate()`, `openDate()`, `applyClaim(week, day)`, `startSession()`.
-14. **sealing** — `sealSession()`, `unsealSession()`, `markExported()`. Local, works with the radio off, and an edit never un-seals. Also `prescribedSets(ex)`/`targetSets(ex, e)`.
-15. **session persistence** — `sessionKey()` (empty when no day is claimed, so a stray autosave cannot file a `::null` record), `getSession()`, `saveSession()`. Device storage always completes before `TPSessions.stage()` snapshots personal work for asynchronous sync.
-16. **deriving the flat summary from `sets[]`** — `deriveSummary()`/`deriveReps()`/`withUnit()`/`pickMode()`/`pickMax()`/`applyDerivedSummary()`. Must fail safe on empty or partial data; see the quirk below.
-17. **migrating a stored entry** — `normalizeEntry()`. Runs on every read, so it is idempotent by construction; see below.
-18. **session lifecycle state** — `normalizeSessionState()`/`sealed()`/`editedSinceExport()`/`nextStamp()`, and the per-key contract for `status`/`sealedAt`/`exportedAt`/`editedAt`/`lastSetAt`.
-19. **the session index** — `sessionIndex()`, `invalidateSessionIndex()`, `sessionsOn(date)`, `lastLoggedFor(ex, date)`, `normName()`. A **cache** over the sibling `tp_sess_v1::*` keys, built once and dropped by every write. `saveSession()` runs on every keystroke, so **never call the builder from a render path**.
-20. **set mutation** — `blankEntry()`, `blankDraft()`/`seedDraft()`/`draftEmpty()`/`draftDirty()`, `entryState()`, `renumber()`, `commitSet()`, `deleteSet()`, `commitDraftIfDirty()` (End exercise), and `typedDrafts()`/`confirmTypedDrafts()`, the prompt Finish and Export raise for a typed-but-unlogged set. Every commit path takes the session so `stampLastSet()` can write `lastSetAt` — the rest clock's only state.
-21. **rendering** — `renderAll()` = `renderHeader()` + `renderMain()`; `dayParts()`, `dayTheme()`, the `fmt*`/`relDay()` date formatters, `field(label, node, unit, labelClass)`, `updateProgress()`.
-22. **view mode** — `viewMode()`, `setView()`, `syncView()` (toggle state, footer/header visibility, and capture/restore of the runtime-only Overview scroll position), `firstUndone()`, `resetFocus()`, `clampFocus()`, `goFocus(i)`, `stepFocus(d)`, `renderNav()` (rebuilds the pips) and `paintNav()` (repaints their state without touching structure).
-23. **the session check-in** — `sessionCard()`, rendered into `#checkinHost` by `renderCheckin()`, which rebuilds *only* that block because the exercise list below holds a scroll position a full rebuild would throw away.
-24. **the date view** — `dateHead()`, `dateFoot()`, `sessionProgressLine()`, `sealLine()`, `openClaimPicker()` (week and day together, the current selection preselected), `confirmFinish()`, `confirmReopen()`.
-25. **the hub** — `renderHome()`/`homeToday()`/`homeRow()`, `recordProgress()` (progress for a session we are *not* standing in, so it cannot call `dayExercises()`), `recentSessions()`, `lastMissed()`, `accountLine()`.
-26. **the calendar** — `renderCalendar()`, `calendarRange()`, `calendarMark()`, `calendarPain()`, `calendarLegend()`.
-27. **the programme screen** — `anchorPanel()` (the block anchor, editable in one tap, with the derived weekdays shown so it can be checked rather than trusted), `renderProgrammePage()`.
-28. **the account screen** — `settingsGroup()`, `renderAccountPage()`, which labels the two settings scopes explicitly.
-29. **exercise head (shared by Overview and Log)** — `exerciseHead(ex)`, `hintChips()`. The rail colour, name and prescription line. **Change an exercise's identity here only**, so the two views cannot show two different prescriptions for one row.
-30. **overview card (read-only)** — `overviewCard(ex, s, idx)`, `statusLine()`, `summaryText()`, `painLogged()`. Zero inputs.
-31. **the focus logger's instruments** — `parseRestSeconds(ex)`, `restSeconds(s)`, `fmtClock()`, `restClockNode()`, `startRestTick()`; `heaviestSet()`, `agoWords()`, `lastTimeNode()`; `instrumentRail()`. One interval for the whole app, and it only ever repaints.
-32. **the set editor (Log view)** — `buildSetEditor()` (recap + chips + count control + fields + actions), `setRecap()`, `collapse()`. An input's `oninput` writes and saves; it must never rebuild a container it lives in.
-33. **summary & notes (collapsed, inside Log view)** — `buildSummaryPanel()`, the editable flat fields.
-34. **log card** — `logCard(ex, s, idx)` and its `redraw()`.
-35. **export** — `exportSets()`, `exportEntry()` (a named whitelist, not a rest-spread — see "State model" below), pure `buildSessionPayload(stored, program)` for export/backfill, `buildSessionExport()`, `exportSession()`, `copyJSON()`.
-36. **events** — wiring for markup that lives for the whole page, a guarded `keydown` listener (Escape closes the action sheet, arrows page Log view), service-worker registration, the `boot()` call. Week, day and date are not standing widgets: they are the claim picker and the calendar, built on demand.
+13. **the block timeline** — `blocks()` (the derived, date-ordered list), `blockForDate()`/`contextBlock()`, `blockOfSession()`, `dateProgram()`/`dateSchedule()`, `retireActiveBlock()`/`unarchiveBlock()`, `suggestedStart()`, `recoverBlocks()`.
+14. **what a date is** — `dateStateOf(iso)` (the five states), `nextScheduled()`, `sessionStored()`, `openState()`, `adoptDate()`, `openDate()`, `applyClaim(week, day)`, `startSession()`.
+15. **sealing** — `sealSession()`, `unsealSession()`, `markExported()`. Local, works with the radio off, and an edit never un-seals. Also `prescribedSets(ex)`/`targetSets(ex, e)`.
+16. **session persistence** — `sessionKey()` (empty when no day is claimed, so a stray autosave cannot file a `::null` record), `getSession()`, `saveSession()`. Device storage always completes before `TPSessions.stage()` snapshots personal work for asynchronous sync.
+17. **deriving the flat summary from `sets[]`** — `deriveSummary()`/`deriveReps()`/`withUnit()`/`pickMode()`/`pickMax()`/`applyDerivedSummary()`. Must fail safe on empty or partial data; see the quirk below.
+18. **migrating a stored entry** — `normalizeEntry()`. Runs on every read, so it is idempotent by construction; see below.
+19. **session lifecycle state** — `normalizeSessionState()`/`sealed()`/`editedSinceExport()`/`nextStamp()`, and the per-key contract for `status`/`sealedAt`/`exportedAt`/`editedAt`/`lastSetAt`.
+20. **the session index** — `sessionIndex()`, `invalidateSessionIndex()`, `sessionsOn(date)`, `lastLoggedFor(ex, date)`, `normName()`. A **cache** over the sibling `tp_sess_v1::*` keys, built once and dropped by every write. `saveSession()` runs on every keystroke, so **never call the builder from a render path**.
+21. **set mutation** — `blankEntry()`, `blankDraft()`/`seedDraft()`/`draftEmpty()`/`draftDirty()`, `entryState()`, `renumber()`, `commitSet()`, `deleteSet()`, `commitDraftIfDirty()` (End exercise), and `typedDrafts()`/`confirmTypedDrafts()`, the prompt Finish and Export raise for a typed-but-unlogged set. Every commit path takes the session so `stampLastSet()` can write `lastSetAt` — the rest clock's only state.
+22. **rendering** — `renderAll()` = `renderHeader()` + `renderMain()`; `dayParts()`, `dayTheme()`, the `fmt*`/`relDay()` date formatters, `field(label, node, unit, labelClass)`, `updateProgress()`.
+23. **view mode** — `viewMode()`, `setView()`, `syncView()` (toggle state, footer/header visibility, and capture/restore of the runtime-only Overview scroll position), `firstUndone()`, `resetFocus()`, `clampFocus()`, `goFocus(i)`, `stepFocus(d)`, `renderNav()` (rebuilds the pips) and `paintNav()` (repaints their state without touching structure).
+24. **the session check-in** — `sessionCard()`, rendered into `#checkinHost` by `renderCheckin()`, which rebuilds *only* that block because the exercise list below holds a scroll position a full rebuild would throw away.
+25. **the date view** — `dateHead()`, `dateFoot()`, `sessionProgressLine()`, `sealLine()`, `openClaimPicker()` (week and day together, the current selection preselected), `confirmFinish()`, `confirmReopen()`.
+26. **the hub** — `renderHome()`/`homeToday()`/`homeRow()`, `recordProgress()` (progress for a session we are *not* standing in, so it cannot call `dayExercises()`), `recentSessions()`, `lastMissed()`, `accountLine()`.
+27. **the calendar** — `renderCalendar()`, `calendarRange()`, `calendarMark()`, `calendarPain()`, `calendarLegend()`.
+28. **the programme screen** — `anchorPanel()` (the block anchor, editable in one tap, with the derived weekdays and the block it follows shown so it can be checked rather than trusted), `offerBlockStart()` (the new-block start sheet), `renderProgrammePage()`.
+29. **the account screen** — `settingsGroup()`, `renderAccountPage()`, which labels the two settings scopes explicitly.
+30. **exercise head (shared by Overview and Log)** — `exerciseHead(ex)`, `hintChips()`. The rail colour, name and prescription line. **Change an exercise's identity here only**, so the two views cannot show two different prescriptions for one row.
+31. **overview card (read-only)** — `overviewCard(ex, s, idx)`, `statusLine()`, `summaryText()`, `painLogged()`. Zero inputs.
+32. **the focus logger's instruments** — `parseRestSeconds(ex)`, `restSeconds(s)`, `fmtClock()`, `restClockNode()`, `startRestTick()`; `heaviestSet()`, `agoWords()`, `lastTimeNode()`; `instrumentRail()`. One interval for the whole app, and it only ever repaints.
+33. **the set editor (Log view)** — `buildSetEditor()` (recap + chips + count control + fields + actions), `setRecap()`, `collapse()`. An input's `oninput` writes and saves; it must never rebuild a container it lives in.
+34. **summary & notes (collapsed, inside Log view)** — `buildSummaryPanel()`, the editable flat fields.
+35. **log card** — `logCard(ex, s, idx)` and its `redraw()`.
+36. **export** — `exportSets()`, `exportEntry()` (a named whitelist, not a rest-spread — see "State model" below), pure `buildSessionPayload(stored, program)` for export/backfill, `buildSessionExport()`, `exportSession()`, `copyJSON()`.
+37. **events** — wiring for markup that lives for the whole page, a guarded `keydown` listener (Escape closes the action sheet, arrows page Log view), service-worker registration, the `boot()` call. Week, day and date are not standing widgets: they are the claim picker and the calendar, built on demand.
 
 ## State model
 
 ```js
-STATE = { week: 1, day: "Day 1 (Mon) - ...", date: "2026-07-27", focus: 0, setEdit: null }
+STATE = { week: 1, day: "Day 1 (Mon) - ...", block: "<programKey>", date: "2026-07-27", focus: 0, setEdit: null }
 APP = { surface: "profile" | "workout", route: "entry" | "home" | "calendar" | "date" | "programme" | "account",
         source: null | "personal" | "sample", from: "home" | "calendar" }
 SCHEDULE = { anchorMonday: "2026-07-27", weeks: 6, days: [{ label, weekday }] } | null
@@ -111,7 +112,7 @@ guest, the hub for a known owner. `source` selects the personal or demo local na
 workout is open; `from` is where a jump to the date view came from, so back returns there rather
 than always to the hub (one level, because there is nothing deeper to remember). `surface` is derived from `route` and read by the boot/export paths.
 
-**`STATE.date` is primary, and `week`/`day` are derived from it** — read off the claim when a
+**`STATE.date` is primary, and `week`/`day`/`block` are derived from it** — read off the claim when a
 session is stored on that date, otherwise the schedule's suggestion. The position is never stored separately: a stored
 position can disagree with the claim, and when it does it puts the wrong week's prescriptions on
 screen. `tp_pos_v1` is retired and survives only in `LEGACY_KEYS`, which cleans it up. The date always starts at **today**, because a screen
@@ -135,8 +136,9 @@ lives in `localStorage`:
 | `tp_program_v1` | The imported programme. One at a time. Holds **either** `tp-program-1` or `tp-program-2` — the storage key is not versioned, `meta.schema` inside it is. |
 | `tp_active_program_v1` | Stable cloud UUID, last known row revision and a `pending` retry marker for the active personal programme. It never contains the programme payload; that remains in `tp_program_v1`. |
 | `tp_schedule_v1` | `{ programKey, anchorMonday }` — the block anchor. One date per programme; `programKey` is derived from the programme's own identity (deliberately excluding `meta.version`, so a mid-block revision cannot move every date). The **only** stored state the schedule needs, because claims live in the sessions. |
-| `tp_sess_v1::<date>::<day>` | One session's logged data, plus its lifecycle: `status` (`open`\|`sealed`, **absent means open**), `sealedAt`, `exportedAt`, `editedAt`, `lastSetAt`. The **date is in the key**, which is why every session already on a phone lands on its correct calendar date with no migration. None of the lifecycle fields reach an export — `buildSessionPayload()` names every exported key. |
+| `tp_sess_v1::<date>::<day>` | One session's logged data, plus its lifecycle: `status` (`open`\|`sealed`, **absent means open**), `sealedAt`, `exportedAt`, `editedAt`, `lastSetAt`, and `programKey` — the block it was trained in (absent on older records, which are placed by their `block`/`athlete` names). The **date is in the key**, which is why every session already on a phone lands on its correct calendar date with no migration. None of the lifecycle fields reach an export — `buildSessionPayload()` names every exported key. |
 | `tp_session_sync_v1` | Per-local-session cloud identity, last seen revision, dirty generation and—only while dirty—the complete `tp-session-3` retry snapshot. Clean mappings drop the duplicate payload. Never used for sample sessions. |
+| `tp_blocks_v1` | `[{ anchorMonday, program }]` — earlier blocks that were trained, each with its own anchor and the full programme payload, so their sessions keep reading against it. Personal only. Kept when the active programme is removed, like the sessions it explains. |
 | `tp_demo_schedule_v1` | Sample-only block anchor, so opening the sample can never move a personal block's dates. |
 | `tp_demo_sess_v1::<date>::<day>` | Sample-only session data. Same local shape and export contract, separate namespace. |
 | `tp_settings_v1` | The **device** half of the settings: appearance (`palette`: `a`\|`b`, `mode`: `auto`\|`light`\|`dark`), `view` (`list`\|`focus`, meaning Overview\|Log) and `sv`, a one-shot settings-migration marker (see below). Defaults `a` / `auto` / `focus`. Cosmetic and deliberately **not** part of the session export. |
@@ -166,7 +168,8 @@ offline library; only the active programme is durable across reloads.
 Remove is a soft delete (`deleted_at`) guarded by the row's last-seen `revision`. A zero-row update
 means another device changed it, so the library refreshes and asks the athlete to review rather than
 overwriting. Removing the active programme clears `tp_program_v1` and its active marker,
-but deliberately retains local session keys. No programme action writes `session_logs`.
+but deliberately retains local session keys — and, if any were trained in it, archives the
+programme locally so they keep reading against it. No programme action writes `session_logs`.
 
 ## The derived schedule, and claims
 
@@ -187,11 +190,25 @@ lenient" stance:
 3. Distribute across consecutive weekdays from Monday, skipping the ones labelled days already own.
    A partly-labelled programme therefore keeps the weekdays it declares instead of being flattened.
 
-The anchor defaults to the Monday of the week the programme was imported, and is **persisted the
-first time it resolves** — that is what makes it mean "imported" rather than re-deriving to
-whatever Monday it happens to be now. `meta.startDate` wins over that default but never over an
-athlete's own edit, which is already stored and matches on `programKey`. One tap on the Programme
-screen moves it, and moving it moves every *suggestion*; stored sessions keep their own dates.
+The anchor is resolved and **persisted when the programme is loaded**, so it is a fact about that
+import rather than re-deriving to whatever Monday it happens to be now. A revision (same
+`programKey`) keeps its stored anchor; a block re-activated from the archive brings its own; any
+other programme is a **new block**, anchored at `suggestedStart()` — `meta.startDate` if it has
+one, else the Monday after the latest archived block ends, else this week — and `offerBlockStart()`
+opens a sheet to confirm or change it. The suggestion is saved before the sheet opens, so
+dismissing it keeps the suggestion. One tap on the Programme screen moves the anchor later, and
+moving it moves every *suggestion*; stored sessions keep their own dates.
+
+**Blocks.** Loading a different programme first calls `retireActiveBlock()`, which archives the
+outgoing one into `tp_blocks_v1` *if any session belongs to it*. `blocks()` is the derived,
+date-ordered list of archived blocks plus the active one; each owns its weeks up to the next
+block's anchor (`until`), so blocks never overlap, and no two may share an anchor. Without an
+explicit `sched`, `scheduleForDate()` asks the block that owns the date. A stored session reads
+against `blockOfSession()` — its `programKey`, else its `block`/`athlete` names, else the date —
+and the date view adopts that into `STATE.block`, from which `dateProgram()`/`dateSchedule()`
+serve everything that draws or exports it. `PROGRAM` is only the active block. `recoverBlocks()`
+runs on each new library listing and rebuilds a block that a device replaced before archiving
+existed, from the library's copy, anchored where most of its sessions place week 1.
 
 **The schedule is a suggestion, not a commitment.** A **claim** is any stored session carrying a
 date, and claims always win: `dateStateOf(iso)` looks for stored sessions first and falls back to
