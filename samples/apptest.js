@@ -87,6 +87,10 @@ function textNode(t){ return { nodeType: 3, textContent: t, children: [], find()
 let ACTIVE_ELEMENT = null;
 const STUBS = {};
 function stubFor(sel){ return STUBS[sel] || (STUBS[sel] = new El("div")); }
+/* Page-level listeners, recorded so a test can fire the phone locking (pagehide /
+   visibilitychange) at whatever the app registered. */
+const LISTENERS = [];
+function listen(type, fn){ LISTENERS.push([type, fn]); }
 
 const store = new Map();
 const sandbox = {
@@ -99,7 +103,8 @@ const sandbox = {
     body: new El("body"),
     execCommand(){},
     get activeElement(){ return ACTIVE_ELEMENT; },
-    addEventListener(){}
+    visibilityState: "visible",
+    addEventListener: listen
   },
   /* `length` and `key(i)` are part of the real Storage API and the app uses them: the
      session index scans sibling tp_sess_v1::* keys. Without them the index would come
@@ -127,7 +132,7 @@ const sandbox = {
   TPProfileUI: { init(){}, render(){} },
   window: {
     scrollY: 0, pageYOffset: 0,
-    addEventListener(){},
+    addEventListener: listen,
     scrollTo(x, y){
       this.scrollY = Number(y) || 0; this.pageYOffset = this.scrollY;
     }
@@ -465,8 +470,13 @@ console.log("\nadaptive circuit logging modes");
   chooseRpe(C,8.5);
   is(app.getSession().entries[rows[2].id].draft.rpe,"8.5","a detailed-round RPE survives the picker redraw");
   app.goFocus(1);
-  const detailed=app.getSession().entries[rows[2].id];
-  is(detailed.sets[0].rpe,"8.5","navigating away commits a typed detailed round");
+  let detailed=app.getSession().entries[rows[2].id];
+  is(detailed.sets.length,0,"navigating away never logs a typed detailed round");
+  is(detailed.draft.rpe,"8.5","…it stays typed");
+  is(app.statusLine(rows[2],detailed),"Round 1 typed, not logged","…and Overview says so");
+  app.goFocus(2);C=logCardNode();buttonOf(C,/Log round 1/).onclick();
+  detailed=app.getSession().entries[rows[2].id];
+  is(detailed.sets[0].rpe,"8.5","the Log tap commits the typed round");
   is(detailed.sets[0].reps,"As prescribed","that round still identifies the completed circuit work");
 
   app.goFocus(0);C=logCardNode();
@@ -616,17 +626,41 @@ console.log("\nlogging one set at a time — the commit flow");
   actionBtn(c2, /Log final set/).onclick();
   is(stored().sets.length, before2 + 1, "logging another set after the prescribed count still works");
 
-  /* Committing an entirely empty draft must be a no-op, not a phantom set. The only way
-     to get an empty draft is if the athlete clears every field by hand — simulate that
-     directly rather than through the UI, since a fresh draft is never blank on its own. */
+  /* Every planned set logged but not finished — reachable by reopening, or by a session
+     stored by an older build. The editor must offer Finish, never invent set N+1. */
   const s3 = app.getSession();
-  s3.entries[ex.id].draft = app.blankDraft();
   s3.entries[ex.id].done = false;
   app.saveSession(s3);
   app.goFocus(originalIndex);
-  const beforeEmpty = stored().sets.length;
-  actionBtn(card(), /Log another/).onclick();
-  is(stored().sets.length, beforeEmpty, "committing a wholly empty draft does nothing");
+  const logged = stored().sets.length;
+  let C3 = card();
+  is(setInputs(C3).length, 0, "planned sets reached: no draft fields");
+  assert(!/Set \d+ of/.test(C3.text), "…and no 'Set N+1 of N+1' label");
+  is(chipsOf(C3).length, logged, "…and no chip beyond the logged sets");
+  assert(/All \d+ planned sets logged/.test(C3.text), "…it says the plan is complete instead");
+  actionBtn(C3, /Add another set/).onclick();
+  C3 = card();
+  is(setInputs(C3).length > 0, true, "Add another set opens a draft");
+  assert(/Log final set/.test(actionBtn(C3, /Log final set/).text), "…for exactly one set more than logged");
+
+  /* Committing an entirely empty draft must be a no-op, not a phantom set. The only way
+     to get an empty draft is if the athlete clears every field by hand — simulate that
+     directly rather than through the UI, since a fresh draft is never blank on its own. */
+  const s4 = app.getSession();
+  s4.entries[ex.id].draft = app.blankDraft();
+  app.saveSession(s4);
+  app.goFocus(originalIndex);
+  actionBtn(card(), /Log final set/).onclick();
+  is(stored().sets.length, logged, "committing a wholly empty draft does nothing");
+
+  /* Finish exercise is the same path as Log final set: done, and on to the next. */
+  s4.entries[ex.id].setTarget = logged;
+  app.saveSession(s4);
+  app.goFocus(originalIndex);
+  actionBtn(card(), /Finish exercise/).onclick();
+  is(stored().done, true, "Finish exercise marks the exercise done");
+  is(stored().sets.length, logged, "…without adding a set");
+  is(app.STATE.focus, originalIndex + 1, "…and advances to the next exercise");
 }
 
 console.log("\nediting and deleting a committed set");
@@ -642,7 +676,7 @@ console.log("\nediting and deleting a committed set");
       { set: 2, load: "80",  reps: "4", rpe: "7", painDuring: "", note: "" },
       { set: 3, load: "80",  reps: "4", rpe: "7", painDuring: "", note: "" }
     ],
-    draft: { load: "80", reps: "4", rpe: "7", painDuring: "", note: "" }, summaryAuto: true });
+    draft: { load: "80", reps: "4", rpe: "7", painDuring: "", note: "" }, summaryAuto: true, setTarget: 4 });
   app.applyDerivedSummary(e);
   app.saveSession(s);
 
@@ -772,11 +806,12 @@ console.log("\nupcoming chips are inert; set-count changes are secondary");
   actionBtn(C, /Cancel/).onclick();
 }
 
-console.log("\na typed set is never lost — flushed on End, navigation and export");
+console.log("\na typed set is never lost, and never logged without a tap");
 {
-  /* The defect: Finish marked the exercise done and left the typed set sitting in the
-     draft, which nothing but the editor reads. It exported as if the set never happened,
-     and Overview said "nothing logged" for an exercise that had just been trained. */
+  /* The defect: on the last planned set, typing and locking the phone committed the set
+     without completing the exercise, and the editor came back on an invented set N+1.
+     A typed set now waits in the draft until a tap logs it — End, Log, or the prompt
+     that Finish and Export raise. */
   const setup = () => {
     loadFixture("program.v2.sample.json");
     app.STATE.week = 1;
@@ -786,6 +821,11 @@ console.log("\na typed set is never lost — flushed on End, navigation and expo
     return ex;
   };
   const entry = ex => app.getSession().entries[ex.id] || app.blankEntry();
+  const hide = () => {
+    sandbox.document.visibilityState = "hidden";
+    LISTENERS.filter(([t]) => t === "pagehide" || t === "visibilitychange").forEach(([, fn]) => fn({}));
+    sandbox.document.visibilityState = "visible";
+  };
 
   let ex = setup();
   let C = logCardNode();
@@ -794,44 +834,64 @@ console.log("\na typed set is never lost — flushed on End, navigation and expo
   is(entry(ex).sets.length, 0, "typing alone commits nothing — the draft is still a draft");
   assert(app.draftDirty(entry(ex)), "…but it is flagged as typed, not as a seeded copy");
   endExercise(C);
-  is(entry(ex).sets.length, 1, "End commits the typed set instead of discarding it");
+  is(entry(ex).sets.length, 1, "End commits the typed set — its sheet counts it");
   is(entry(ex).sets[0].load, "72.5", "…carrying exactly what was typed");
   is(entry(ex).done, true, "and the exercise is still marked done");
 
-  /* The same on the way past: Next, a pip, a day change, a week change. */
+  /* The reported bug: the final planned set, typed, then the phone locks. */
   ex = setup();
+  const target = app.targetSets(ex, entry(ex));
+  for(let i = 0; i < target - 1; i++){ type(setInputs(logCardNode())[0], "60"); actionBtn(logCardNode(), /Log set/).onclick(); }
   C = logCardNode();
-  type(setInputs(C)[0], "80");
-  app.stepFocus(1);
-  is(entry(ex).sets.length, 1, "paging to the next exercise commits it");
-
-  ex = setup();
+  type(setInputs(C)[0], "62.5");
+  hide();
+  is(entry(ex).sets.length, target - 1, "locking the phone on the final set logs nothing");
+  is(entry(ex).draft.load, "62.5", "…the typed value is still in the draft");
+  assert(app.draftDirty(entry(ex)), "…still flagged as typed");
   C = logCardNode();
-  type(setInputs(C)[0], "80");
-  app.selectWeek(2);
-  app.selectWeek(1);
-  is(entry(ex).sets.length, 1, "changing week commits it");
+  assert(new RegExp(`Set ${target} of ${target}`).test(C.text), "…and the editor comes back on the same set, not an invented one");
+  is(setInputs(C)[0].value, "62.5", "…holding what was typed");
 
+  /* Moving away is not a tap that says log. */
+  const unmoved = (label, go) => {
+    ex = setup();
+    type(setInputs(logCardNode())[0], "80");
+    go();
+    is([entry(ex).sets.length, entry(ex).draft.load], [0, "80"], label);
+  };
+  unmoved("paging to the next exercise logs nothing and keeps the draft", () => app.stepFocus(1));
+  unmoved("changing week and back does too", () => { app.selectWeek(2); app.selectWeek(1); });
+  unmoved("leaving the editor for Overview does too", () => { app.setView("list"); app.setView("focus"); });
   ex = setup();
   app.openWorkout("personal");
-  C = logCardNode();
-  type(setInputs(C)[0], "80");
+  type(setInputs(logCardNode())[0], "80");
   app.openProfile();
-  is(entry(ex).sets.length, 1, "returning to profile home commits the set in progress");
+  is([entry(ex).sets.length, entry(ex).draft.load], [0, "80"], "returning to profile home does too");
+
+  /* Export and Finish ask. */
+  ex = setup();
+  type(setInputs(logCardNode())[0], "80");
+  type(setInputs(logCardNode())[1], "6");
+  app.exportSession();
+  is(stubFor("#sheetTitle").text, "1 set typed but not logged", "Export with a typed set asks first");
+  assert(stubFor("#sheetBody").text.includes(`${ex.name} · set 1 · 80×6`), "…naming the exercise, the set and what was typed");
+  sheetButton(/^Log it$/).onclick();
+  is(app.buildSessionExport().entries.find(x => x.exercise === ex.name).sets.length, 1, "Log it commits it before the file is built");
 
   ex = setup();
-  C = logCardNode();
-  type(setInputs(C)[0], "80");
-  app.setView("list");
-  is(entry(ex).sets.length, 1, "so does leaving the editor for Overview");
-  app.setView("focus");
+  type(setInputs(logCardNode())[0], "80");
+  app.exportSession();
+  sheetButton(/^Discard$/).onclick();
+  is(entry(ex).sets.length, 0, "Discard logs nothing");
+  assert(!app.draftDirty(entry(ex)), "…and clears the typed draft");
 
   ex = setup();
-  C = logCardNode();
-  type(setInputs(C)[0], "80");
-  app.flushDraft();
-  is(app.buildSessionExport().entries.find(x => x.exercise === ex.name).sets.length, 1,
-     "and the flush before an export puts it in the file");
+  type(setInputs(logCardNode())[0], "80");
+  app.startSession();
+  app.confirmFinish();
+  is(stubFor("#sheetTitle").text, "1 set typed but not logged", "Finish with a typed set asks first");
+  sheetButton(/^Log it$/).onclick();
+  is([entry(ex).sets.length, app.getSession().status], [1, "sealed"], "…and Log it logs it, then finishes");
 
   /* A draft that is only a seeded copy of the last set is NOT a set that happened. */
   ex = setup();
@@ -840,21 +900,69 @@ console.log("\na typed set is never lost — flushed on End, navigation and expo
   actionBtn(C, /Log set 1/).onclick();
   is(entry(ex).sets.length, 1, "one set committed");
   assert(!app.draftDirty(entry(ex)), "the next draft is seeded, not dirty");
+  app.STATE.focus = 1;
+  stubFor("#sheetTitle").textContent = "";
+  app.confirmFinish();
+  is(stubFor("#sheetTitle").text, "Finish this session?", "an untouched copied draft never triggers the prompt");
+  app.sheetClose();
   endExercise(logCardNode());
-  is(entry(ex).sets.length, 1, "so End does not invent a second set from the seed");
+  is(entry(ex).sets.length, 1, "and End does not invent a second set from the seed");
 
   /* Neither is an empty draft, and the bookkeeping never reaches a log file. */
   ex = setup();
   const s = app.getSession();
   s.entries[ex.id] = { ...app.blankEntry(), draft: { ...app.blankDraft(), dirty: true } };
   app.saveSession(s);
-  is(app.flushDraft(), false, "a dirty but empty draft commits nothing");
+  is(app.typedDrafts(app.getSession()).length, 0, "a dirty but empty draft is not a typed set");
   ex = setup();
   C = logCardNode();
   type(setInputs(C)[0], "90");
   actionBtn(C, /Log set 1/).onclick();
   const exported = app.buildSessionExport().entries.find(x => x.exercise === ex.name);
   assert(!("dirty" in exported.sets[0]), "the dirty flag never reaches an exported set row");
+}
+
+console.log("\ncopied values look copied, and pain is never copied");
+{
+  loadFixture("program.v2.sample.json");
+  app.STATE.week = 1; app.STATE.focus = 1; app.STATE.setEdit = null;
+  const ex = app.dayExercises()[1];
+  const entry = () => app.getSession().entries[ex.id];
+  const copiedOf = c => setInputs(c).map(i => i.classList.contains("copied"));
+  const tagOf = c => c.find(n => n.classList.contains("copiedtag"));
+  let C = logCardNode();
+  type(setInputs(C)[0], "80"); type(setInputs(C)[1], "8"); type(setInputs(C)[2], "3");
+  chooseRpe(C, "7");
+  actionBtn(logCardNode(), /Log set 1/).onclick();
+
+  C = logCardNode();
+  const inputs = setInputs(C);
+  is(copiedOf(C), [true, true, false], "seeded load and reps render as copied; pain does not");
+  is(inputs[2].value, "", "pain is never copied forward");
+  assert(C.find(n => n.classList.contains("pickerbtn")).classList.contains("copied"), "the copied RPE is muted too");
+  is(tagOf(C) && tagOf(C).text, "copied from set 1", "the set label carries a copied tag");
+  assert(!app.draftDirty(entry()), "an untouched copy is not a typed set");
+
+  type(inputs[1], "6");
+  is(copiedOf(C).slice(0, 2), [true, false], "editing a field turns only that field full colour");
+  is(tagOf(C).hidden, true, "…and removes the tag");
+  assert(setInputs(C)[1] === inputs[1], "…without replacing the input");
+  is(entry().draft.edited, { reps: true }, "the edit is recorded per field on the draft");
+
+  C = logCardNode();
+  is(copiedOf(C).slice(0, 2), [true, false], "per-field copied state survives a re-render from storage");
+  is(tagOf(C), null, "…and the tag stays gone");
+  actionBtn(C, /Log set 2/).onclick();
+  is(entry().sets[1], { set: 2, load: "80", reps: "6", rpe: "7", painDuring: "", note: "" },
+     "Log takes the untouched copied values too — the tap is the approval");
+
+  /* A typed draft stored before `edited` existed reads as typed in every field. */
+  const s = app.getSession();
+  s.entries[ex.id].draft = { load: "90", reps: "5", rpe: "", painDuring: "", note: "", dirty: true };
+  store.set(app.sessionKey(), JSON.stringify(s));
+  C = logCardNode();
+  is(copiedOf(C), [false, false, false], "an older typed draft is not shown as copied");
+  is(tagOf(C), null, "…and carries no tag");
 }
 
 console.log("\nOverview always says where an exercise stands");
@@ -864,10 +972,8 @@ console.log("\nOverview always says where an exercise stands");
   const exs = app.dayExercises();
   const ex = exs[1];
   app.STATE.focus = 1;
-  /* Read Overview WITHOUT going through setView(): switching views deliberately commits a
-     dirty draft, so an in-progress draft has to be set up in storage and read directly.
-     That is also the only way it reaches the athlete for real — a reload (or a crash)
-     with a set still typed and unconfirmed. */
+  /* Read Overview without going through setView(), with the draft set up in storage —
+     the same state a reload with a set still typed and unconfirmed comes back to. */
   const ovOf = i => {
     app.SETTINGS.view = "list";
     const c = exCards()[i];
@@ -883,14 +989,14 @@ console.log("\nOverview always says where an exercise stands");
   s.entries[ex.id] = { ...app.blankEntry(),
     draft: { load: "60", reps: "", rpe: "", painDuring: "", note: "", dirty: true } };
   app.saveSession(s);
-  is(ovOf(1).line, "Set 1 typed — not logged yet", "a typed-but-unlogged set is visible, not silent");
+  is(ovOf(1).line, "Set 1 typed, not logged", "a typed-but-unlogged set is visible, not silent");
   is(ovOf(1).badge, "◐", "…and reads as in progress");
 
   actionBtn(logCardNode(), /Log set 1/).onclick();
   const target = app.targetSets(ex, app.getSession().entries[ex.id]);
   is(ovOf(1).line, `1 of ${target} sets logged`, "a committed set is counted");
   type(setInputs(logCardNode())[1], "4");
-  is(ovOf(1).line, `1 of ${target} sets logged · set 2 in progress`,
+  is(ovOf(1).line, `1 of ${target} sets logged · set 2 typed, not logged`,
      "…and a set in progress on top of it is spelled out");
 
   endExercise(logCardNode());
@@ -2285,7 +2391,7 @@ console.log("\nthe focus logger: the instruments, and the regressions this can r
     ["yesterday", "6 days ago", "3 weeks ago", "4 months ago"],
     "how long ago is worded at the scale it matters");
 
-  /* ---- a typed-but-unlogged set still reaches sets[] ---- */
+  /* ---- a typed-but-unlogged set waits for a tap, wherever the athlete goes ---- */
   /* Two exercises, so Next has somewhere to go. */
   const twoDay = "Day 1 (Mon) - Two lifts";
   const twoProgram = { meta: { schema: "tp-program-2", block: "Flush", athlete: "Sample",
@@ -2303,7 +2409,8 @@ console.log("\nthe focus logger: the instruments, and the regressions this can r
     type(i[0], "123"); type(i[1], "7");
     return k;
   };
-  const loads = () => app.buildSessionExport().entries[0].sets.map(r => r.load);
+  const loads = () => [app.buildSessionExport().entries[0].sets.map(r => r.load),
+    app.getSession().entries[app.dayExercises()[0].id].draft.load];
   setup(); endExercise(exCards()[0]);
   paths.finish = loads();
   setup(); app.stepFocus(1);
@@ -2315,9 +2422,9 @@ console.log("\nthe focus logger: the instruments, and the regressions this can r
   paths.weekChange = loads();
   setup(); app.setView("list");
   paths.viewChange = loads();
-  is(paths, { finish: ["123"], next: ["123"], dateChange: ["123"], weekChange: ["123"],
-    viewChange: ["123"] },
-    "a typed-but-unlogged set reaches sets[] on Finish, Next, a date change, a week change and a view change");
+  const kept = [[], "123"];
+  is(paths, { finish: [["123"], "123"], next: kept, dateChange: kept, weekChange: kept, viewChange: kept },
+    "End logs a typed set; Next, a date change, a week change and a view change keep it typed and unlogged");
 }
 
 console.log("\ncircuits keep all five kinds and three modes, in their own composition");
@@ -2494,6 +2601,100 @@ console.log("\nnothing renders a tracked field that is switched off");
   app.setSetting("painOnWaking", true);
   app.setSetting("painPerExercise", true);
   app.setSetting("painLabel", "Knee");
+}
+
+console.log("\na new block: earlier blocks keep their dates and their own programme");
+{
+  /* Exercise ids are positional, so two blocks both have a "w1d1e1". Read against the
+     wrong programme, last block's sets turn up under this block's exercise names. */
+  const day = "Day 1 (Mon) - Lower";
+  const block = (name, weeks, lift, version) => ({ meta: { schema: "tp-program-2", block: name,
+    athlete: "Sample", athleteId: "sample", weeks, version: version || 1, days: [day] },
+    exercises: Array.from({ length: weeks }, (_, i) => ({ id: `w${i + 1}d1e1`, week: i + 1, day,
+      name: lift, sets: "1", reps: "5", load: "100", rpe: "RPE 7", tempo: "", rest: "",
+      logHint: "", focus: "", progression: "" })) });
+  const A = block("Strength A", 3, "Back squat"), B = block("Hypertrophy B", 2, "Leg press");
+  const thisMonday = app.mondayOf(app.todayISO());
+  const startA = app.addDays(thisMonday, -14);   /* this week is A's last */
+  store.clear(); ACTIVE_ELEMENT = null; app.SETTINGS = { ...app.SET_DEFAULTS };
+  app.loadProgram(A);
+  app.setAnchorMonday(startA);
+  app.gotoDate(startA, "calendar");
+  app.startSession();
+  const c = logCardNode();
+  type(setInputs(c)[0], "100"); type(setInputs(c)[1], "5");
+  actionBtn(c, /^Log set|^Log final/).onclick();
+  app.sealSession();
+  /* A record from before blocks existed carries no programKey — only the block's name. */
+  const legacyDate = app.addDays(startA, 7);
+  store.set(`tp_sess_v1::${legacyDate}::${day}`, JSON.stringify({ block: "Strength A",
+    athlete: "Sample", week: 2, day, date: legacyDate, status: "sealed", session: {},
+    entries: { w2d1e1: { done: true, sets: [{ set: 1, load: "105", reps: "5" }] } } }));
+
+  app.loadProgram(B);
+  const archived = JSON.parse(store.get("tp_blocks_v1") || "[]");
+  is(archived.map(b => b.program.meta.block), ["Strength A"],
+    "importing a different block archives the trained one it replaces");
+  is(app.SCHEDULE.anchorMonday, app.addDays(thisMonday, 7),
+    "and the new block starts the Monday after the old one ends, not on the import week");
+  assert(!!sheetButton(/^Start block$/), "with a sheet to confirm or change that start");
+  assert(!!stubFor("#sheetBody").find(n => /this week · ends “Strength A” 1 week early/.test(n.text)),
+    "…which says what starting this week would cost the old block");
+  is(app.scheduleForDate(thisMonday), { week: 3, day },
+    "this week is still the old block's last week on the schedule");
+  is(app.blocks().map(b => b.program.meta.block), ["Strength A", "Hypertrophy B"],
+    "the timeline holds both blocks, oldest first");
+
+  app.gotoDate(startA, "calendar");
+  is(app.dayExercises().map(e => e.name), ["Back squat"],
+    "an old date shows the exercises it was trained off, not the new block's");
+  app.setView("list"); app.renderHeader();
+  is(stubFor("#ctxLine").text, "Strength A", "and names its own block in the header");
+  const out = app.buildSessionExport();
+  is([out.block, out.entries[0].exercise, out.entries[0].sets.length], ["Strength A", "Back squat", 1],
+    "and exports against that block");
+  is(app.progressWords(app.recordProgress(app.sessionsOn(startA)[0])), "1 of 1 done",
+    "the hub and calendar count it against its own programme");
+  app.gotoDate(legacyDate, "calendar");
+  is([app.STATE.block, app.dayExercises()[0].name], [app.programKeyOf(A), "Back squat"],
+    "a session saved before blocks existed is placed by its block name");
+  app.gotoDate(app.addDays(thisMonday, 7), "home");
+  is([app.STATE.block, app.dayExercises()[0].name], [app.programKeyOf(B), "Leg press"],
+    "and a date in the new block reads the new programme");
+
+  /* Starting early: the old block is cut short at the new anchor, its logged dates are not. */
+  sheetButton(/this week/).onclick();
+  sheetButton(/^Start block$/).onclick();
+  is(app.SCHEDULE.anchorMonday, thisMonday, "the sheet can start the new block this week instead");
+  is(app.blockForDate(thisMonday).program.meta.block, "Hypertrophy B", "which then owns this week");
+  is(app.blockForDate(startA).program.meta.block, "Strength A", "while the old block keeps its earlier weeks");
+  is(app.setAnchorMonday(startA), "", "two blocks can never start on the same Monday");
+
+  /* A revision keeps its key: no archive entry, no moved anchor. */
+  app.loadProgram(block("Hypertrophy B", 2, "Leg press", 2));
+  is([JSON.parse(store.get("tp_blocks_v1")).length, app.SCHEDULE.anchorMonday], [1, thisMonday],
+    "a revised version of the same block is not a new block");
+  /* An untrained block is simply replaced — a mis-import must not push the next start back. */
+  app.loadProgram(block("Wrong file", 2, "Curl"));
+  is(JSON.parse(store.get("tp_blocks_v1")).map(b => b.program.meta.block), ["Strength A"],
+    "a block nobody trained is replaced, not archived");
+  /* Re-activating an archived block brings back its own anchor. */
+  app.loadProgram(A);
+  is([app.SCHEDULE.anchorMonday, JSON.parse(store.get("tp_blocks_v1")).length], [startA, 0],
+    "re-activating an archived block restores its anchor and leaves the archive");
+
+  /* A phone that replaced a block before archiving existed: the library puts it back. */
+  store.delete("tp_blocks_v1"); app.invalidateSessionIndex();
+  app.loadProgram(B);
+  store.delete("tp_blocks_v1"); app.refreshSchedule();
+  is(app.blocks().length, 1, "(the old block is lost from the device)");
+  sandbox.TPPrograms = sandbox.window.TPPrograms = { resolveSessionProgram: s => s.block === "Strength A" ? { id: "row-a", payload: A } : null,
+    getActiveIdentity: () => null };
+  is(app.recoverBlocks(), 1, "the library's copy of the old block is recovered");
+  is(app.blocks().map(b => [b.program.meta.block, b.sched.anchorMonday])[0], ["Strength A", startA],
+    "anchored where its sessions say week 1 began");
+  is(app.recoverBlocks(), 0, "and recovering again finds nothing new");
+  delete sandbox.TPPrograms; delete sandbox.window.TPPrograms;
 }
 
 console.log(failures ? `\n${failures} FAILED\n` : "\nall passed\n");

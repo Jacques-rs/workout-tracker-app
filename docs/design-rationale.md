@@ -48,6 +48,15 @@ any navigation problem, because you would train off it.
 A scheduled date that passes with nothing logged stays **not done** — greyed and quiet, never red,
 never auto-rolled forward. Two sessions on one date are allowed and listed, but not designed for.
 
+**Blocks follow one another and never overlap.** Every date belongs to at most one block, so the
+schedule never offers two prescriptions for one day; a new block that starts early cuts the old one
+short at its anchor, and the old block's *logged* dates are untouched because claims win. A new
+block **asks** which Monday is week 1, with the Monday after the previous block preselected — a
+silent default is how a block lands on top of the last week of the one before it. A trained block
+that is replaced stays on the phone, because exercise ids are positional and a past session read
+against the next block's programme would put its sets under the wrong names; an untrained one is
+simply replaced, so a mis-import does not push the next start back.
+
 ## Why sessions are sealed
 
 Without a status, "complete" has to be inferred from a session's entries, which cannot distinguish
@@ -85,6 +94,16 @@ itself past about fifteen minutes, when you have left the gym and a large number
 would quietly turn it into a prescription. It matches on a normalised name as well as `id` so it
 keeps working across blocks — which is exactly when it is most wanted — and stays silent rather
 than printing an empty row.
+
+**Nothing is logged without a tap that says log.** In the gym you do not want to think, so the app
+never changes what you are looking at, or what counts as logged, behind your back. Committing a
+typed set when the phone locks or you page away looked safe, but it logged sets the athlete had not
+confirmed and could leave the editor on a set nobody planned. A typed set therefore waits, visibly
+marked "typed, not logged", and the two moments it would otherwise go missing — Finish and Export
+— ask about it rather than deciding. For the same reason a value copied from the last set is shown
+muted under a "copied" tag until it is typed over, so a guess never looks like an entry. Pain is
+never copied: tapping Log without looking would record a stale score and hide a rise, while an
+empty one honestly reads as no reading.
 
 **Circuits keep all of their function** — five kinds (rounds, AMRAP, EMOM, for-time, ladder) ×
 three modes (quick / details / final). Roughly one exercise per session needs it. Losing modes
