@@ -579,6 +579,11 @@
   .setchip.just{animation:chippop .42s cubic-bezier(.2,.8,.2,1)}
   .setlabelrow{display:flex;align-items:center;gap:var(--s2);margin-bottom:var(--s2)}
   .setlabel{flex:1 1 auto;min-width:0;font-size:var(--t-sm);color:var(--muted);font-weight:700}
+  /* A value copied from the last set is really in the field but muted until it is typed
+     over, so a guess never looks like something the athlete entered. */
+  .copiedtag{flex:0 0 auto;padding:2px 8px;border-radius:999px;background:var(--well);
+    color:var(--muted);font-size:var(--t-xs);font-weight:700;white-space:nowrap}
+  .setgrid input.copied,.setgrid .pickerbtn.copied{color:var(--muted);font-weight:500}
   .setgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s2)}
   @media (min-width:360px){
     .setgrid{grid-template-columns:repeat(3,minmax(0,1fr)) 70px}
@@ -2205,9 +2210,14 @@ const BLANK_SESSION={bodyweightKg:"",sleep:"",readiness:"",hrvNote:"",amPainOnWa
    draft (autosaved), shows as "typed, not logged", and Finish/Export ask about it (see
    confirmTypedDrafts). App-local: `draft` never reaches an export, and commitSet()
    builds its row from named fields. */
-function blankDraft(){return {load:"",reps:"",rpe:"",painDuring:"",note:"",dirty:false};}
+/* `edited` names the fields the athlete has typed into; any other value in a seeded draft
+   is a copy of the last set and renders muted under a "copied from set N" tag. Pain is
+   never copied: logging a stale score without looking would hide a rise in pain, while
+   an empty one reads honestly as "no reading". */
+function blankDraft(){return {load:"",reps:"",rpe:"",painDuring:"",note:"",dirty:false,edited:{}};}
 function seedDraft(row){return {load:txt(row.load),reps:txt(row.reps),rpe:txt(row.rpe),
-  painDuring:txt(row.painDuring),note:"",dirty:false};}
+  painDuring:"",note:"",dirty:false,edited:{}};}
+function draftCopied(d,k){return !!txt(d[k])&&!(d.edited&&d.edited[k]);}
 function draftEmpty(d){return !(txt(d.load)||txt(d.reps)||txt(d.rpe)||txt(d.painDuring)||txt(d.note));}
 function draftDirty(e){return !!(e&&e.draft&&e.draft.dirty&&!draftEmpty(e.draft));}
 /* Three states, and every surface has to tell them apart: "done" is finished, "part" is
@@ -2319,6 +2329,11 @@ function normalizeEntry(e){
   }
   if(!e.draft||typeof e.draft!=="object"){
     e.draft=e.sets.length?seedDraft(e.sets[e.sets.length-1]):blankDraft();
+    changed=true;
+  }
+  /* A draft from before `edited` existed: a typed one counts as typed in every field. */
+  if(!e.draft.edited||typeof e.draft.edited!=="object"){
+    e.draft.edited=e.draft.dirty?{load:true,reps:true,rpe:true,painDuring:true,note:true}:{};
     changed=true;
   }
   if(e.circuit&&typeof e.circuit==="object"){
@@ -3775,23 +3790,28 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
     return;
   }
 
+  const data=draftMode?e.draft:rows[editIdx];
+  const copied=k=>draftMode&&draftCopied(data,k);
   const labelRow=el("div",{className:"setlabelrow"});
   labelRow.append(el("div",{className:"setlabel"},`Set ${curNum} of ${total}`));
+  const tag=draftMode&&rows.length&&!data.dirty&&["load","reps","rpe"].some(copied)?
+    el("span",{className:"copiedtag"},`copied from set ${rows.length}`):null;
+  if(tag)labelRow.append(tag);
   host.append(labelRow);
 
-  const data=draftMode?e.draft:rows[editIdx];
   const grid=el("div",{className:"setgrid"+(SETTINGS.painPerExercise?"":" nopain")});
   const commonAttrs={autocapitalize:"off",autocorrect:"off",spellcheck:"false"};
-  const onFieldInput=()=>{
-    /* A draft the athlete has typed into is a set that happened — flag it so ending early and
-       every navigation commit it rather than throwing it away. */
-    if(draftMode)e.draft.dirty=true;
+  /* Typing marks the field edited — it turns full colour and the copied tag goes — and the
+     draft typed, so it shows as "typed, not logged" until a tap logs it. Repaint only. */
+  const onFieldInput=(k,inp)=>{
+    if(draftMode){e.draft.dirty=true;e.draft.edited[k]=true;
+      if(inp)inp.classList.remove("copied");if(tag)tag.hidden=true;}
     else applyDerivedSummary(e,metric.unit);
     saveSession(s);
   };
-  const loadInp=el("input",{type:"text",value:data.load??"",
+  const loadInp=el("input",{type:"text",value:data.load??"",className:copied("load")?"copied":"",
     attrs:{placeholder:"kg",inputmode:"decimal","aria-label":"Load",...commonAttrs}});
-  loadInp.oninput=()=>{data.load=loadInp.value;onFieldInput();};
+  loadInp.oninput=()=>{data.load=loadInp.value;onFieldInput("load",loadInp);};
   /* The two values the athlete is actually aiming at get the instrument treatment: big
      tabular numerals on a rule. Marked here rather than by grid position, so reordering
      the row cannot silently move the emphasis. */
@@ -3800,23 +3820,24 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
   /* Not inputmode="numeric": that is a digits-only keypad on iOS, and two prescriptions
      in five here are a duration, a distance or prose. metricOf() decides what this field
      is called, what unit it carries and which keyboard it opens. */
-  const repsInp=el("input",{type:"text",value:data.reps??"",
+  const repsInp=el("input",{type:"text",value:data.reps??"",className:copied("reps")?"copied":"",
     attrs:{placeholder:metric.placeholder,inputmode:metric.inputmode,
       "aria-label":metric.label+(ex.reps?", prescribed "+txt(ex.reps):""),
       autocapitalize:metric.autocap,autocorrect:"off",spellcheck:"false"}});
-  repsInp.oninput=()=>{data.reps=repsInp.value;onFieldInput();};
+  repsInp.oninput=()=>{data.reps=repsInp.value;onFieldInput("reps",repsInp);};
   const repsField=field(metric.fieldLabel,repsInp);repsField.className="big";
   grid.append(repsField);
   /* text + inputmode, not type=number: a number input reports "" while the value is an
      incomplete float like "7.", so the autosaved RPE would flicker to blank mid-type.
      This is also what lets RPE hold a half point ("7.5") — see CLAUDE.md. */
-  const rpeInp=rpeButton(data.rpe,ex.rpe,v=>{data.rpe=v;onFieldInput();onchange("");});
+  const rpeInp=rpeButton(data.rpe,ex.rpe,v=>{data.rpe=v;onFieldInput("rpe");onchange("");});
+  if(copied("rpe"))rpeInp.classList.add("copied");
   grid.append(field("RPE",rpeInp));
   if(SETTINGS.painPerExercise){
-    const painInp=el("input",{type:"number",value:data.painDuring??"",
+    const painInp=el("input",{type:"number",value:data.painDuring??"",className:copied("painDuring")?"copied":"",
       attrs:{min:0,max:10,placeholder:"0",
         "aria-label":painLbl()+(asked?" — this exercise asks for it":"")}});
-    painInp.oninput=()=>{data.painDuring=painInp.value;onFieldInput();};
+    painInp.oninput=()=>{data.painDuring=painInp.value;onFieldInput("painDuring",painInp);};
     /* Accented, never hidden: the field exists on every exercise so an empty value stays
        readable as "no pain", and `tracking.painPerExercise` keeps meaning what it says. */
     /* The site alone, not "Knee pain": this column is about 70px and the label is now
@@ -3834,7 +3855,7 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
       attrs:{placeholder:`Set ${curNum} note…`,"aria-label":`Set ${curNum} note`}});
     /* Through onFieldInput, so a note-only set ("felt the knee on rep 3") is dirty too and
        gets committed rather than dropped when the exercise ends. */
-    note.oninput=()=>{data.note=note.value;onFieldInput();};
+    note.oninput=()=>{data.note=note.value;onFieldInput("note");};
     host.append(el("div",{className:"setnoteinp"},note));
     if(focusOn==="note"&&note.focus)note.focus();
   }else{

@@ -922,6 +922,49 @@ console.log("\na typed set is never lost, and never logged without a tap");
   assert(!("dirty" in exported.sets[0]), "the dirty flag never reaches an exported set row");
 }
 
+console.log("\ncopied values look copied, and pain is never copied");
+{
+  loadFixture("program.v2.sample.json");
+  app.STATE.week = 1; app.STATE.focus = 1; app.STATE.setEdit = null;
+  const ex = app.dayExercises()[1];
+  const entry = () => app.getSession().entries[ex.id];
+  const copiedOf = c => setInputs(c).map(i => i.classList.contains("copied"));
+  const tagOf = c => c.find(n => n.classList.contains("copiedtag"));
+  let C = logCardNode();
+  type(setInputs(C)[0], "80"); type(setInputs(C)[1], "8"); type(setInputs(C)[2], "3");
+  chooseRpe(C, "7");
+  actionBtn(logCardNode(), /Log set 1/).onclick();
+
+  C = logCardNode();
+  const inputs = setInputs(C);
+  is(copiedOf(C), [true, true, false], "seeded load and reps render as copied; pain does not");
+  is(inputs[2].value, "", "pain is never copied forward");
+  assert(C.find(n => n.classList.contains("pickerbtn")).classList.contains("copied"), "the copied RPE is muted too");
+  is(tagOf(C) && tagOf(C).text, "copied from set 1", "the set label carries a copied tag");
+  assert(!app.draftDirty(entry()), "an untouched copy is not a typed set");
+
+  type(inputs[1], "6");
+  is(copiedOf(C).slice(0, 2), [true, false], "editing a field turns only that field full colour");
+  is(tagOf(C).hidden, true, "…and removes the tag");
+  assert(setInputs(C)[1] === inputs[1], "…without replacing the input");
+  is(entry().draft.edited, { reps: true }, "the edit is recorded per field on the draft");
+
+  C = logCardNode();
+  is(copiedOf(C).slice(0, 2), [true, false], "per-field copied state survives a re-render from storage");
+  is(tagOf(C), null, "…and the tag stays gone");
+  actionBtn(C, /Log set 2/).onclick();
+  is(entry().sets[1], { set: 2, load: "80", reps: "6", rpe: "7", painDuring: "", note: "" },
+     "Log takes the untouched copied values too — the tap is the approval");
+
+  /* A typed draft stored before `edited` existed reads as typed in every field. */
+  const s = app.getSession();
+  s.entries[ex.id].draft = { load: "90", reps: "5", rpe: "", painDuring: "", note: "", dirty: true };
+  store.set(app.sessionKey(), JSON.stringify(s));
+  C = logCardNode();
+  is(copiedOf(C), [false, false, false], "an older typed draft is not shown as copied");
+  is(tagOf(C), null, "…and carries no tag");
+}
+
 console.log("\nOverview always says where an exercise stands");
 {
   loadFixture("program.v2.sample.json");

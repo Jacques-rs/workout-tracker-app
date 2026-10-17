@@ -91,7 +91,10 @@ never changes what you are looking at, or what counts as logged, behind your bac
 typed set when the phone locks or you page away looked safe, but it logged sets the athlete had not
 confirmed and could leave the editor on a set nobody planned. A typed set therefore waits, visibly
 marked "typed, not logged", and the two moments it would otherwise go missing — Finish and Export
-— ask about it rather than deciding.
+— ask about it rather than deciding. For the same reason a value copied from the last set is shown
+muted under a "copied" tag until it is typed over, so a guess never looks like an entry. Pain is
+never copied: tapping Log without looking would record a stale score and hide a rise, while an
+empty one honestly reads as no reading.
 
 **Circuits keep all of their function** — five kinds (rounds, AMRAP, EMOM, for-time, ladder) ×
 three modes (quick / details / final). Roughly one exercise per session needs it. Losing modes
