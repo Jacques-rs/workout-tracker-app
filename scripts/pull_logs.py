@@ -38,8 +38,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-LOGS_DIR = ROOT / "athlete" / "jacques" / "logs"
-REQUIRED_KEYS = ("SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_EMAIL", "SUPABASE_PASSWORD")
+REQUIRED_KEYS = ("SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_EMAIL", "SUPABASE_PASSWORD", "ATHLETE")
 
 
 def load_env():
@@ -113,6 +112,7 @@ def main():
     token = sign_in(env)
     rows = fetch_logs(env, token, since)
 
+    LOGS_DIR = ROOT / "athlete" / env["ATHLETE"] / "logs"
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     written = []
     for row in rows:
