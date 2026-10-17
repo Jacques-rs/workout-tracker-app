@@ -1121,20 +1121,17 @@ function showSurface(surface){
   if(surface==="workout"){showRoute("date");return;}
   showRoute(cachedAccess()&&PROGRAM?"home":"entry");
 }
-function leaveWorkout(){
-  if(APP.route==="date")flushDraft();
-}
-function openHome(){leaveWorkout();showRoute("home");scrollTop();}
-function openCalendarPage(){leaveWorkout();showRoute("calendar");}
-function openProgrammePage(){leaveWorkout();showRoute("programme");scrollTop();}
-function openAccountPage(){leaveWorkout();showRoute("account");scrollTop();}
+function openHome(){showRoute("home");scrollTop();}
+function openCalendarPage(){showRoute("calendar");}
+function openProgrammePage(){showRoute("programme");scrollTop();}
+function openAccountPage(){showRoute("account");scrollTop();}
 /* The entry gate. Reached by signing out, and by the sample's own way back. */
-function openProfile(){leaveWorkout();showRoute("entry");scrollTop();}
+function openProfile(){showRoute("entry");scrollTop();}
 /* Back out of the date view to wherever the jump came from — the calendar if that is
    where the date was picked, the hub otherwise. */
 function backFromDate(){
   const to=APP.from==="calendar"?"calendar":APP.source==="sample"?"entry":"home";
-  leaveWorkout();showRoute(to);scrollTop();
+  showRoute(to);scrollTop();
 }
 function openWorkout(source){
   APP.source=source;
@@ -1971,9 +1968,8 @@ function adoptDate(iso){
   return d;
 }
 /* The one entry point for "show me this date", so the claim is adopted in exactly one
-   place. Flushes first, while STATE still points at the session the draft belongs to. */
+   place. */
 function openDate(iso){
-  flushDraft();
   adoptDate(iso);
   renderHeader();
   renderMain();resetViewScroll();
@@ -1983,7 +1979,6 @@ function openDate(iso){
    the athlete's own correction. Nothing is created otherwise, so browsing weeks never
    litters the calendar with empty sessions. */
 function applyClaim(week,day){
-  flushDraft();
   STATE.week=Math.max(1,Math.floor(Number(week)||1));
   STATE.day=txt(day)||null;
   STATE.setEdit=null;
@@ -2009,7 +2004,6 @@ function startSession(){
    dropped connection look like an unfinished workout. */
 function sealSession(){
   if(!PROGRAM||!txt(STATE.day))return null;
-  flushDraft();
   const s=getSession();
   s.status="sealed";s.sealedAt=new Date().toISOString();
   saveSession(s);
@@ -2207,10 +2201,10 @@ const BLANK_SESSION={bodyweightKg:"",sleep:"",readiness:"",hrvNote:"",amPainOnWa
    is the athlete's own adjusted set count (see targetSets()) — null until they remove an
    upcoming chip, so it doesn't have to be reset when a programme is re-imported. */
 /* `dirty` is the difference between "these fields are showing you the last set" and
-   "you have typed this set". Only a dirty draft is auto-committed when you end early or
-   navigate away (see flushDraft), which is what stops a typed set being silently
-   dropped without ever inventing a set nobody performed. App-local: `draft` never
-   reaches an export, and commitSet() builds its row from named fields. */
+   "you have typed this set". A typed set is never logged without a tap: it waits in the
+   draft (autosaved), shows as "typed, not logged", and Finish/Export ask about it (see
+   confirmTypedDrafts). App-local: `draft` never reaches an export, and commitSet()
+   builds its row from named fields. */
 function blankDraft(){return {load:"",reps:"",rpe:"",painDuring:"",note:"",dirty:false};}
 function seedDraft(row){return {load:txt(row.load),reps:txt(row.reps),rpe:txt(row.rpe),
   painDuring:txt(row.painDuring),note:"",dirty:false};}
@@ -2547,10 +2541,8 @@ function deleteSet(e,idx,unit){
   e.sets.splice(idx,1);renumber(e);
   applyDerivedSummary(e,unit);
 }
-/* Only committed rows are exported, so a set the athlete typed but never confirmed would
-   vanish. Anything that ends the athlete's time on an exercise must therefore commit a
-   dirty draft first. Only *dirty* — a draft still showing the previous set's values is
-   not a set that happened. */
+/* For the End exercise sheet, whose confirmation already counts the typed set. Only
+   *dirty* — a draft still showing the previous set's values is not a set that happened. */
 function commitDraftIfDirty(e,unit,s){
   return draftDirty(e)?commitSet(e,unit,s):false;
 }
@@ -2562,23 +2554,38 @@ function commitCircuitRound(e,s){
   const c=e.circuit;c.rounds=e.sets.length;c.touched=true;e.draft=blankDraft();
   syncCircuitSummary(e);stampLastSet(s);return true;
 }
-/* The same thing for the exercise currently open in Log view, for callers that navigate
-   away rather than holding the entry. Returns whether anything was committed, because a
-   caller that does not immediately re-render would otherwise leave the card on screen
-   holding a session object one set out of date. */
-function flushDraft(){
-  if(!PROGRAM||!STATE.day)return false;
-  const exs=dayExercises(),ex=exs[STATE.focus];
-  if(!ex)return false;
-  const s=getSession(),e=s.entries[ex.id];
-  const spec=circuitOf(ex);
-  if(spec){
-    if(!e||circuitState(e,ex).mode!=="details"||!commitCircuitRound(e,s))return false;
-    saveSession(s);return true;
-  }
-  if(!e||!commitDraftIfDirty(e,metricOf(ex).unit,s))return false;
-  saveSession(s);
-  return true;
+/* Every typed-but-unlogged set or round on the open session, one per exercise. A done
+   exercise has no open editor, and only Round details mode keeps a circuit draft. */
+function typedDrafts(s){
+  return dayExercises().map(ex=>{
+    const e=s.entries[ex.id],spec=circuitOf(ex);
+    if(!e||e.done||!draftDirty(e)||(spec&&circuitState(e,ex).mode!=="details"))return null;
+    return {ex,e,spec};
+  }).filter(Boolean);
+}
+/* Finish and export are where a typed set would otherwise go missing, so they ask rather
+   than decide: nothing is logged without a tap, and nothing is discarded without one.
+   `then` runs after either choice; `after` says in the sheet what that will be. */
+function confirmTypedDrafts(then,after){
+  const s=getSession(),list=typedDrafts(s);
+  if(!list.length){then();return;}
+  const n=list.length,body=el("div");
+  list.forEach(({ex,e,spec})=>body.append(el("div",{className:"sheet-copy"},
+    `${ex.name} · ${spec?"round":"set"} ${e.sets.length+1} · ${setRecap(e.draft,spec?"":metricOf(ex).unit)}`)));
+  const resolve=log=>{
+    list.forEach(({ex,e,spec})=>{
+      if(log){if(spec)commitCircuitRound(e,s);else commitSet(e,metricOf(ex).unit,s);}
+      else e.draft=spec||!e.sets.length?blankDraft():seedDraft(e.sets[e.sets.length-1]);
+    });
+    saveSession(s);renderMain();then();
+  };
+  const row=el("div",{className:"sheet-actions"});
+  const discard=el("button",{className:"ghost"},n>1?"Discard all":"Discard");
+  discard.onclick=()=>{sheetClose();resolve(false);};
+  const log=el("button",{className:"primary"},n>1?"Log all":"Log it");
+  log.onclick=()=>{sheetClose();resolve(true);};
+  row.append(discard,log);body.append(row);
+  sheetOpen(`${n} set${n>1?"s":""} typed but not logged`,after,body);
 }
 
 /* ---------- rendering ---------- */
@@ -2678,7 +2685,6 @@ function setView(v){
   const current=viewMode();
   if(next===current)return;
   if(current==="list")OVERVIEW_SCROLL=currentScrollY();
-  if(next==="list")flushDraft();      /* leaving the editor ends the set in progress */
   /* renderHeader() reads the view, so it has to run again — see its own note. */
   setSetting("view",next);renderHeader();renderMain();
   if(next==="list")restoreOverviewScroll();else scrollTop();
@@ -2714,7 +2720,6 @@ function goFocus(i){
   const next=Math.max(0,Math.min(i,n-1));
   STATE.setEdit=null;
   if(next===STATE.focus)return;
-  flushDraft();                       /* before focus moves off the exercise it belongs to */
   STATE.focus=next;renderMain();scrollTop();
 }
 function stepFocus(d){goFocus(STATE.focus+d);}
@@ -2960,14 +2965,15 @@ function openClaimPicker(){
               :`${fmtDate(STATE.date)} is a rest day on the schedule. Nothing is moved — the session you create is what this date holds.`,
     wrap);
 }
+function finishSession(){sealSession();renderMain();toast("Session finished");}
 function confirmFinish(){
+  if(typedDrafts(getSession()).length){
+    confirmTypedDrafts(finishSession,"Choose, then the session finishes.");return;}
   const s=getSession(),exs=dayExercises();
   const done=exs.filter(ex=>entryState(s.entries[ex.id])==="done").length;
   const left=exs.length-done;
   const body=el("div");
-  body.append(sheetActions("Finish session",()=>{
-    sealSession();renderMain();toast("Session finished");
-  },"Keep logging"));
+  body.append(sheetActions("Finish session",finishSession,"Keep logging"));
   sheetOpen("Finish this session?",
     left?`${done} of ${exs.length} exercises are marked done. The other ${left} stay exactly as they are — "I did ${done} and walked out" is a real answer, and the log will say so.`
         :"Everything is logged. Sealing records that you finished rather than leaving it to be guessed from the entries; the session stays editable afterwards.",
@@ -3455,13 +3461,14 @@ function statusLine(ex,e){
   if(spec){
     const c=circuitState(e,ex),rounds=Math.max(Number(c.rounds)||0,n);
     if(c.mode==="final")return summaryText(e)||"Result in progress";
-    if(rounds)return spec.target?`${rounds} of ${spec.target} rounds completed`:
-      `${rounds} round${rounds===1?"":"s"} completed`;
-    return "Round in progress — not logged yet";
+    const typed=draftDirty(e)?` · round ${n+1} typed, not logged`:"";
+    if(rounds)return (spec.target?`${rounds} of ${spec.target} rounds completed`:
+      `${rounds} round${rounds===1?"":"s"} completed`)+typed;
+    return typed?`Round 1 typed, not logged`:"Round in progress — not logged yet";
   }
-  if(!n)return `Set 1 typed — not logged yet`;
+  if(!n)return `Set 1 typed, not logged`;
   return `${n} of ${targetSets(ex,e)} sets logged`
-    +(draftDirty(e)?` · set ${n+1} in progress`:"");
+    +(draftDirty(e)?` · set ${n+1} typed, not logged`:"");
 }
 const STATE_BADGE={done:"✓",part:"◐",todo:"○"};
 
@@ -4318,10 +4325,7 @@ function exportSession(){
   if(!PROGRAM){toast("Load a program first");return;}
   /* A rest day holds notes, not a workout — there is no (week, day) to export against. */
   if(!txt(STATE.day)){toast("No session on this date — pick a day first");return;}
-  /* A set typed and not confirmed is still a set that happened. Re-render after, or the
-     card on screen keeps a session object one set older than storage. */
-  if(flushDraft())renderMain();
-  try{
+  const run=()=>{try{
     const data=buildSessionExport();
     const name=sessionFilename(data);
     downloadSessionPayload(data);
@@ -4332,16 +4336,18 @@ function exportSession(){
     renderMain();
     const who=athleteId();
     toast("Exported "+name+" — save into athlete/"+(who||"<you>")+"/logs/");
-  }catch(err){toast("Export failed: "+err.message+" — try Copy JSON");}
+  }catch(err){toast("Export failed: "+err.message+" — try Copy JSON");}};
+  confirmTypedDrafts(run,"Only logged sets go in the file. Choose, then it exports.");
 }
 /* Deliberately does NOT mark the session exported: copying is the fallback when the
    download fails, and also how the JSON gets looked at. Neither is a file on disk. */
 async function copyJSON(){
   if(!PROGRAM){toast("Load a program first");return;}
   if(!txt(STATE.day)){toast("No session on this date — pick a day first");return;}
-  if(flushDraft())renderMain();
-  try{await copySessionPayload(buildSessionExport());}
-  catch(err){toast("Copy failed: "+err.message);}
+  confirmTypedDrafts(async()=>{
+    try{await copySessionPayload(buildSessionExport());}
+    catch(err){toast("Copy failed: "+err.message);}
+  },"Only logged sets are copied. Choose, then it copies.");
 }
 
 /* ---------- events ----------
@@ -4391,19 +4397,6 @@ if(document.addEventListener)document.addEventListener("keydown",e=>{
   if(t==="INPUT"||t==="TEXTAREA"||t==="SELECT")return;
   if(e.key==="ArrowLeft")stepFocus(-1);
   else if(e.key==="ArrowRight")stepFocus(1);
-});
-
-/* The phone locking mid-set, the app being switched away from, the tab closing. A set the
-   athlete typed but never confirmed is committed here rather than left in the draft, where
-   nothing outside the editor can see it. Guarded — the headless test harness has no event
-   target, and neither has any effect if the listener never fires.
-   The re-render is not optional even here: switching apps is not the same as leaving, and
-   coming back to a card still holding the pre-flush session object would let the next
-   keystroke autosave the committed set back out of existence. */
-const flushOnHide=()=>{try{if(flushDraft())renderMain();}catch(e){}};
-if(window.addEventListener)window.addEventListener("pagehide",flushOnHide);
-if(document.addEventListener)document.addEventListener("visibilitychange",()=>{
-  if(document.visibilityState==="hidden")flushOnHide();
 });
 
 if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));}

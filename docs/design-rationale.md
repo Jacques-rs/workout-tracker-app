@@ -86,6 +86,13 @@ would quietly turn it into a prescription. It matches on a normalised name as we
 keeps working across blocks — which is exactly when it is most wanted — and stays silent rather
 than printing an empty row.
 
+**Nothing is logged without a tap that says log.** In the gym you do not want to think, so the app
+never changes what you are looking at, or what counts as logged, behind your back. Committing a
+typed set when the phone locks or you page away looked safe, but it logged sets the athlete had not
+confirmed and could leave the editor on a set nobody planned. A typed set therefore waits, visibly
+marked "typed, not logged", and the two moments it would otherwise go missing — Finish and Export
+— ask about it rather than deciding.
+
 **Circuits keep all of their function** — five kinds (rounds, AMRAP, EMOM, for-time, ladder) ×
 three modes (quick / details / final). Roughly one exercise per session needs it. Losing modes
 would be a downgrade dressed as a simplification. What differs from ordinary work is only *form*:

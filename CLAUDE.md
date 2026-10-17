@@ -132,10 +132,10 @@ invariants:
   sets sheet can never reduce the plan below the current set.
 - **Amber means *now*; green means *logged*.** A secondary action that borrows either competes with
   the one tap that matters, so quiet actions are muted and underlined.
-- **A typed set is never lost.** `flushDraft()` commits a draft the athlete typed into when they end
-  early, page away, change day/week/view, export or background the app. Only a *dirty* draft — a
-  seeded copy of the last set is not a set that happened. **Anything that flushes must re-render**,
-  or a card holding the older session object autosaves over the commit.
+- **A typed set is never lost and never logged without a tap.** It waits in the autosaved draft
+  through paging, view/day/week changes, backgrounding and reload; only Log, End exercise, or the
+  `confirmTypedDrafts()` prompt that Finish and Export raise commits it. Only a *dirty* draft counts
+  — a seeded copy is not a set that happened. **Anything that commits must re-render.**
 
 ## Repo layout
 

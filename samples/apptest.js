@@ -87,6 +87,10 @@ function textNode(t){ return { nodeType: 3, textContent: t, children: [], find()
 let ACTIVE_ELEMENT = null;
 const STUBS = {};
 function stubFor(sel){ return STUBS[sel] || (STUBS[sel] = new El("div")); }
+/* Page-level listeners, recorded so a test can fire the phone locking (pagehide /
+   visibilitychange) at whatever the app registered. */
+const LISTENERS = [];
+function listen(type, fn){ LISTENERS.push([type, fn]); }
 
 const store = new Map();
 const sandbox = {
@@ -99,7 +103,8 @@ const sandbox = {
     body: new El("body"),
     execCommand(){},
     get activeElement(){ return ACTIVE_ELEMENT; },
-    addEventListener(){}
+    visibilityState: "visible",
+    addEventListener: listen
   },
   /* `length` and `key(i)` are part of the real Storage API and the app uses them: the
      session index scans sibling tp_sess_v1::* keys. Without them the index would come
@@ -127,7 +132,7 @@ const sandbox = {
   TPProfileUI: { init(){}, render(){} },
   window: {
     scrollY: 0, pageYOffset: 0,
-    addEventListener(){},
+    addEventListener: listen,
     scrollTo(x, y){
       this.scrollY = Number(y) || 0; this.pageYOffset = this.scrollY;
     }
@@ -465,8 +470,13 @@ console.log("\nadaptive circuit logging modes");
   chooseRpe(C,8.5);
   is(app.getSession().entries[rows[2].id].draft.rpe,"8.5","a detailed-round RPE survives the picker redraw");
   app.goFocus(1);
-  const detailed=app.getSession().entries[rows[2].id];
-  is(detailed.sets[0].rpe,"8.5","navigating away commits a typed detailed round");
+  let detailed=app.getSession().entries[rows[2].id];
+  is(detailed.sets.length,0,"navigating away never logs a typed detailed round");
+  is(detailed.draft.rpe,"8.5","…it stays typed");
+  is(app.statusLine(rows[2],detailed),"Round 1 typed, not logged","…and Overview says so");
+  app.goFocus(2);C=logCardNode();buttonOf(C,/Log round 1/).onclick();
+  detailed=app.getSession().entries[rows[2].id];
+  is(detailed.sets[0].rpe,"8.5","the Log tap commits the typed round");
   is(detailed.sets[0].reps,"As prescribed","that round still identifies the completed circuit work");
 
   app.goFocus(0);C=logCardNode();
@@ -796,11 +806,12 @@ console.log("\nupcoming chips are inert; set-count changes are secondary");
   actionBtn(C, /Cancel/).onclick();
 }
 
-console.log("\na typed set is never lost — flushed on End, navigation and export");
+console.log("\na typed set is never lost, and never logged without a tap");
 {
-  /* The defect: Finish marked the exercise done and left the typed set sitting in the
-     draft, which nothing but the editor reads. It exported as if the set never happened,
-     and Overview said "nothing logged" for an exercise that had just been trained. */
+  /* The defect: on the last planned set, typing and locking the phone committed the set
+     without completing the exercise, and the editor came back on an invented set N+1.
+     A typed set now waits in the draft until a tap logs it — End, Log, or the prompt
+     that Finish and Export raise. */
   const setup = () => {
     loadFixture("program.v2.sample.json");
     app.STATE.week = 1;
@@ -810,6 +821,11 @@ console.log("\na typed set is never lost — flushed on End, navigation and expo
     return ex;
   };
   const entry = ex => app.getSession().entries[ex.id] || app.blankEntry();
+  const hide = () => {
+    sandbox.document.visibilityState = "hidden";
+    LISTENERS.filter(([t]) => t === "pagehide" || t === "visibilitychange").forEach(([, fn]) => fn({}));
+    sandbox.document.visibilityState = "visible";
+  };
 
   let ex = setup();
   let C = logCardNode();
@@ -818,44 +834,64 @@ console.log("\na typed set is never lost — flushed on End, navigation and expo
   is(entry(ex).sets.length, 0, "typing alone commits nothing — the draft is still a draft");
   assert(app.draftDirty(entry(ex)), "…but it is flagged as typed, not as a seeded copy");
   endExercise(C);
-  is(entry(ex).sets.length, 1, "End commits the typed set instead of discarding it");
+  is(entry(ex).sets.length, 1, "End commits the typed set — its sheet counts it");
   is(entry(ex).sets[0].load, "72.5", "…carrying exactly what was typed");
   is(entry(ex).done, true, "and the exercise is still marked done");
 
-  /* The same on the way past: Next, a pip, a day change, a week change. */
+  /* The reported bug: the final planned set, typed, then the phone locks. */
   ex = setup();
+  const target = app.targetSets(ex, entry(ex));
+  for(let i = 0; i < target - 1; i++){ type(setInputs(logCardNode())[0], "60"); actionBtn(logCardNode(), /Log set/).onclick(); }
   C = logCardNode();
-  type(setInputs(C)[0], "80");
-  app.stepFocus(1);
-  is(entry(ex).sets.length, 1, "paging to the next exercise commits it");
-
-  ex = setup();
+  type(setInputs(C)[0], "62.5");
+  hide();
+  is(entry(ex).sets.length, target - 1, "locking the phone on the final set logs nothing");
+  is(entry(ex).draft.load, "62.5", "…the typed value is still in the draft");
+  assert(app.draftDirty(entry(ex)), "…still flagged as typed");
   C = logCardNode();
-  type(setInputs(C)[0], "80");
-  app.selectWeek(2);
-  app.selectWeek(1);
-  is(entry(ex).sets.length, 1, "changing week commits it");
+  assert(new RegExp(`Set ${target} of ${target}`).test(C.text), "…and the editor comes back on the same set, not an invented one");
+  is(setInputs(C)[0].value, "62.5", "…holding what was typed");
 
+  /* Moving away is not a tap that says log. */
+  const unmoved = (label, go) => {
+    ex = setup();
+    type(setInputs(logCardNode())[0], "80");
+    go();
+    is([entry(ex).sets.length, entry(ex).draft.load], [0, "80"], label);
+  };
+  unmoved("paging to the next exercise logs nothing and keeps the draft", () => app.stepFocus(1));
+  unmoved("changing week and back does too", () => { app.selectWeek(2); app.selectWeek(1); });
+  unmoved("leaving the editor for Overview does too", () => { app.setView("list"); app.setView("focus"); });
   ex = setup();
   app.openWorkout("personal");
-  C = logCardNode();
-  type(setInputs(C)[0], "80");
+  type(setInputs(logCardNode())[0], "80");
   app.openProfile();
-  is(entry(ex).sets.length, 1, "returning to profile home commits the set in progress");
+  is([entry(ex).sets.length, entry(ex).draft.load], [0, "80"], "returning to profile home does too");
+
+  /* Export and Finish ask. */
+  ex = setup();
+  type(setInputs(logCardNode())[0], "80");
+  type(setInputs(logCardNode())[1], "6");
+  app.exportSession();
+  is(stubFor("#sheetTitle").text, "1 set typed but not logged", "Export with a typed set asks first");
+  assert(stubFor("#sheetBody").text.includes(`${ex.name} · set 1 · 80×6`), "…naming the exercise, the set and what was typed");
+  sheetButton(/^Log it$/).onclick();
+  is(app.buildSessionExport().entries.find(x => x.exercise === ex.name).sets.length, 1, "Log it commits it before the file is built");
 
   ex = setup();
-  C = logCardNode();
-  type(setInputs(C)[0], "80");
-  app.setView("list");
-  is(entry(ex).sets.length, 1, "so does leaving the editor for Overview");
-  app.setView("focus");
+  type(setInputs(logCardNode())[0], "80");
+  app.exportSession();
+  sheetButton(/^Discard$/).onclick();
+  is(entry(ex).sets.length, 0, "Discard logs nothing");
+  assert(!app.draftDirty(entry(ex)), "…and clears the typed draft");
 
   ex = setup();
-  C = logCardNode();
-  type(setInputs(C)[0], "80");
-  app.flushDraft();
-  is(app.buildSessionExport().entries.find(x => x.exercise === ex.name).sets.length, 1,
-     "and the flush before an export puts it in the file");
+  type(setInputs(logCardNode())[0], "80");
+  app.startSession();
+  app.confirmFinish();
+  is(stubFor("#sheetTitle").text, "1 set typed but not logged", "Finish with a typed set asks first");
+  sheetButton(/^Log it$/).onclick();
+  is([entry(ex).sets.length, app.getSession().status], [1, "sealed"], "…and Log it logs it, then finishes");
 
   /* A draft that is only a seeded copy of the last set is NOT a set that happened. */
   ex = setup();
@@ -864,15 +900,20 @@ console.log("\na typed set is never lost — flushed on End, navigation and expo
   actionBtn(C, /Log set 1/).onclick();
   is(entry(ex).sets.length, 1, "one set committed");
   assert(!app.draftDirty(entry(ex)), "the next draft is seeded, not dirty");
+  app.STATE.focus = 1;
+  stubFor("#sheetTitle").textContent = "";
+  app.confirmFinish();
+  is(stubFor("#sheetTitle").text, "Finish this session?", "an untouched copied draft never triggers the prompt");
+  app.sheetClose();
   endExercise(logCardNode());
-  is(entry(ex).sets.length, 1, "so End does not invent a second set from the seed");
+  is(entry(ex).sets.length, 1, "and End does not invent a second set from the seed");
 
   /* Neither is an empty draft, and the bookkeeping never reaches a log file. */
   ex = setup();
   const s = app.getSession();
   s.entries[ex.id] = { ...app.blankEntry(), draft: { ...app.blankDraft(), dirty: true } };
   app.saveSession(s);
-  is(app.flushDraft(), false, "a dirty but empty draft commits nothing");
+  is(app.typedDrafts(app.getSession()).length, 0, "a dirty but empty draft is not a typed set");
   ex = setup();
   C = logCardNode();
   type(setInputs(C)[0], "90");
@@ -888,10 +929,8 @@ console.log("\nOverview always says where an exercise stands");
   const exs = app.dayExercises();
   const ex = exs[1];
   app.STATE.focus = 1;
-  /* Read Overview WITHOUT going through setView(): switching views deliberately commits a
-     dirty draft, so an in-progress draft has to be set up in storage and read directly.
-     That is also the only way it reaches the athlete for real — a reload (or a crash)
-     with a set still typed and unconfirmed. */
+  /* Read Overview without going through setView(), with the draft set up in storage —
+     the same state a reload with a set still typed and unconfirmed comes back to. */
   const ovOf = i => {
     app.SETTINGS.view = "list";
     const c = exCards()[i];
@@ -907,14 +946,14 @@ console.log("\nOverview always says where an exercise stands");
   s.entries[ex.id] = { ...app.blankEntry(),
     draft: { load: "60", reps: "", rpe: "", painDuring: "", note: "", dirty: true } };
   app.saveSession(s);
-  is(ovOf(1).line, "Set 1 typed — not logged yet", "a typed-but-unlogged set is visible, not silent");
+  is(ovOf(1).line, "Set 1 typed, not logged", "a typed-but-unlogged set is visible, not silent");
   is(ovOf(1).badge, "◐", "…and reads as in progress");
 
   actionBtn(logCardNode(), /Log set 1/).onclick();
   const target = app.targetSets(ex, app.getSession().entries[ex.id]);
   is(ovOf(1).line, `1 of ${target} sets logged`, "a committed set is counted");
   type(setInputs(logCardNode())[1], "4");
-  is(ovOf(1).line, `1 of ${target} sets logged · set 2 in progress`,
+  is(ovOf(1).line, `1 of ${target} sets logged · set 2 typed, not logged`,
      "…and a set in progress on top of it is spelled out");
 
   endExercise(logCardNode());
@@ -2309,7 +2348,7 @@ console.log("\nthe focus logger: the instruments, and the regressions this can r
     ["yesterday", "6 days ago", "3 weeks ago", "4 months ago"],
     "how long ago is worded at the scale it matters");
 
-  /* ---- a typed-but-unlogged set still reaches sets[] ---- */
+  /* ---- a typed-but-unlogged set waits for a tap, wherever the athlete goes ---- */
   /* Two exercises, so Next has somewhere to go. */
   const twoDay = "Day 1 (Mon) - Two lifts";
   const twoProgram = { meta: { schema: "tp-program-2", block: "Flush", athlete: "Sample",
@@ -2327,7 +2366,8 @@ console.log("\nthe focus logger: the instruments, and the regressions this can r
     type(i[0], "123"); type(i[1], "7");
     return k;
   };
-  const loads = () => app.buildSessionExport().entries[0].sets.map(r => r.load);
+  const loads = () => [app.buildSessionExport().entries[0].sets.map(r => r.load),
+    app.getSession().entries[app.dayExercises()[0].id].draft.load];
   setup(); endExercise(exCards()[0]);
   paths.finish = loads();
   setup(); app.stepFocus(1);
@@ -2339,9 +2379,9 @@ console.log("\nthe focus logger: the instruments, and the regressions this can r
   paths.weekChange = loads();
   setup(); app.setView("list");
   paths.viewChange = loads();
-  is(paths, { finish: ["123"], next: ["123"], dateChange: ["123"], weekChange: ["123"],
-    viewChange: ["123"] },
-    "a typed-but-unlogged set reaches sets[] on Finish, Next, a date change, a week change and a view change");
+  const kept = [[], "123"];
+  is(paths, { finish: [["123"], "123"], next: kept, dateChange: kept, weekChange: kept, viewChange: kept },
+    "End logs a typed set; Next, a date change, a week change and a view change keep it typed and unlogged");
 }
 
 console.log("\ncircuits keep all five kinds and three modes, in their own composition");

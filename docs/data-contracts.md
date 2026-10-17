@@ -409,9 +409,8 @@ round rows are complementary.
   worth a line in the review rather than skipped.
 - **`sets.length` is the number of sets actually performed.** The export contains only committed
   sets: a draft the app seeded from the previous set is not a set that happened, and a set the
-  athlete typed but never confirmed is committed on their behalf when they finish the exercise,
-  page away, change day or week, leave for Overview, export, or background the app — so it lands
-  in the file rather than vanishing.
+  athlete typed is in the file only once they confirmed it — by logging it, ending the exercise,
+  or answering the prompt Finish and Export raise for a typed-but-unlogged set.
 - RPE may carry a half point (`"7.5"`); the picker offers 1–10 in 0.5 increments. Stored as a
   string, and legacy prose values remain readable — parse as a float if at all, never an integer.
 - `tracking.perSetLogging` is unconditionally `true`: it is not a switch, it is how every exercise
