@@ -32,18 +32,22 @@ Verify before installing:
 unzip -l program-builder.skill   # SKILL.md must be the first-level entry
 ```
 
-## Current contents
+## What a bundle must contain
 
-| Directory | Contains |
-|---|---|
-| `program-planner/` | `SKILL.md`, `reference/planning-doc-template.md` |
-| `program-builder/` | `SKILL.md`, `scripts/build_program_json.py`, `scripts/build_xlsx.py`, `scripts/rows_common.py` |
-| `review-workout-log/` | `SKILL.md`, `reference/review-output-template.md`, `scripts/snapshot_revision.py` |
+`ls` the directory for the file list. Three dependencies are easy to leave out, and each breaks
+the skill silently rather than loudly:
 
-`rows_common.py` is shared by both builder scripts — it holds the single definition of how
-`rows.json` is validated, how weeks are read and how days are ordered. It exists because the
-two scripts once disagreed about the same input file, which meant the workbook and
-`program.json` could describe different programmes. Any bundle must include it.
+- **`program-builder/scripts/rows_common.py`** — the single definition of how `rows.json` is
+  validated, how weeks are read and how days are ordered. Both builder scripts import it, and
+  that shared definition is what stops the workbook and `program.json` describing different
+  programmes.
+- **`program-builder/scripts/validate_program.py`** — imported by `build_program_json.py`, which
+  runs it over the assembled programme and refuses to write a file that fails. Without it the
+  build does not run at all.
+- **`program-builder/` itself, when bundling `review-workout-log`** — the review skill revises a
+  block by editing `rows.json` and re-running the builder's two scripts, so a revision generates
+  through the same code path as the original build. On its own it can propose a change and
+  snapshot the old revision, but it cannot produce the new one.
 
 ## How the three fit together
 

@@ -3,8 +3,9 @@
 build_xlsx.py - render a training programme into a colour-banded Excel workbook.
 
 Input: a JSON file containing the programme rows, either as
-  (a) {"rows": [[13 fields], ...]}  with fields in the exact column order, or
-  (b) a bare list  [[13 fields], ...].
+  (a) {"rows": [[14 fields], ...]}  with fields in the exact column order, or
+  (b) a bare list  [[14 fields], ...].
+A 13-field row predates the Category column and is padded; see rows_common.
 
 Loading, validation, week numbers and day ordering come from rows_common, so this
 script and build_program_json.py read the same rows.json identically. The two
@@ -43,7 +44,8 @@ DAY_LABEL = ["1F4E79", "375623", "833C00", "4B2E83", "7F6000", "3B3838"]
 WRAP_COLS = {"Load", "Completed Notes", "Focus / Notes", "Progression Rule"}
 WIDTHS = {"Week": 6, "Day": 30, "Exercise": 26, "Sets": 9, "Reps": 22, "Load": 26,
           "Intensity (RPE)": 18, "Tempo": 9, "Rest": 14, "Completed": 11,
-          "Completed Notes": 34, "Focus / Notes": 62, "Progression Rule": 58}
+          "Completed Notes": 34, "Focus / Notes": 62, "Progression Rule": 58,
+          "Category": 12}
 
 MAX_TAB = 31  # Excel's hard limit on a worksheet name
 

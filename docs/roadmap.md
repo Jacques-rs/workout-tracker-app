@@ -24,35 +24,28 @@ file, but nothing reads one back. Without restore, the export protects against a
 if it is re-entered by hand. Browsers can evict storage for unused sites; installed PWAs are more
 durable, but restore is the cheap insurance.
 
-**4. Emit `category` from `program-builder`.** Cards colour-code by category (skill / strength /
-conditioning / tendon work) and no programme schema emits one, so the app *guesses* from the
-exercise name. It is right on the current sample, but a renamed exercise can silently change
-colour. An optional `category` per exercise replaces the guess with a declaration; the app already
-prefers a declared value and degrades to no-tag. Needs a 14th spreadsheet column, so it is a
-`program-builder` change. See `docs/data-contracts.md`.
-
 ## Medium value
 
-**5. Per-exercise trend view.** Load and RPE over weeks, plus the pain trend. "No upward trend
+**4. Per-exercise trend view.** Load and RPE over weeks, plus the pain trend. "No upward trend
 week over week" is one of the coaching rules, so surfacing it in-app would let the athlete
 self-correct before the coach review. The past-sessions *list* is not part of this — the hub and
 the calendar already are that.
 
-**6. Reduce export→save friction.** Export downloads a file, which the athlete then files into
+**5. Reduce export→save friction.** Export downloads a file, which the athlete then files into
 Drive through the share sheet. `navigator.share` is unused; a share button or a whole-week export
 would shorten it.
 
-**7. `localStorage` housekeeping.** `tp_sess_v1::*` keys accumulate forever. Harmless at this
+**6. `localStorage` housekeeping.** `tp_sess_v1::*` keys accumulate forever. Harmless at this
 volume, but a "clear sessions older than N months" action — after a backup — keeps it tidy.
 
-**8. Log an earlier block's session late.** The claim picker offers the weeks of the block that
+**7. Log an earlier block's session late.** The claim picker offers the weeks of the block that
 owns the date, so the old block's last session, done on the new block's first Monday, can only be
 claimed by moving the new block's start. A "from the previous block" choice in the picker, shown
 only in a block's first week or two, would cover it.
 
 ## Lower value / speculative
 
-**9. Plate calculator.** The athlete does this arithmetic automatically.
+**8. Plate calculator.** The athlete does this arithmetic automatically.
 
 ## Deferred on purpose
 

@@ -2,7 +2,7 @@
 """
 build_program_json.py - convert programme rows into program.json for the tracker PWA.
 
-Reads the SAME rows.json used by build_xlsx.py (a list of 13-field rows, or
+Reads the SAME rows.json used by build_xlsx.py (a list of 14-field rows, or
 {"rows": [...]}), and emits a program.json with schema "tp-program-2". Loading,
 input validation, week numbers and day ordering all come from rows_common, so
 the two scripts cannot drift apart in how they read the same file.
@@ -46,8 +46,8 @@ import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from rows_common import (DAY, die, day_order, day_slots, load_rows,  # noqa: E402
-                         sort_rows, week_of)
+from rows_common import (CATEGORY, DAY, die, day_order, day_slots,  # noqa: E402
+                         load_rows, sort_rows, week_of)
 from validate_program import validate  # noqa: E402
 
 
@@ -69,13 +69,20 @@ def build(rows, block, athlete, weeks, allow_partial, version=1):
     for v in sort_rows(rows, order):
         week, day = week_of(v), v[DAY]
         counters[(week, day)] = counters.get((week, day), 0) + 1
-        exercises.append({
+        ex = {
             "id": f"w{week}d{slot[day]}e{counters[(week, day)]}",
             "week": week, "day": day, "name": v[2],
             "sets": v[3], "reps": v[4], "load": v[5], "rpe": v[6],
             "tempo": v[7], "rest": v[8],
             "logHint": v[10], "focus": v[11], "progression": v[12],
-        })
+        }
+        # Omitted entirely when the cell is blank, never written as "". An
+        # always-present empty key reads as "declared" to anything counting
+        # declarations, and would silence the validator's warning that nothing
+        # in the file declares a category while nothing in fact does.
+        if v[CATEGORY].strip():
+            ex["category"] = v[CATEGORY].strip()
+        exercises.append(ex)
 
     # Fail here rather than in validate_program for the two problems that are
     # really about the INPUT, so the error names rows.json and the flag the

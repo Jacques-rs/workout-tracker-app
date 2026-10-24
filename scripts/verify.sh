@@ -50,8 +50,8 @@ python3 scripts/check_inline_js.py
 echo "==> Checking JSON fixtures"
 python3 -c "import glob,json; [json.load(open(path, encoding='utf-8')) for path in ['program.json','manifest.webmanifest'] + glob.glob('samples/*.json')]"
 
-echo "==> Checking programme-builder Python"
-python3 -m py_compile athlete/skills/program-builder/scripts/*.py
+echo "==> Checking coaching-skill Python"
+python3 -m py_compile athlete/skills/*/scripts/*.py
 
 echo "==> Validating programme fixtures"
 python3 athlete/skills/program-builder/scripts/validate_program.py \

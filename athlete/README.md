@@ -42,13 +42,36 @@ Older blocks sit **flat** in `programs/` with no subfolder. That is fine and is 
 block folder that moves mid-block breaks every path the athlete and the chat history refer to.
 New blocks get their own subfolder, because a flat `programs/` can only hold one `program.json`.
 
-`skills/` and `sources/` are **shared** — the coaching framework is the same for everyone.
-What differs per athlete is the profile, the plan, the programme and the logs. Every skill takes
-the athlete as an input and reads only that person's folder; nothing about an individual is
-hardcoded in a skill.
+`skills/` and `sources/` are **shared** — the coaching framework is the same for everyone. What
+differs per athlete is the profile, the plan, the programme and the logs.
 
 Folder names are lowercase slugs (`jacques`, not `Jacques`). The display name lives in
 `personal-profile.md` and in `meta.athlete` inside `program.json`.
+
+## Which athlete — establish this before reading anything
+
+All three skills start here, and getting it wrong means applying one person's injury rules to
+another's training. Work it out **before opening any file**:
+
+1. **The athlete named in the request.** Usually enough.
+2. **The folder the file sits in** — the log you were pointed at, or the planning doc.
+3. **Otherwise ask.** If more than one folder exists under `athlete/` and the request is
+   ambiguous, ask. Never guess, and never fall back to whoever the last session was about.
+
+Then read and write **only** that person's folder, and pass their display name (from
+`personal-profile.md`) to any script that takes `--athlete`.
+
+Two things that look like answers and are not:
+
+- **`athleteId` confirms, it does not decide.** A log carries it from `tp-session-2` on, so it
+  tells you which folder a file *belongs* in. A file that landed in the wrong one is a filing
+  mistake — move it; it is not a licence to review it against the other person's rules.
+- **A skill never remembers an athlete.** Injury protocols, pain-monitoring thresholds and
+  readiness hard stops are per-athlete *data*, read from the profile and the plan in front of
+  you. Nothing about an individual is hardcoded in a skill, and nothing carries over from the
+  last athlete a session worked on.
+
+If the athlete has no folder yet, create one (below) and say so.
 
 ## Adding an athlete
 
@@ -56,8 +79,10 @@ Folder names are lowercase slugs (`jacques`, not `Jacques`). The display name li
 mkdir -p athlete/<slug>/{plans,programs,logs}
 ```
 
-Then write `athlete/<slug>/personal-profile.md` and run `program-planner`. There is nothing
-to register and no file to edit — the ignore rules already cover the new folder (see below).
+Then write `athlete/<slug>/personal-profile.md` — `program-planner` carries a template for it,
+in `skills/program-planner/reference/athlete-profile-template.md` — and run `program-planner`.
+There is nothing to register and no file to edit: the ignore rules already cover the new folder
+(see below).
 
 ## Privacy — read before committing anything here
 
