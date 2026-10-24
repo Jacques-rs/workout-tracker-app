@@ -49,7 +49,7 @@ Import lives on the Programme screen; export is per-session and lives on the dat
 The vendored Supabase SDK loads first, followed by the auth and profile modules. `auth-config.js`
 selects the local stack only for localhost/loopback and the hosted project elsewhere.
 `auth-client.js` owns Supabase Auth calls and exposes state/actions to the rest of the app.
-`auth-ui.js` renders sign-in, recovery and password-setup dialogs. `program-store.js` owns every
+`auth-ui.js` renders sign-in (password or Google), recovery and password-setup dialogs. `program-store.js` owns every
 Data API call to `programs`; `session-store.js` owns every Data API call to `session_logs`.
 `settings-store.js` owns every Data API call to `user_settings`.
 `profile-ui.js` renders the Account and Programme sections from those stores and local callbacks,

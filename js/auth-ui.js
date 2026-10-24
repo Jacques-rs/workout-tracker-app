@@ -99,6 +99,19 @@
       const submit = node(document, "button", { className: "primary", type: "submit", textContent: "Sign in" });
       const forgot = node(document, "button", { className: "quietaction", type: "button", textContent: "Forgot password?" });
       forgot.onclick = () => open("recovery");
+      if (auth.signInWithGoogle) {
+        const google = node(document, "button", { className: "ghost auth-google", type: "button",
+          textContent: "Continue with Google" });
+        google.onclick = async () => {
+          setError(error, ""); setBusy(google, true, "Continue with Google");
+          const result = await auth.signInWithGoogle();
+          // On success the page is already leaving for Google, so the button stays busy.
+          if (result.ok) return;
+          setBusy(google, false, "Continue with Google");
+          setError(error, result.error.message);
+        };
+        form.append(google, node(document, "p", { className: "auth-or" }, "or use your email and password"));
+      }
       form.append(node(document, "label", { className: "auth-field" }, [
         node(document, "span", {}, "Email"), email
       ]));
@@ -193,6 +206,11 @@
       }
       if (mode === "error") {
         const state = auth.getState();
+        if (state.error && state.error.code === "signup_disabled") {
+          modal("Google account not invited", "Private beta accounts are created by administrator invitation.",
+            messagePanel(state.error.message));
+          return;
+        }
         modal("Account link problem", "The invitation or recovery link could not be used.",
           messagePanel(state.error && state.error.message || "Ask for a new link and try again."));
         return;
@@ -259,7 +277,7 @@
       unsubscribe = auth.subscribe(state => {
         if (state.status === "setup-required" && state.flow && lastAutoFlow !== state.flow) {
           lastAutoFlow = state.flow; open("password");
-        } else if (state.error && ["otp_expired", "access_denied", "bad_code_verifier"].includes(state.error.code)) {
+        } else if (state.error && ["otp_expired", "access_denied", "bad_code_verifier", "signup_disabled"].includes(state.error.code)) {
           open("error");
         }
       });

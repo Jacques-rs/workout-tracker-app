@@ -44,6 +44,7 @@ function fakeSupabase(initialSession = null) {
       calls.push(["resetPasswordForEmail", email, options]); return { data: {}, error: null };
     },
     async updateUser(attributes) { calls.push(["updateUser", attributes]); return { data: { user: session && session.user }, error: null }; },
+    async signInWithOAuth(credentials) { calls.push(["signInWithOAuth", credentials]); return { data: {}, error: null }; },
     async getSession() { return { data: { session }, error: null }; },
     async signOut(options) { calls.push(["signOut", options]); session = null; return { error: null }; },
     async refreshSession() { calls.push(["refreshSession"]); return { data: { session }, error: null }; }
@@ -62,7 +63,7 @@ function person(id, email = `${id}@example.invalid`) {
 }
 
 function makeClient({ storage = memoryStorage(), fake = fakeSupabase(), href = "https://example.test/app/",
-  search = "", hash = "", online = true } = {}) {
+  search = "", hash = "", online = true, fetch = null } = {}) {
   const historyCalls = [];
   const location = new URL(href);
   if (search) location.search = search;
@@ -76,6 +77,7 @@ function makeClient({ storage = memoryStorage(), fake = fakeSupabase(), href = "
     config, storage, location,
     history: { replaceState(_a, _b, url) { historyCalls.push(url); } },
     navigator: { onLine: online },
+    fetch,
     addWindowListener(name, handler) { listeners[name] = handler; }
   });
   return { client, fake, storage, historyCalls, listeners, config };
@@ -183,6 +185,56 @@ function makeClient({ storage = memoryStorage(), fake = fakeSupabase(), href = "
     same(call[2], { redirectTo: "https://example.test/app/" }, "recovery returns to the exact app subpath");
     same(typeof ctx.client.signUp, "undefined", "the browser auth API exposes no public sign-up path");
   }
+
+  console.log("\nGoogle sign-in");
+  {
+    const settingsCalls = [];
+    const settings = google => async (url, options) => {
+      settingsCalls.push([url, options]);
+      return { ok: true, async json() { return { external: { google } }; } };
+    };
+    const ctx = makeClient({ fake: fakeSupabase(null), fetch: settings(true) });
+    await ctx.client.init(); await tick();
+    ok((await ctx.client.signInWithGoogle()).ok, "an enabled provider starts the Google redirect");
+    same(settingsCalls[0], ["https://project.supabase.co/auth/v1/settings",
+      { headers: { apikey: "sb_publishable_test" } }], "the provider check sends only the publishable key");
+    same(ctx.fake.calls.find(call => call[0] === "signInWithOAuth")[1], { provider: "google", options: {
+      redirectTo: "https://example.test/app/", queryParams: { prompt: "select_account" }
+    } }, "Google returns to the exact app subpath and always offers an account choice");
+
+    const disabled = makeClient({ fake: fakeSupabase(null), fetch: settings(false) });
+    await disabled.client.init(); await tick();
+    const refused = await disabled.client.signInWithGoogle();
+    same(refused.error && refused.error.code, "provider_disabled",
+      "a disabled provider is refused in the app, not on a raw error page");
+    ok(!disabled.fake.calls.some(call => call[0] === "signInWithOAuth"), "and never leaves the app");
+
+    const offline = makeClient({ fake: fakeSupabase(null), fetch: settings(true), online: false });
+    await offline.client.init(); await tick();
+    same((await offline.client.signInWithGoogle()).error.code, "network_error",
+      "Google sign-in needs a connection and says so");
+
+    const returned = makeClient({ fake: fakeSupabase(person("user-one", "one@example.invalid")),
+      hash: "#access_token=secret&refresh_token=secret&token_type=bearer" });
+    await returned.client.init(); await tick();
+    same(returned.client.getState().status, "authenticated", "a Google return signs in without password setup");
+    same(returned.historyCalls, ["https://example.test/app/"], "the Google tokens are removed from browser history");
+
+    const owner = { userId: "user-one", email: "one@example.invalid", signedOut: true, pendingFlow: null };
+    const bound = makeClient({ storage: memoryStorage({ tp_auth_owner_v1: JSON.stringify(owner) }),
+      fake: fakeSupabase(person("user-two", "two@example.invalid")),
+      hash: "#access_token=secret&refresh_token=secret" });
+    await bound.client.init(); await tick();
+    same(bound.client.getState().status, "conflict", "a different Google account cannot take over a bound installation");
+
+    const uninvited = makeClient({ fake: fakeSupabase(null),
+      hash: "#error=access_denied&error_code=signup_disabled&error_description=Signups+not+allowed+for+this+instance" });
+    await uninvited.client.init(); await tick();
+    same(uninvited.client.getState().error.code, "signup_disabled", "an uninvited Google account is recognised");
+    ok(/not invited/.test(uninvited.client.getState().error.message),
+      "and explained in the app's words rather than the server's");
+  }
+
   ok(authUiModule.validPassword("letters1"), "the configured letters-and-digits password rule passes");
   ok(!authUiModule.validPassword("lettersonly"), "a password without a digit is rejected before the request");
   ok(!authUiModule.validPassword("12345678"), "a password without a letter is rejected before the request");
