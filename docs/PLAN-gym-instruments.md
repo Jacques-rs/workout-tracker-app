@@ -9,8 +9,8 @@ It must not reach `dev`.
 | # | Piece | Status |
 |---|---|---|
 | A | Previous-session detail: tap "last time" to see every set | **built** — landing notes still owed |
-| S | Spike: what an installed iPhone PWA actually does with timers, wake lock and sound | gates B and C |
-| B | Rest countdown with an end-of-rest cue | after S |
+| S | Spike: what an installed iPhone PWA actually does with timers, wake lock and sound | Android done; **iPhone run pending** (second athlete) — `spike-timer.html` stays on `dev` until then |
+| B | Rest countdown with an end-of-rest cue | **built** — landing notes still owed |
 | C | Interval / EMOM timer | after S |
 | D | Share sheet on export | optional, last |
 

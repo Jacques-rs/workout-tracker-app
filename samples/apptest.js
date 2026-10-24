@@ -2318,6 +2318,31 @@ console.log("\nthe focus logger: the instruments, and the regressions this can r
   is(app.fmtClock(0), "0:00", "including the moment a set lands");
   is(app.fmtClock(605), "10:05", "and past ten minutes");
 
+  /* Inside the prescribed rest it counts down; past it, it counts on rather than expiring. */
+  is(app.restReading(30, 90), { value: "1:00", label: "rest left · 1:30", ready: false },
+    "inside the prescribed rest it counts DOWN to 'you may go', in the 'now' colour");
+  is(app.restReading(105, 90), { value: "+0:15", label: "past 1:30 rest", ready: true },
+    "past it, it counts on as '+0:15' instead of expiring");
+  is(app.restReading(40, 0), { value: "0:40", label: "since last set", ready: true },
+    "with no countable rest it stays the plain count-up");
+  is([89, 90, 91, 92, 500].map(n => app.restCueDue(n, 90)), [false, true, true, false, false],
+    "the cue is due only in the two seconds after the rest runs out — never on a late reload");
+  is(app.restCueDue(90, 0), false, "and never without a prescribed rest to run out");
+  /* Once per set, and only when switched on. */
+  let buzzes = 0;
+  app.navigator.vibrate = () => { buzzes++; return true; };
+  const due = { lastSetAt: new Date(Date.now() - 90000).toISOString() };
+  app.SETTINGS.restCue = false;
+  app.restClockNode({ rest: "90 sec" }, due)._paint();
+  is(buzzes, 0, "the cue is off by default — switched off, the clock never buzzes");
+  app.SETTINGS.restCue = true;
+  const cueNode = app.restClockNode({ rest: "90 sec" }, due);
+  cueNode._paint(); cueNode._paint();
+  is(buzzes, 1, "switched on, it fires once when the rest runs out, not on every repaint");
+  app.restClockNode({ rest: "90 sec" }, { lastSetAt: new Date(Date.now() - 90500).toISOString() })._paint();
+  is(buzzes, 2, "and again after the next set");
+  app.SETTINGS.restCue = false; delete app.navigator.vibrate;
+
   /* It is stored, so it survives a reload, a backgrounded tab and a killed PWA — there
      is no timer state to lose. */
   const card = logCardNode();
@@ -2529,8 +2554,8 @@ console.log("\ntwo settings scopes: what follows the account, and what stays on 
   is(app.ACCOUNT_KEYS.slice().sort(),
     ["bodyweight", "hrvNote", "painLabel", "painOnWaking", "painPerExercise", "readiness", "sleep"],
     "the tracked fields and the pain label follow the account");
-  is(app.DEVICE_KEYS.slice().sort(), ["mode", "palette", "sv", "view"],
-    "appearance and which view the app opens on stay on the device");
+  is(app.DEVICE_KEYS.slice().sort(), ["mode", "palette", "restCue", "sv", "view"],
+    "appearance, which view the app opens on, and whether the rest clock beeps stay on the device");
   app.DEVICE_KEYS.forEach(key =>
     assert(!app.accountScoped(key), `${key} is device-scoped`));
   app.ACCOUNT_KEYS.forEach(key =>

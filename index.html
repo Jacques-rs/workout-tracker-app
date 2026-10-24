@@ -1258,13 +1258,13 @@ const FIELD_DEFS=[
 /* palette + mode + view are cosmetic and deliberately NOT part of the session export —
    the `tracking` block is built from FIELD_DEFS and painLabel alone, so nothing here can
    leak into a log. `sv` is a one-shot settings-migration marker — see loadSettings(). */
-const SET_DEFAULTS={painLabel:"Knee",palette:"a",mode:"auto",view:"focus",sv:1};
+const SET_DEFAULTS={painLabel:"Knee",palette:"a",mode:"auto",view:"focus",sv:1,restCue:false};
 FIELD_DEFS.forEach(f=>SET_DEFAULTS[f.key]=true);
 let SETTINGS={...SET_DEFAULTS};
 /* Which store owns a key is decided HERE and nowhere else, so a new setting cannot end
    up in the wrong scope by accident. */
 const ACCOUNT_KEYS=["painLabel"].concat(FIELD_DEFS.map(f=>f.key));
-const DEVICE_KEYS=["palette","mode","view","sv"];
+const DEVICE_KEYS=["palette","mode","view","sv","restCue"];
 function accountScoped(key){return ACCOUNT_KEYS.indexOf(key)>=0;}
 /* The account half, as {values, at}: the value plus one ISO stamp per field, which is
    what makes the conflict rule last-write-wins PER FIELD. */
@@ -1410,6 +1410,16 @@ function renderAppearance(host){
     :"Fixed, whatever the phone is set to."));
 }
 
+function restCueRow(){
+  const sw=el("button",{className:"sw",attrs:{role:"switch","aria-checked":String(!!SETTINGS.restCue),
+    "aria-label":"Rest-over cue"}});
+  sw.onclick=()=>{setSetting("restCue",!SETTINGS.restCue);sw.setAttribute("aria-checked",String(SETTINGS.restCue));
+    primeCue();if(SETTINGS.restCue)restCue();};
+  return el("div",{className:"togrow"},[
+    el("div",{className:"tl"},[el("div",{className:"tn"},"Rest-over cue"),
+      el("div",{className:"td"},"A short beep and buzz when the prescribed rest is up. Only while the app is open on screen — a locked phone stays silent — and the beep follows the media volume.")]),
+    sw]);
+}
 function renderFields(host){
   host.innerHTML="";
   host.append(el("p",{className:"dnote"},"Turn off what you don't need — nothing already logged is deleted."));
@@ -3702,8 +3712,8 @@ function renderAccountPage(){
     "Which optional fields you track, and what you call them, follow you to any device you sign in on. Change one on two devices at once and the most recent change wins, per field."+syncNote,
     renderFields));
   host.append(settingsGroup("This device",
-    "Appearance is about where you are standing — a basement at 6 a.m. and a kitchen at noon want different things — so it stays on this phone. So does the rest clock, which is always on and hides itself once you have left the gym.",
-    renderAppearance));
+    "Appearance is about where you are standing — a basement at 6 a.m. and a kitchen at noon want different things — so it stays on this phone. So does the rest clock, which is always on and hides itself once you have left the gym, and whether it beeps.",
+    host=>{const a=el("div");renderAppearance(a);host.append(a,restCueRow());}));
 }
 
 /* ---------- exercise head (shared by Overview and Log) ----------
@@ -3927,6 +3937,45 @@ function fmtClock(sec){
   const n=Math.max(0,Math.round(Number(sec)||0));
   return `${Math.floor(n/60)}:${String(n%60).padStart(2,"0")}`;
 }
+/* Inside the prescribed rest it counts DOWN to "you may go"; past it, it keeps counting
+   up as "+0:15" rather than expiring, so the number still means something. With no
+   countable rest it is the plain count-up. */
+function restReading(sec,target){
+  if(!target)return {value:fmtClock(sec),label:"since last set",ready:true};
+  if(sec<target)return {value:fmtClock(target-sec),label:`rest left · ${fmtClock(target)}`,ready:false};
+  return {value:"+"+fmtClock(sec-target),label:`past ${fmtClock(target)} rest`,ready:true};
+}
+/* The cue fires on the repaint that sees the rest run out — a two-second window, so a
+   reload long after the mark stays quiet — and once per set, keyed by the stamp it
+   measures from. Foreground only: a locked phone gets no cue, and the display is right
+   the moment it unlocks. Opt-in per device; see docs/design-rationale.md. */
+function restCueDue(sec,target){return target>0&&sec>=target&&sec-target<2;}
+let REST_CUED="",CUE_CTX=null;
+/* Browsers only let audio start from a tap, and the cue fires from a timer — so every
+   tap keeps the context unlocked while the cue is switched on. */
+function primeCue(){
+  if(!SETTINGS.restCue)return;
+  try{
+    const C=window.AudioContext||window.webkitAudioContext;
+    if(!CUE_CTX&&C)CUE_CTX=new C();
+    if(CUE_CTX&&CUE_CTX.state!=="running")CUE_CTX.resume();
+  }catch(e){}
+}
+function restCue(){
+  if(!SETTINGS.restCue)return;
+  if(navigator.vibrate)try{navigator.vibrate([80,60,80]);}catch(e){}
+  const c=CUE_CTX;
+  if(!c||c.state!=="running")return;
+  try{
+    [0,0.22].forEach(at=>{
+      const o=c.createOscillator(),g=c.createGain(),t=c.currentTime+0.02+at;
+      o.frequency.value=880;
+      g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.5,t+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+0.16);
+      o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+0.18);
+    });
+  }catch(e){}
+}
 function restClockNode(ex,s){
   const target=parseRestSeconds(ex);
   /* aria-live off on purpose: a value that changes every second must never be announced. */
@@ -3938,9 +3987,10 @@ function restClockNode(ex,s){
     const sec=restSeconds(s);
     if(sec==null||sec>REST_HIDE_S){node.hidden=true;return;}
     node.hidden=false;
-    value.textContent=fmtClock(sec);
-    node.setAttribute("data-ready",String(!target||sec>=target));
-    label.textContent=target?`rest · ${fmtClock(target)} prescribed`:"since last set";
+    const r=restReading(sec,target);
+    value.textContent=r.value;label.textContent=r.label;
+    node.setAttribute("data-ready",String(r.ready));
+    if(SETTINGS.restCue&&restCueDue(sec,target)&&REST_CUED!==s.lastSetAt){REST_CUED=s.lastSetAt;restCue();}
   };
   node._paint();
   return node;
@@ -4746,6 +4796,7 @@ $("#fileInp").onchange=async e=>{
    conveniences — guarded, because the headless test harness has no event target.
    Suppressed while editing a set: an arrow key while STATE.setEdit is set would jump
    exercises with a chip (not an INPUT) focused mid-edit. */
+if(document.addEventListener)document.addEventListener("pointerdown",primeCue,{passive:true});
 if(document.addEventListener)document.addEventListener("keydown",e=>{
   if(window.TPAuthUI&&TPAuthUI.handleKeydown(e))return;
   if(e.key==="Escape"&&$("#sheetWrap").classList.contains("in")){sheetClose();return;}
