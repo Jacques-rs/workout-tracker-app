@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- Throwaway spike for feat/gym-instruments. Removed after one test run; never in the sw.js shell. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Timer spike">
+<title>Timer spike</title>
+<style>
+  :root{--bg:#f6f4ef;--panel:#fff;--ink:#1d2433;--muted:#667085;--line:#d8d4cc;--accent:#e8a33d;--good:#2f8f5b;--bad:#c4473a}
+  @media (prefers-color-scheme:dark){:root{--bg:#161b26;--panel:#1f2635;--ink:#eef0f4;--muted:#98a2b3;--line:#344054;--accent:#f0ad48;--good:#4cc38a;--bad:#f07167}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,system-ui,sans-serif;
+    padding:calc(12px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom))}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:12px}
+  section{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0}
+  h2{font-size:15px;margin:0 0 6px}
+  p.how{margin:0 0 8px;color:var(--muted);font-size:13px}
+  .row{display:flex;flex-wrap:wrap;gap:8px}
+  button{font:inherit;font-weight:600;padding:10px 12px;border-radius:10px;border:1px solid var(--line);
+    background:var(--bg);color:var(--ink);min-height:44px}
+  button.go{background:var(--accent);border-color:var(--accent);color:#1d2433}
+  .big{font-size:40px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .st{font-size:13px;color:var(--muted);margin-top:6px;font-variant-numeric:tabular-nums}
+  .ok{color:var(--good)} .no{color:var(--bad)}
+  #log{white-space:pre-wrap;font:12px/1.45 ui-monospace,Menlo,monospace;max-height:40vh;overflow:auto;
+    background:var(--bg);border-radius:8px;padding:8px;margin-top:8px}
+  label{display:flex;gap:8px;align-items:center;font-size:14px;margin:6px 0}
+</style>
+</head>
+<body>
+<h1>Timer spike</h1>
+<div class="sub">Run this from the <b>home screen</b>, not a Safari tab. Then tap <b>Copy results</b> and paste them to Claude.</div>
+<section><h2>0 · Environment</h2><div id="env" class="st"></div></section>
+
+<section>
+  <h2>1 · Does a timer keep counting while locked?</h2>
+  <p class="how">Tap Start, lock the phone for about 30 seconds, then unlock. The log shows the
+  longest gap between ticks, and whether the clock (worked out from the start time) caught up.</p>
+  <div class="big" id="clock">0:00</div>
+  <div class="row"><button class="go" id="t1start">Start</button><button id="t1stop">Stop</button></div>
+  <div class="st" id="t1st"></div>
+</section>
+
+<section>
+  <h2>2 · Keep the screen awake</h2>
+  <p class="how">Tap Hold, then leave the phone alone past its auto-lock time. Also switch to another app
+  and come back: the lock should come back by itself.</p>
+  <div class="row"><button class="go" id="wlon">Hold screen awake</button><button id="wloff">Release</button></div>
+  <div class="st" id="wlst"></div>
+</section>
+
+<section>
+  <h2>3 · Beep</h2>
+  <p class="how">Try each one with the silent switch <b>off</b>, then <b>on</b>. For the 20-second tests, tap,
+  lock the phone straight away and listen.</p>
+  <label><input type="checkbox" id="playback"> Use audio session "playback" (may ignore the silent switch)</label>
+  <div class="row">
+    <button class="go" id="beepNow">Beep now</button>
+    <button id="beepTimeout">Beep in 20 s (timer)</button>
+    <button id="beepSched">Beep in 20 s (scheduled audio)</button>
+  </div>
+  <div class="row" style="margin-top:8px"><button id="beepHeard">I heard it</button><button id="beepMissed">I did not hear it</button></div>
+  <div class="st" id="aust"></div>
+</section>
+
+<section>
+  <h2>4 · Vibrate</h2>
+  <div class="row"><button class="go" id="vib">Vibrate</button><button id="vibYes">I felt it</button><button id="vibNo">Nothing</button></div>
+  <div class="st" id="vibst"></div>
+</section>
+
+<section>
+  <h2>5 · Notification when locked</h2>
+  <p class="how">Tap Allow, then "Notify in 20 s", and lock the phone straight away. Report whether it arrived.</p>
+  <div class="row"><button id="nperm">Allow notifications</button><button class="go" id="nlater">Notify in 20 s</button></div>
+  <div class="row" style="margin-top:8px"><button id="nYes">It arrived</button><button id="nNo">It didn't</button></div>
+  <div class="st" id="nst"></div>
+</section>
+
+<section>
+  <h2>Results</h2>
+  <div class="row"><button class="go" id="copy">Copy results</button><button id="clear">Clear log</button></div>
+  <div id="log"></div>
+</section>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const KEY="spike_timer_log_v1";
+let LOG=[];
+try{LOG=JSON.parse(localStorage.getItem(KEY)||"[]");}catch(e){}
+function stamp(){const d=new Date();return d.toTimeString().slice(0,8);}
+function log(msg){LOG.push(stamp()+"  "+msg);try{localStorage.setItem(KEY,JSON.stringify(LOG));}catch(e){}paintLog();}
+function paintLog(){$("log").textContent=LOG.join("\n");$("log").scrollTop=1e9;}
+function fmt(s){s=Math.max(0,Math.round(s));return Math.floor(s/60)+":"+String(s%60).padStart(2,"0");}
+
+/* 0 · environment */
+const standalone=navigator.standalone===true||matchMedia("(display-mode: standalone)").matches;
+const ios=(/OS (\d+)_(\d+)/.exec(navigator.userAgent)||[]).slice(1).join(".");
+const env=[
+  "standalone: "+standalone,
+  "iOS: "+(ios||"n/a"),
+  "wakeLock API: "+("wakeLock" in navigator),
+  "AudioContext: "+!!(window.AudioContext||window.webkitAudioContext),
+  "audioSession API: "+("audioSession" in navigator),
+  "vibrate API: "+("vibrate" in navigator),
+  "Notification API: "+("Notification" in window)+(("Notification" in window)?" ("+Notification.permission+")":""),
+];
+$("env").innerHTML=env.map(x=>"<div>"+x+"</div>").join("");
+if(!LOG.length||!/session start/.test(LOG[LOG.length-1]))log("session start · "+env.join(" · ")+" · UA "+navigator.userAgent);
+paintLog();
+
+/* 1 · tick test: the display is derived from a stored start time, like the app's rest clock. */
+let tick=null,lastTick=0,maxGap=0;
+function t1paint(){
+  const st=Number(localStorage.getItem("spike_t1")||0);
+  if(!st){$("clock").textContent="0:00";return;}
+  const now=Date.now();
+  if(lastTick){const gap=(now-lastTick)/1000;if(gap>maxGap)maxGap=gap;}
+  lastTick=now;
+  $("clock").textContent=fmt((now-st)/1000);
+  $("t1st").textContent="longest gap between ticks: "+maxGap.toFixed(1)+" s";
+}
+$("t1start").onclick=()=>{localStorage.setItem("spike_t1",String(Date.now()));maxGap=0;lastTick=0;
+  if(!tick)tick=setInterval(t1paint,1000);t1paint();log("T1 started");};
+$("t1stop").onclick=()=>{clearInterval(tick);tick=null;log("T1 stopped · longest tick gap "+maxGap.toFixed(1)+" s · clock read "+$("clock").textContent);localStorage.removeItem("spike_t1");};
+if(localStorage.getItem("spike_t1")){tick=setInterval(t1paint,1000);t1paint();log("T1 resumed after reload — clock reads "+$("clock").textContent);}
+let hiddenAt=0;
+document.addEventListener("visibilitychange",()=>{
+  if(document.hidden){hiddenAt=Date.now();log("page hidden");return;}
+  const away=hiddenAt?((Date.now()-hiddenAt)/1000).toFixed(1):"?";
+  const gapBefore=lastTick?((Date.now()-lastTick)/1000).toFixed(1):"n/a";
+  log("page visible after "+away+" s hidden · time since last tick "+gapBefore+" s");
+  if(tick)t1paint();
+  if(WANT_LOCK)acquire("re-acquire on visible");
+});
+
+/* 2 · wake lock */
+let LOCK=null,WANT_LOCK=false;
+async function acquire(why){
+  if(!("wakeLock" in navigator)){$("wlst").innerHTML='<span class="no">Wake Lock API not available</span>';log("WL "+why+": API missing");return;}
+  try{
+    LOCK=await navigator.wakeLock.request("screen");
+    $("wlst").innerHTML='<span class="ok">holding</span> since '+stamp();
+    log("WL "+why+": acquired");
+    LOCK.addEventListener("release",()=>{$("wlst").textContent="released at "+stamp();log("WL released (by system or us)");});
+  }catch(e){$("wlst").innerHTML='<span class="no">'+e.name+": "+e.message+"</span>";log("WL "+why+": FAILED "+e.name+" "+e.message);}
+}
+$("wlon").onclick=()=>{WANT_LOCK=true;acquire("tap");};
+$("wloff").onclick=async()=>{WANT_LOCK=false;if(LOCK){try{await LOCK.release();}catch(e){}LOCK=null;}log("WL released by tap");};
+
+/* 3 · audio */
+let CTX=null;
+function ctx(){
+  if($("playback").checked&&"audioSession" in navigator){try{navigator.audioSession.type="playback";}catch(e){log("audioSession set failed "+e.message);}}
+  else if("audioSession" in navigator){try{navigator.audioSession.type="auto";}catch(e){}}
+  if(!CTX){const C=window.AudioContext||window.webkitAudioContext;CTX=new C();}
+  if(CTX.state!=="running")CTX.resume();
+  return CTX;
+}
+function beepAt(c,when){
+  const o=c.createOscillator(),g=c.createGain();
+  o.type="sine";o.frequency.value=880;
+  g.gain.setValueAtTime(0.0001,when);g.gain.exponentialRampToValueAtTime(0.6,when+0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001,when+0.35);
+  o.connect(g).connect(c.destination);o.start(when);o.stop(when+0.4);
+}
+function mode(){return ($("playback").checked?"playback":"default")+" session";}
+let LAST_AUDIO="";
+$("beepNow").onclick=()=>{const c=ctx();beepAt(c,c.currentTime+0.02);LAST_AUDIO="beep now ("+mode()+")";
+  $("aust").textContent="context: "+c.state;log("A "+LAST_AUDIO+" · context "+c.state);};
+$("beepTimeout").onclick=()=>{const c=ctx();beepAt(c,c.currentTime+0.02);LAST_AUDIO="beep in 20s via setTimeout ("+mode()+")";
+  log("A "+LAST_AUDIO+" armed");const t0=Date.now();
+  setTimeout(()=>{beepAt(c,c.currentTime+0.02);log("A setTimeout fired after "+((Date.now()-t0)/1000).toFixed(1)+" s · context "+c.state);},20000);};
+$("beepSched").onclick=()=>{const c=ctx();beepAt(c,c.currentTime+0.02);beepAt(c,c.currentTime+20);
+  LAST_AUDIO="beep in 20s scheduled on the audio clock ("+mode()+")";log("A "+LAST_AUDIO+" armed");};
+$("beepHeard").onclick=()=>log("A RESULT: heard — "+(LAST_AUDIO||"?"));
+$("beepMissed").onclick=()=>log("A RESULT: NOT heard — "+(LAST_AUDIO||"?"));
+
+/* 4 · vibrate */
+$("vib").onclick=()=>{let r="no API";if("vibrate" in navigator){try{r=String(navigator.vibrate([80,60,80]));}catch(e){r="threw "+e.message;}}
+  $("vibst").textContent="navigator.vibrate returned: "+r;log("V vibrate returned "+r);};
+$("vibYes").onclick=()=>log("V RESULT: felt it");
+$("vibNo").onclick=()=>log("V RESULT: nothing");
+
+/* 5 · notification */
+$("nperm").onclick=async()=>{
+  if(!("Notification" in window)){$("nst").textContent="Notification API not available";log("N API missing");return;}
+  const p=await Notification.requestPermission();$("nst").textContent="permission: "+p;log("N permission "+p);};
+$("nlater").onclick=()=>{
+  if(!("Notification" in window)||Notification.permission!=="granted"){$("nst").textContent="allow notifications first";return;}
+  log("N armed for 20 s");const t0=Date.now();
+  setTimeout(async()=>{
+    const msg="fired after "+((Date.now()-t0)/1000).toFixed(1)+" s";
+    try{const reg=navigator.serviceWorker&&await navigator.serviceWorker.getRegistration();
+      if(reg){await reg.showNotification("Timer spike",{body:"Rest is over ("+msg+")"});log("N shown via service worker · "+msg);}
+      else{new Notification("Timer spike",{body:"Rest is over ("+msg+")"});log("N shown directly · "+msg);}
+    }catch(e){log("N FAILED "+e.name+" "+e.message);}
+  },20000);};
+$("nYes").onclick=()=>log("N RESULT: arrived");
+$("nNo").onclick=()=>log("N RESULT: did not arrive");
+
+$("copy").onclick=async()=>{const t=LOG.join("\n");
+  try{await navigator.clipboard.writeText(t);$("copy").textContent="Copied";}
+  catch(e){const ta=document.createElement("textarea");ta.value=t;document.body.append(ta);ta.select();document.execCommand("copy");ta.remove();$("copy").textContent="Copied";}
+  setTimeout(()=>$("copy").textContent="Copy results",1500);};
+$("clear").onclick=()=>{LOG=[];try{localStorage.removeItem(KEY);}catch(e){}paintLog();};
+</script>
+</body>
+</html>
