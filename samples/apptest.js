@@ -2465,6 +2465,76 @@ console.log("\nthe focus logger: the instruments, and the regressions this can r
     "a field that is switched off renders nowhere — not even as a column");
   app.sheetClose(); app.SETTINGS.painPerExercise = true;
 
+  /* ---- the interval timer ---- */
+  const P = (reps, rest, name) => app.parseInterval({ reps, rest, name: name || "X" });
+  is(P("2", "EMOM / 90 sec"), { kind: "emom", phases: [{ label: "Go", sec: 90, work: true }] },
+    "an EMOM period is read from the rest column");
+  is(P("2", "-", "Push jerk (EMOM every 90s)").phases[0].sec, 90, "…or from the name");
+  is(P("45 sec hard / 75 sec easy", "Included").phases.map(p => [p.label, p.sec, p.work]),
+    [["Hard", 45, true], ["Easy", 75, false]], "a work/rest pair is read from reps, with its own words");
+  is(P("2 min hard / 1 min easy", "1 min easy between").phases.map(p => p.sec), [120, 60],
+    "minutes too");
+  is([P("20-30 sec / direction", "30-45 sec"), P("6/side", "60-90 sec"), P("5", "2 min"),
+      P("5 TnG power cleans + 15/12 cal bike", "~90 sec between rounds"), P("45 sec", "45-60 sec")],
+    [null, null, null, null, null], "anything that is not a stated interval gets no timer, not a guess");
+  ["program.sample.json", "program.v2.sample.json"].forEach(f => {
+    const rows = JSON.parse(fs.readFileSync(path.join(ROOT, "samples", f), "utf8")).exercises;
+    is(rows.filter(r => app.parseInterval(r)).map(r => r.name).filter((n, i, a) => a.indexOf(n) === i).sort(),
+      ["Air bike intervals", "Hang power clean (EMOM every 90s)"], `${f}: exactly the interval rows get a timer`);
+  });
+  const emom = app.intervalSpec({ sets: "3", reps: "2", rest: "EMOM / 90 sec" }, {});
+  is([emom.rounds, emom.total, emom.title], [3, 270, "EMOM 3 × 1:30"], "rounds come from the set plan");
+  is(app.intervalSpec({ sets: "3", reps: "2", rest: "EMOM / 90 sec" }, { setTarget: 5 }).rounds, 5,
+    "…as the athlete adjusted it, not only as prescribed");
+  const at = n => { const a = app.intervalAt(emom, n); return [a.state, a.round, a.left]; };
+  is([at(0), at(9), at(10), at(99), at(100), at(279), at(280)],
+    [["lead", 1, 10], ["lead", 1, 1], ["run", 1, 90], ["run", 1, 1], ["run", 2, 90], ["run", 3, 1], ["done", 3, 0]],
+    "a lead-in to get set, then each round counts down its period, then done");
+  const hiit = app.intervalSpec({ sets: "2", reps: "45 sec hard / 75 sec easy" }, {});
+  is([app.intervalAt(hiit, 54).label, app.intervalAt(hiit, 55).label, app.intervalAt(hiit, 55).left,
+      app.intervalAt(hiit, 130).round], ["Hard", "Easy", 75, 2], "work and rest alternate inside a round");
+
+  /* In the logger: it takes the rest clock's place, and starting it is one tap. */
+  const iday = "Day 1 (Mon) - EMOM";
+  store.clear(); app.SETTINGS = { ...app.SET_DEFAULTS };
+  app.loadProgram({ meta: { schema: "tp-program-2", block: "Intervals", athlete: "Sample",
+    athleteId: "sample", weeks: 1, days: [iday] },
+    exercises: [{ id: "w1d1e1", week: 1, day: iday, name: "Hang power clean (EMOM every 90s)",
+      sets: "7", reps: "2", load: "60", rpe: "", tempo: "", rest: "EMOM / 90 sec",
+      logHint: "", focus: "", progression: "" }] });
+  app.openDate("2026-06-01"); app.applyClaim(1, iday);
+  const locks = { req: 0, rel: 0 };
+  app.navigator.wakeLock = { request: () => { locks.req++;
+    return { then: ok => ok({ release(){ locks.rel++; }, addEventListener(){} }) }; } };
+  const timer = () => logCardNode().findAll(n => n.classList.contains("itimer"))[0];
+  assert(!!timer(), "an interval exercise shows a timer on the rail");
+  is(logCardNode().findAll(n => n.classList.contains("restclock") && !n.classList.contains("itimer")).length, 0,
+    "…instead of the rest clock, which means nothing inside an EMOM");
+  assert(/start EMOM 7 × 1:30/.test(timer().text), "idle, it says what it will run");
+  is(locks.req, 0, "and an idle timer never holds the screen");
+  timer().onclick();
+  const ent = () => app.getSession().entries.w1d1e1;
+  assert(/^\d{4}-/.test(ent().timer.startedAt), "one tap starts it — the only state is when");
+  assert(/get set/.test(timer().text), "it opens with a lead-in to get set");
+  is(locks.req, 1, "a running timer holds the screen awake");
+  is(ent().sets.length, 0, "and it never logs a round by itself");
+  const exported = JSON.stringify(app.buildSessionExport());
+  assert(!/timer|startedAt/.test(exported), "the timer never reaches an export");
+  /* Restart and Stop live behind a tap on the running timer. */
+  const s0 = app.getSession(); s0.entries.w1d1e1.timer.startedAt = new Date(Date.now() - 200000).toISOString();
+  app.saveSession(s0); app.renderMain();
+  assert(/round 3\/7 · Go/.test(timer().text), "derived from the start time: 200 s in is round 3");
+  timer().onclick();
+  assert(!!sheetButton(/^Restart$/) && !!sheetButton(/^Stop timer$/),
+    "tapping a running timer offers Restart and Stop — there is no pause");
+  const startedBefore = ent().timer.startedAt;
+  sheetButton(/^Restart$/).onclick();
+  assert(ent().timer.startedAt > startedBefore, "Restart starts it fresh");
+  timer().onclick(); sheetButton(/^Stop timer$/).onclick();
+  is(ent().timer, null, "Stop clears it");
+  assert(locks.rel >= 1, "and lets the screen sleep again");
+  delete app.navigator.wakeLock;
+
   /* ---- a typed-but-unlogged set waits for a tap, wherever the athlete goes ---- */
   /* Two exercises, so Next has somewhere to go. */
   const twoDay = "Day 1 (Mon) - Two lifts";

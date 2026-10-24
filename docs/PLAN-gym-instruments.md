@@ -11,7 +11,7 @@ It must not reach `dev`.
 | A | Previous-session detail: tap "last time" to see every set | **built** — landing notes still owed |
 | S | Spike: what an installed iPhone PWA actually does with timers, wake lock and sound | Android done; **iPhone run pending** (second athlete) — `spike-timer.html` stays on `dev` until then |
 | B | Rest countdown with an end-of-rest cue | **built** — landing notes still owed |
-| C | Interval / EMOM timer | after S |
+| C | Interval / EMOM timer | **built** (see "C as built") — landing notes still owed |
 | D | Share sheet on export | optional, last |
 
 Out of scope: restore from backup (not needed now), one-tap "same as last week" (A replaces
@@ -179,6 +179,26 @@ it's nearly free once C exists.
 never contains `timer`.
 
 ---
+
+### C as built (differs from the plan above where noted)
+
+- **Only parsed intervals get a timer**: EMOM periods (from `rest` or the name) and
+  work/rest pairs in `reps`. **The manual "Set up timer" sheet is NOT built.** If it's
+  wanted, it becomes a roadmap entry at landing. In both fixtures exactly two rows qualify,
+  and the test pins that.
+- It takes the rest clock's slot on the rail, so the rail stays one row. Idle, it reads
+  `▶ 1:30 · start EMOM 7 × 1:30` and one tap starts it. A 10-second "get set" lead-in comes
+  before round 1.
+- Tapping a running timer opens a popup: **Restart** / **Stop timer** / **Keep going**.
+  The popup is the confirmation, so Restart needs no second prompt.
+- Rounds follow the set plan as adjusted (`targetSets`), not just as prescribed.
+- The wake lock is held while it runs. It is released on Stop, when the timer is done, when
+  the page hides, or when the athlete pages to another exercise. It is re-requested by the
+  next repaint. The timer itself is derived, so it is still right on return.
+- **Decision 5 (round boundary):** the Log button does not change. Log is already the
+  amber primary, and changing it every round would compete with it. The signal is the
+  timer's own amber work phase, plus the cue at each phase change when the cue setting is
+  on (it shares the rest cue's setting, whose description now says so).
 
 ## D. Share on export (optional)
 

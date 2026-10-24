@@ -548,6 +548,12 @@
     color:inherit;font-weight:inherit;min-height:26px}
   button.lasttime:active{transform:none;background:var(--well)}
   .lasttime .lt-ago{text-decoration:underline;text-underline-offset:2px}
+  /* The interval timer sits in the clock's slot and reads like it; tapping it starts it,
+     or opens Restart / Stop. Idle, its label is underlined — a quiet action, not amber. */
+  button.itimer{background:transparent;border:0;border-radius:var(--r-sm);padding:0;
+    color:inherit;font-weight:inherit;text-align:left;min-height:26px;max-width:60%}
+  button.itimer:active{transform:none;background:var(--well)}
+  .itimer[data-state="idle"] .rc-label{text-decoration:underline;text-underline-offset:2px}
   /* The previous session's sets, in its popup. Muted ink: still the past, not a target. */
   .prevsheet .rx{margin-bottom:var(--s3)}
   .prevgrid{display:grid;grid-template-columns:2.4em repeat(3,minmax(0,1fr));
@@ -1417,7 +1423,7 @@ function restCueRow(){
     primeCue();if(SETTINGS.restCue)restCue();};
   return el("div",{className:"togrow"},[
     el("div",{className:"tl"},[el("div",{className:"tn"},"Rest-over cue"),
-      el("div",{className:"td"},"A short beep and buzz when the prescribed rest is up. Only while the app is open on screen — a locked phone stays silent — and the beep follows the media volume.")]),
+      el("div",{className:"td"},"A short beep and buzz when the prescribed rest is up, and at each change of an interval timer. Only while the app is open on screen — a locked phone stays silent — and the beep follows the media volume.")]),
     sw]);
 }
 function renderFields(host){
@@ -3995,15 +4001,137 @@ function restClockNode(ex,s){
   node._paint();
   return node;
 }
+/* ---- the interval timer ----
+   For EMOMs and work/rest intervals it takes the rest clock's place on the rail. Same
+   invariant as the clock: the ONLY state is `e.timer.startedAt`; round, phase and time
+   left are derived from now − startedAt, so a lock, a reload or a killed PWA cannot
+   corrupt it. No pause — an EMOM you pause is not an EMOM — but Restart starts it fresh.
+   It never logs: committing a round is still the athlete's tap. */
+const TIMER_LEAD_S=10;
+function capWord(w){w=txt(w);return w?w.charAt(0).toUpperCase()+w.slice(1).toLowerCase():"";}
+function toSeconds(n,unit){return Math.round(parseFloat(n)*(/^m/i.test(unit)?60:1));}
+/* The interval shape the prescription states, or null. Two shapes in real programmes:
+   an EMOM period in `rest` ("EMOM / 90 sec") or the name ("every 90s"), and a work/rest
+   pair in `reps` ("45 sec hard / 75 sec easy"). Anything else gets no timer rather than
+   a guessed one. Rounds come from the caller — the plan as adjusted, not as prescribed. */
+const UNIT_RE="(sec(?:onds?|s)?|min(?:utes?|s)?|s|m)";
+function parseInterval(ex){
+  const reps=txt(ex&&ex.reps),rest=txt(ex&&ex.rest),name=txt(ex&&ex.name);
+  const pair=new RegExp("^\\s*(\\d+(?:\\.\\d+)?)\\s*"+UNIT_RE+"\\s+([a-z]+)\\s*\\/\\s*(\\d+(?:\\.\\d+)?)\\s*"+UNIT_RE+"\\s+([a-z]+)","i").exec(reps);
+  if(pair){
+    const work=toSeconds(pair[1],pair[2]),easy=toSeconds(pair[4],pair[5]);
+    if(work>0&&easy>0)return {kind:"intervals",phases:[
+      {label:capWord(pair[3])||"Work",sec:work,work:true},
+      {label:capWord(pair[6])||"Rest",sec:easy,work:false}]};
+  }
+  if(/\bemom\b/i.test(rest)||/\bemom\b|\bevery\s+\d/i.test(name)){
+    const m=new RegExp("(\\d+(?:\\.\\d+)?)\\s*"+UNIT_RE+"\\b","i").exec(rest)||
+      new RegExp("every\\s+(\\d+(?:\\.\\d+)?)\\s*"+UNIT_RE+"\\b","i").exec(name);
+    const period=m?toSeconds(m[1],m[2]):0;
+    if(period>0)return {kind:"emom",phases:[{label:"Go",sec:period,work:true}]};
+  }
+  return null;
+}
+function intervalSpec(ex,e){
+  const spec=parseInterval(ex);
+  if(!spec)return null;
+  spec.rounds=Math.max(1,targetSets(ex,e||{}));
+  spec.cycle=spec.phases.reduce((a,p)=>a+p.sec,0);
+  spec.total=spec.rounds*spec.cycle;
+  spec.title=(spec.kind==="emom"?"EMOM ":"")+spec.rounds+" × "+
+    spec.phases.map(p=>fmtClock(p.sec)).join(" / ");
+  return spec;
+}
+/* Where the timer is, `sec` seconds after Start: a short lead-in to get set, then the
+   rounds, then done. `key` names the phase, so a change of phase is a change of key. */
+function intervalAt(spec,sec){
+  if(sec<TIMER_LEAD_S)return {state:"lead",left:TIMER_LEAD_S-sec,round:1,label:"Get set",work:false,key:"lead"};
+  const t=sec-TIMER_LEAD_S;
+  if(t>=spec.total)return {state:"done",left:0,round:spec.rounds,label:"Done",work:false,key:"done"};
+  const round=Math.floor(t/spec.cycle)+1;
+  let into=t-(round-1)*spec.cycle,i=0;
+  while(into>=spec.phases[i].sec){into-=spec.phases[i].sec;i++;}
+  const ph=spec.phases[i];
+  return {state:"run",left:ph.sec-into,round,label:ph.label,work:ph.work,key:round+":"+i,into};
+}
+function timerSeconds(e,now){
+  const at=txt(e&&e.timer&&e.timer.startedAt);
+  const t=at?new Date(at).getTime():NaN;
+  return isNaN(t)?null:Math.max(0,Math.floor(((now||Date.now())-t)/1000));
+}
+/* The screen stays on while a timer runs — the spike showed that is the only signal
+   a locked phone cannot miss, because it never locks. Released whenever the page hides
+   (the browser does it), re-requested by the next repaint once it is visible again. */
+let TIMER_LOCK=null,TIMER_LOCK_PENDING=false,TIMER_CUED="";
+function holdScreen(want){
+  if(!want){if(TIMER_LOCK){try{TIMER_LOCK.release();}catch(e){}TIMER_LOCK=null;}return;}
+  if(TIMER_LOCK||TIMER_LOCK_PENDING||!navigator.wakeLock||
+     (typeof document!=="undefined"&&document.visibilityState&&document.visibilityState!=="visible"))return;
+  TIMER_LOCK_PENDING=true;
+  navigator.wakeLock.request("screen").then(l=>{
+    TIMER_LOCK=l;TIMER_LOCK_PENDING=false;
+    if(l&&l.addEventListener)l.addEventListener("release",()=>{if(TIMER_LOCK===l)TIMER_LOCK=null;});
+  },()=>{TIMER_LOCK_PENDING=false;});
+}
+function intervalNode(ex,e,s,onchange){
+  const spec=intervalSpec(ex,e);
+  const node=el("button",{className:"itimer restclock",attrs:{"aria-live":"off"}});
+  const value=el("span",{className:"rc-value tnum"});
+  const label=el("span",{className:"rc-label"});
+  node.append(value,label);
+  const start=()=>{e.timer={startedAt:new Date().toISOString()};TIMER_CUED="";saveSession(s);onchange();};
+  node.onclick=()=>{
+    if(timerSeconds(e)==null){start();return;}
+    const at=intervalAt(spec,timerSeconds(e));
+    const body=el("div");
+    const restart=el("button",{className:"ghost"},"Restart");
+    restart.onclick=()=>{sheetClose();start();};
+    const stop=el("button",{className:"ghost"},"Stop timer");
+    stop.onclick=()=>{sheetClose();e.timer=null;saveSession(s);holdScreen(false);onchange();};
+    const close=el("button",{className:"primary"},"Keep going");close.onclick=sheetClose;
+    body.append(el("div",{className:"sheet-actions"},[restart,stop]),
+      el("div",{className:"sheet-actions"},at.state==="done"?[]:[close]));
+    sheetOpen(spec.title,at.state==="done"?`Done — ${spec.rounds} rounds.`:
+      at.state==="lead"?"Starting…":`Round ${at.round} of ${spec.rounds} · ${at.label}`,body);
+  };
+  node._paint=()=>{
+    const sec=timerSeconds(e);
+    if(sec==null){
+      value.textContent="▶ "+fmtClock(spec.phases[0].sec);
+      label.textContent="start "+spec.title;
+      node.setAttribute("data-state","idle");node.setAttribute("data-ready","true");
+      holdScreen(false);return;
+    }
+    const at=intervalAt(spec,sec);
+    node.setAttribute("data-state",at.state);
+    /* Amber is "now": the work phase. Rest, lead-in and done stay quiet. */
+    node.setAttribute("data-ready",String(!at.work));
+    value.textContent=at.state==="done"?"✓":fmtClock(at.left);
+    label.textContent=at.state==="run"?`round ${at.round}/${spec.rounds} · ${at.label}`
+      :at.state==="lead"?"get set · "+spec.title:`done · ${spec.rounds} rounds`;
+    holdScreen(at.state!=="done");
+    /* One cue per phase change, inside the same two-second window as the rest cue. */
+    const fresh=at.state==="done"?sec-TIMER_LEAD_S-spec.total<2:at.state==="run"&&at.into<2;
+    const key=txt(e.timer.startedAt)+"|"+at.key;
+    if(SETTINGS.restCue&&fresh&&TIMER_CUED!==key){TIMER_CUED=key;restCue();}
+  };
+  node._release=()=>holdScreen(false);
+  node._paint();
+  return node;
+}
 /* One interval for the whole app, and it only ever repaints. It stops itself once the
    node it was painting has left the document, so a rebuild never leaves a second one
    running. */
 function startRestTick(node){
+  /* Paging away from a running timer lets the screen sleep again; the timer itself is
+     derived, so it is still right when the athlete comes back to it. */
+  if(REST_NODE&&REST_NODE!==node&&REST_NODE._release&&!(node&&node._release))REST_NODE._release();
   REST_NODE=node||null;
   if(REST_TICK||typeof setInterval!=="function")return;
   REST_TICK=setInterval(()=>{
     const n=REST_NODE;
     if(!n||typeof n._paint!=="function"||n.isConnected===false){
+      if(n&&n._release)n._release();
       if(typeof clearInterval==="function")clearInterval(REST_TICK);
       REST_TICK=null;REST_NODE=null;return;
     }
@@ -4087,9 +4215,11 @@ function openPreviousSheet(ex,rec){
 /* The two instruments on one rule. If the clock has nothing to say it hides itself and
    "last time" has the row to itself — on a 320×568 screen every row above the fields is
    a row the primary action moves down by. */
-function instrumentRail(ex,e,s){
+function instrumentRail(ex,e,s,onchange){
   const rail=el("div",{className:"instrument"});
-  const clock=restClockNode(ex,s);
+  /* An interval exercise swaps the rest clock for its timer: "since last set" means
+     nothing inside an EMOM. */
+  const clock=intervalSpec(ex,e)?intervalNode(ex,e,s,onchange||(()=>{})):restClockNode(ex,s);
   rail.append(clock);
   const last=lastTimeNode(ex,e);
   if(last)rail.append(last);
@@ -4617,7 +4747,7 @@ function logCard(ex,s,idx){
      inputs and is only ever redrawn after a deliberate tap, so this stays inside the
      repaint-don't-rebuild rule. */
   const railHost=el("div");
-  const paintRail=()=>{railHost.innerHTML="";railHost.append(instrumentRail(ex,e,s));};
+  const paintRail=()=>{railHost.innerHTML="";railHost.append(instrumentRail(ex,e,s,paintRail));};
   c.append(railHost);
 
   const summaryHost=el("div");
