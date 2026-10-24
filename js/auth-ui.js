@@ -155,17 +155,17 @@
       return form;
     }
 
-    function passwordForm() {
+    function passwordForm(chosen) {
       const state = auth.getState();
-      const invite = state.flow === "invite" || state.owner && state.owner.pendingFlow === "invite";
+      const invite = !chosen && (state.flow === "invite" || state.owner && state.owner.pendingFlow === "invite");
+      const label = invite ? "Accept invitation" : chosen ? "Save password" : "Update password";
       const form = node(document, "form", { className: "auth-form" });
       const password = node(document, "input", { type: "password",
         attrs: { required: "", minlength: "8", autocomplete: "new-password", "aria-label": "New password" } });
       const confirm = node(document, "input", { type: "password",
         attrs: { required: "", minlength: "8", autocomplete: "new-password", "aria-label": "Confirm new password" } });
       const error = node(document, "div", { className: "auth-error", hidden: true, attrs: { role: "alert" } });
-      const submit = node(document, "button", { className: "primary", type: "submit",
-        textContent: invite ? "Accept invitation" : "Update password" });
+      const submit = node(document, "button", { className: "primary", type: "submit", textContent: label });
       form.append(node(document, "p", { className: "auth-rule" },
         "Use at least 8 characters, including a letter and a number."));
       form.append(node(document, "label", { className: "auth-field" }, [
@@ -181,12 +181,11 @@
           setError(error, "Use at least 8 characters, including a letter and a number."); return;
         }
         if (password.value !== confirm.value) { setError(error, "Passwords do not match."); return; }
-        const label = invite ? "Accept invitation" : "Update password";
         setBusy(submit, true, label);
         const result = await auth.updatePassword(password.value);
         setBusy(submit, false, label);
         if (!result.ok) { setError(error, result.error.message); return; }
-        close(); toast(invite ? "Invitation accepted — signed in" : "Password updated");
+        close(); toast(invite ? "Invitation accepted — signed in" : chosen ? "Password saved" : "Password updated");
       };
       return { form, invite };
     }
@@ -202,6 +201,11 @@
         modal(built.invite ? "Finish account setup" : "Choose a new password",
           built.invite ? "Your invitation verified this email address." : "This recovery link is ready to use.",
           built.form, { locked: true });
+        return;
+      }
+      if (mode === "set-password") {
+        modal("Set or change password", "Confirms sensitive actions such as deleting this account. Google sign-in keeps working.",
+          passwordForm(true).form);
         return;
       }
       if (mode === "error") {

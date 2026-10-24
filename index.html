@@ -2371,7 +2371,7 @@ async function boot(){
         "This device’s personal data will be cleared after deletion succeeds. Offline data on other devices and managed backups may remain temporarily. Choose Export account data first if you want a copy."
       );
       if(!approved)return;
-      const password=window.prompt&&window.prompt("Enter your current password to confirm account deletion:");
+      const password=window.prompt&&window.prompt("Enter your current password to confirm account deletion. Signed in with Google and never set one? Cancel, then use Set or change password.");
       if(password==null)return;
       await TPAccountData.deleteAccount(password);
       toast("Account deleted on this device");

@@ -416,7 +416,8 @@ omitted the athlete's own tracked-field choices would be incomplete, and the dev
 change not yet pushed. Supabase tokens, the owner marker, credentials and every `tp_demo_*` key are
 excluded. It is an access/portability file only; restoration is deferred.
 
-Deletion first re-authenticates with the current password (no email), then calls
+Deletion first re-authenticates with the current password (no email); an account that only ever
+used Google sets one first through **Set or change password**. It then calls
 `delete_own_account()`. Only after the RPC succeeds are all non-demo `tp_*` keys cleared and the
 installation binding reset. A failed RPC leaves local data untouched. The database retains removed
 programme tombstones for 30 days and a daily Cron job then purges them; session history survives
