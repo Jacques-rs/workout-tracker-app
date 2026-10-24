@@ -2341,6 +2341,10 @@ console.log("\nthe focus logger: the instruments, and the regressions this can r
   is(buzzes, 1, "switched on, it fires once when the rest runs out, not on every repaint");
   app.restClockNode({ rest: "90 sec" }, { lastSetAt: new Date(Date.now() - 90500).toISOString() })._paint();
   is(buzzes, 2, "and again after the next set");
+  app.document.visibilityState = "hidden";
+  app.restClockNode({ rest: "90 sec" }, { lastSetAt: new Date(Date.now() - 91000).toISOString() })._paint();
+  is(buzzes, 2, "a backgrounded page never cues, even if it still repaints inside the window");
+  app.document.visibilityState = "visible";
   app.SETTINGS.restCue = false; delete app.navigator.vibrate;
 
   /* It is stored, so it survives a reload, a backgrounded tab and a killed PWA — there
@@ -2533,6 +2537,13 @@ console.log("\nthe focus logger: the instruments, and the regressions this can r
   timer().onclick(); sheetButton(/^Stop timer$/).onclick();
   is(ent().timer, null, "Stop clears it");
   assert(locks.rel >= 1, "and lets the screen sleep again");
+  /* A request still in flight when the timer stops must not leave the screen held. */
+  let resolveLock = null; const late = { released: 0 };
+  app.navigator.wakeLock = { request: () => ({ then: ok => { resolveLock = ok; } }) };
+  app.holdScreen(true); app.holdScreen(false);
+  resolveLock({ release(){ late.released++; }, addEventListener(){} });
+  is(late.released, 1, "a lock that resolves after Stop is released at once, not kept");
+  app.holdScreen(false);
   delete app.navigator.wakeLock;
 
   /* ---- a typed-but-unlogged set waits for a tap, wherever the athlete goes ---- */

@@ -1420,6 +1420,8 @@ function restCueRow(){
   const sw=el("button",{className:"sw",attrs:{role:"switch","aria-checked":String(!!SETTINGS.restCue),
     "aria-label":"Rest-over cue"}});
   sw.onclick=()=>{setSetting("restCue",!SETTINGS.restCue);sw.setAttribute("aria-checked",String(SETTINGS.restCue));
+    /* Switching it on plays it once, on purpose: the athlete hears what to listen for and
+       finds out now, not mid-set, that the media volume is down. */
     primeCue();if(SETTINGS.restCue)restCue();};
   return el("div",{className:"togrow"},[
     el("div",{className:"tl"},[el("div",{className:"tn"},"Rest-over cue"),
@@ -3969,6 +3971,9 @@ function primeCue(){
 }
 function restCue(){
   if(!SETTINGS.restCue)return;
+  /* Foreground only is a promise, not a side effect of throttling: a backgrounded tab can
+     still repaint inside the cue window. */
+  if(typeof document!=="undefined"&&document.visibilityState&&document.visibilityState!=="visible")return;
   if(navigator.vibrate)try{navigator.vibrate([80,60,80]);}catch(e){}
   const c=CUE_CTX;
   if(!c||c.state!=="running")return;
@@ -4062,14 +4067,19 @@ function timerSeconds(e,now){
 /* The screen stays on while a timer runs — the spike showed that is the only signal
    a locked phone cannot miss, because it never locks. Released whenever the page hides
    (the browser does it), re-requested by the next repaint once it is visible again. */
-let TIMER_LOCK=null,TIMER_LOCK_PENDING=false,TIMER_CUED="";
+let TIMER_LOCK=null,TIMER_LOCK_PENDING=false,TIMER_LOCK_WANT=false,TIMER_CUED="";
 function holdScreen(want){
+  TIMER_LOCK_WANT=!!want;
   if(!want){if(TIMER_LOCK){try{TIMER_LOCK.release();}catch(e){}TIMER_LOCK=null;}return;}
   if(TIMER_LOCK||TIMER_LOCK_PENDING||!navigator.wakeLock||
      (typeof document!=="undefined"&&document.visibilityState&&document.visibilityState!=="visible"))return;
   TIMER_LOCK_PENDING=true;
   navigator.wakeLock.request("screen").then(l=>{
-    TIMER_LOCK=l;TIMER_LOCK_PENDING=false;
+    TIMER_LOCK_PENDING=false;
+    /* Stopped, or paged away, while the request was in flight: a lock nobody wants
+       would keep the screen awake with no repaint left to release it. */
+    if(!TIMER_LOCK_WANT){try{l&&l.release();}catch(e){}return;}
+    TIMER_LOCK=l;
     if(l&&l.addEventListener)l.addEventListener("release",()=>{if(TIMER_LOCK===l)TIMER_LOCK=null;});
   },()=>{TIMER_LOCK_PENDING=false;});
 }
