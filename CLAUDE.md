@@ -254,9 +254,9 @@ the `legacy` (Jekyll) builder. Pushing that branch deploys. The repo is public b
 free way to get the HTTPS a service worker requires — which is exactly why the `athlete/` rules
 above are non-negotiable.
 
-**Which branch it is has changed several times, so this file does not record it — ask the API.**
-It has been `dev`, `feat/backend-launch-plan` and `feat/date-first-revamp`, and a push to any other
-branch runs CI without deploying anything:
+**Pages serves `main`; `dev` is integration.** A release is a PR from `dev` into `main`, merged only
+once `verify.sh` is green and the release smoke in `docs/private-beta-runbook.md` passes — clients
+are on the live build, so nothing reaches `main` untested. Confirm against the API, not this line:
 
 ```bash
 gh api repos/Jacques-rs/workout-tracker-app/pages --jq '.source.branch, .status'
