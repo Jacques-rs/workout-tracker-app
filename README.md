@@ -36,7 +36,8 @@ Supabase data. It does not contact or modify the hosted project.
 
 Private-beta accounts are created with Supabase administrator invitations, not from the public app.
 The invitation link opens the app, verifies the email address and asks the athlete to choose a
-password. Password recovery returns to the same app URL. Administrator credentials and service-role
+password. An invited athlete may instead use **Continue with Google** with the Google account
+for that same email; any other Google account is refused. Password recovery returns to the same app URL. Administrator credentials and service-role
 keys must never be entered into the app or committed; the static client contains only Supabase's
 browser-safe publishable key.
 

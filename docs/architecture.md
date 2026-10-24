@@ -49,7 +49,7 @@ Import lives on the Programme screen; export is per-session and lives on the dat
 The vendored Supabase SDK loads first, followed by the auth and profile modules. `auth-config.js`
 selects the local stack only for localhost/loopback and the hosted project elsewhere.
 `auth-client.js` owns Supabase Auth calls and exposes state/actions to the rest of the app.
-`auth-ui.js` renders sign-in, recovery and password-setup dialogs. `program-store.js` owns every
+`auth-ui.js` renders sign-in (password or Google), recovery and password-setup dialogs. `program-store.js` owns every
 Data API call to `programs`; `session-store.js` owns every Data API call to `session_logs`.
 `settings-store.js` owns every Data API call to `user_settings`.
 `profile-ui.js` renders the Account and Programme sections from those stores and local callbacks,
@@ -416,7 +416,8 @@ omitted the athlete's own tracked-field choices would be incomplete, and the dev
 change not yet pushed. Supabase tokens, the owner marker, credentials and every `tp_demo_*` key are
 excluded. It is an access/portability file only; restoration is deferred.
 
-Deletion first re-authenticates with the current password (no email), then calls
+Deletion first re-authenticates with the current password (no email); an account that only ever
+used Google sets one first through **Set or change password**. It then calls
 `delete_own_account()`. Only after the RPC succeeds are all non-demo `tp_*` keys cleared and the
 installation binding reset. A failed RPC leaves local data untouched. The database retains removed
 programme tombstones for 30 days and a daily Cron job then purges them; session history survives
