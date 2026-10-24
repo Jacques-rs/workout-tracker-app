@@ -265,14 +265,28 @@
     }
 
     // Asks the project first: an OAuth redirect to a disabled provider lands on a raw JSON error
-    // page outside the app. Unknown (no fetch, odd response) proceeds and lets the redirect decide.
-    async function googleEnabled() {
-      if (typeof deps.fetch !== "function") return true;
-      const response = await deps.fetch(`${config.url}/auth/v1/settings`,
-        { headers: { apikey: config.publishableKey } });
-      if (!response || !response.ok) return true;
-      const settings = await response.json();
-      return !(settings && settings.external && settings.external.google === false);
+    // page outside the app, so only an explicit `google: true` lets the redirect start. Returns
+    // the refusal's error code, or null to proceed. Bounded, so a stalled request frees the button.
+    async function googleRefusal() {
+      if (typeof deps.fetch !== "function") return null;
+      const abort = typeof AbortController === "function" ? new AbortController() : null;
+      let timer = null;
+      const timedOut = new Promise(resolve => {
+        timer = setTimeout(() => { if (abort) abort.abort(); resolve("timeout"); },
+          deps.settingsTimeoutMs || 8000);
+      });
+      try {
+        const response = await Promise.race([timedOut, deps.fetch(`${config.url}/auth/v1/settings`,
+          { headers: { apikey: config.publishableKey }, signal: abort ? abort.signal : undefined })]);
+        if (response === "timeout") return "request_timeout";
+        if (!response || !response.ok) return "auth_unavailable";
+        const settings = await response.json();
+        return settings && settings.external && settings.external.google === true ? null : "provider_disabled";
+      } catch (error) {
+        return isNetworkError(error) ? "network_error" : "auth_unavailable";
+      } finally {
+        clearTimeout(timer);
+      }
     }
 
     // Leaves the app for Google; the session arrives on the redirect back and goes through
@@ -281,7 +295,8 @@
       if (!client || !client.auth.signInWithOAuth) return { ok: false, error: friendlyError({ code: "auth_unavailable" }) };
       if (!networkAvailable) return { ok: false, error: friendlyError({ code: "network_error" }) };
       try {
-        if (!await googleEnabled()) return { ok: false, error: friendlyError({ code: "provider_disabled" }) };
+        const refusal = await googleRefusal();
+        if (refusal) return { ok: false, error: friendlyError({ code: refusal }) };
         const result = await client.auth.signInWithOAuth({ provider: "google", options: {
           redirectTo: config.redirectUrl,
           queryParams: { prompt: "select_account" }

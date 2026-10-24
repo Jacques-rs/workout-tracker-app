@@ -63,7 +63,7 @@ function person(id, email = `${id}@example.invalid`) {
 }
 
 function makeClient({ storage = memoryStorage(), fake = fakeSupabase(), href = "https://example.test/app/",
-  search = "", hash = "", online = true, fetch = null } = {}) {
+  search = "", hash = "", online = true, fetch = null, settingsTimeoutMs } = {}) {
   const historyCalls = [];
   const location = new URL(href);
   if (search) location.search = search;
@@ -77,7 +77,7 @@ function makeClient({ storage = memoryStorage(), fake = fakeSupabase(), href = "
     config, storage, location,
     history: { replaceState(_a, _b, url) { historyCalls.push(url); } },
     navigator: { onLine: online },
-    fetch,
+    fetch, settingsTimeoutMs,
     addWindowListener(name, handler) { listeners[name] = handler; }
   });
   return { client, fake, storage, historyCalls, listeners, config };
@@ -196,8 +196,8 @@ function makeClient({ storage = memoryStorage(), fake = fakeSupabase(), href = "
     const ctx = makeClient({ fake: fakeSupabase(null), fetch: settings(true) });
     await ctx.client.init(); await tick();
     ok((await ctx.client.signInWithGoogle()).ok, "an enabled provider starts the Google redirect");
-    same(settingsCalls[0], ["https://project.supabase.co/auth/v1/settings",
-      { headers: { apikey: "sb_publishable_test" } }], "the provider check sends only the publishable key");
+    same(settingsCalls[0][0], "https://project.supabase.co/auth/v1/settings", "the provider check asks the project");
+    same(settingsCalls[0][1].headers, { apikey: "sb_publishable_test" }, "and sends only the publishable key");
     same(ctx.fake.calls.find(call => call[0] === "signInWithOAuth")[1], { provider: "google", options: {
       redirectTo: "https://example.test/app/", queryParams: { prompt: "select_account" }
     } }, "Google returns to the exact app subpath and always offers an account choice");
@@ -208,6 +208,19 @@ function makeClient({ storage = memoryStorage(), fake = fakeSupabase(), href = "
     same(refused.error && refused.error.code, "provider_disabled",
       "a disabled provider is refused in the app, not on a raw error page");
     ok(!disabled.fake.calls.some(call => call[0] === "signInWithOAuth"), "and never leaves the app");
+
+    const failing = makeClient({ fake: fakeSupabase(null),
+      fetch: async () => ({ ok: false, async json() { return {}; } }) });
+    await failing.client.init(); await tick();
+    same((await failing.client.signInWithGoogle()).error.code, "auth_unavailable",
+      "an unreadable provider check refuses in the app instead of guessing");
+    ok(!failing.fake.calls.some(call => call[0] === "signInWithOAuth"), "so a failing check never leaves the app either");
+
+    const stalled = makeClient({ fake: fakeSupabase(null), fetch: () => new Promise(() => {}), settingsTimeoutMs: 20 });
+    await stalled.client.init(); await tick();
+    same((await stalled.client.signInWithGoogle()).error.code, "network_error",
+      "a stalled provider check times out, so the button can be tapped again");
+    ok(stalled.client.getState().online, "and a timeout does not mark the whole app offline");
 
     const offline = makeClient({ fake: fakeSupabase(null), fetch: settings(true), online: false });
     await offline.client.init(); await tick();

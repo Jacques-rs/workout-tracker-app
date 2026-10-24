@@ -52,7 +52,9 @@ Features outside this boundary are listed under **Deferred on purpose** in `docs
 - **Google is the only OAuth provider, and the client keeps `flowType: "implicit"`.** PKCE would
   reject the administrator's invite links, which carry no code verifier. The Google OAuth client
   and its secret live in Google Cloud and the hosted dashboard, never in the repo; its one redirect
-  URI is the project's `/auth/v1/callback`. `supabase/config.toml` leaves Google off locally, so the
+  URI is the project's `/auth/v1/callback`. Google is an extra way in, not a replacement: accepting
+  an invite still sets a password, because account deletion re-authenticates with one and it is
+  the fallback whenever Google is unavailable. `supabase/config.toml` leaves Google off locally, so the
   local stack and CI need no Google credentials.
 - **Device persistence stays in the immediate autosave path.** Remote sync is asynchronous and
   retryable, and the data flow is one-directional: UI → local store → sync queue → remote store.
