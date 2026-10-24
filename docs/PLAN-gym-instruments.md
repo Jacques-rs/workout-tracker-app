@@ -87,6 +87,33 @@ shell list, and is removed in the next commit. *Decision needed.*
 
 Write the results into this file. They decide B's and C's cue design.
 
+### Results — run 1 (Jacques's phone)
+
+**The phone is Android (Chrome 155), not an iPhone.** The questions above were written for iOS.
+The log starts installed (`standalone: true`) but reloads at 08:31 as a browser tab, so
+everything after that ran in Chrome, not the installed app.
+
+| Test | Result |
+|---|---|
+| Derived clock | **Holds.** It read the right time after a reload (1:10) and after every hide. |
+| Ticks while hidden | **It depends.** Switching apps kept ticking. A screen lock (08:32) stopped ticks for 8.7 s, and the display caught up when the screen came back. |
+| Wake lock | **Works.** It is acquired, released whenever the page hides, and re-acquired automatically when it is visible again. Not yet confirmed: whether it actually kept the screen on past auto-lock. |
+| Beep, foreground | **Heard.** The audioSession API does not exist on Android, so the "playback" box did nothing. |
+| Beep via `setTimeout`, hidden | **Heard** (08:39:16, 2 s after hiding). A page that has just played audio seems to escape throttling. Not reliable enough to promise. |
+| Beep scheduled on the audio clock, hidden | **Not heard.** Do not use it. |
+| Vibrate | **Works.** |
+| Notification | **Arrived, but in the foreground.** The page never hid during that test, so it says nothing about a locked phone. |
+
+**Design consequences (pending the iPhone question):**
+- **Cue:** beep (opt-in, default off) plus a vibration, foreground only. It is fired by the
+  repaint tick, so a locked phone simply gets no cue. The display is always correct on unlock.
+- **Interval timer:** holds the wake lock while it runs and re-acquires it on
+  `visibilitychange`. That is the real answer to "it stops when locked": the screen doesn't lock.
+- **Rest countdown:** no wake lock. A rest between sets is short and the phone is often put
+  down on purpose.
+- **No background notifications in v1.** Untested while locked, and they need a permission
+  prompt the logging path must never depend on.
+
 ---
 
 ## B. Rest countdown
