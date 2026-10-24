@@ -2318,6 +2318,35 @@ console.log("\nthe focus logger: the instruments, and the regressions this can r
   is(app.fmtClock(0), "0:00", "including the moment a set lands");
   is(app.fmtClock(605), "10:05", "and past ten minutes");
 
+  /* Inside the prescribed rest it counts down; past it, it counts on rather than expiring. */
+  is(app.restReading(30, 90), { value: "1:00", label: "rest left · 1:30", ready: false },
+    "inside the prescribed rest it counts DOWN to 'you may go', in the 'now' colour");
+  is(app.restReading(105, 90), { value: "+0:15", label: "past 1:30 rest", ready: true },
+    "past it, it counts on as '+0:15' instead of expiring");
+  is(app.restReading(40, 0), { value: "0:40", label: "since last set", ready: true },
+    "with no countable rest it stays the plain count-up");
+  is([89, 90, 91, 92, 500].map(n => app.restCueDue(n, 90)), [false, true, true, false, false],
+    "the cue is due only in the two seconds after the rest runs out — never on a late reload");
+  is(app.restCueDue(90, 0), false, "and never without a prescribed rest to run out");
+  /* Once per set, and only when switched on. */
+  let buzzes = 0;
+  app.navigator.vibrate = () => { buzzes++; return true; };
+  const due = { lastSetAt: new Date(Date.now() - 90000).toISOString() };
+  app.SETTINGS.restCue = false;
+  app.restClockNode({ rest: "90 sec" }, due)._paint();
+  is(buzzes, 0, "the cue is off by default — switched off, the clock never buzzes");
+  app.SETTINGS.restCue = true;
+  const cueNode = app.restClockNode({ rest: "90 sec" }, due);
+  cueNode._paint(); cueNode._paint();
+  is(buzzes, 1, "switched on, it fires once when the rest runs out, not on every repaint");
+  app.restClockNode({ rest: "90 sec" }, { lastSetAt: new Date(Date.now() - 90500).toISOString() })._paint();
+  is(buzzes, 2, "and again after the next set");
+  app.document.visibilityState = "hidden";
+  app.restClockNode({ rest: "90 sec" }, { lastSetAt: new Date(Date.now() - 91000).toISOString() })._paint();
+  is(buzzes, 2, "a backgrounded page never cues, even if it still repaints inside the window");
+  app.document.visibilityState = "visible";
+  app.SETTINGS.restCue = false; delete app.navigator.vibrate;
+
   /* It is stored, so it survives a reload, a backgrounded tab and a killed PWA — there
      is no timer state to lose. */
   const card = logCardNode();
@@ -2390,6 +2419,132 @@ console.log("\nthe focus logger: the instruments, and the regressions this can r
   is([app.agoWords(1), app.agoWords(6), app.agoWords(21), app.agoWords(120)],
     ["yesterday", "6 days ago", "3 weeks ago", "4 months ago"],
     "how long ago is worded at the scale it matters");
+
+  /* ---- "last time" prefers the same day last week, and opens every set ---- */
+  /* One lift on three days, so "most recent" and "same day last week" disagree. */
+  const dA = "Day 1 (Mon) - A", dB = "Day 2 (Thu) - B", dC = "Day 3 (Sat) - C";
+  const twice = { meta: { schema: "tp-program-2", block: "Twice", athlete: "Sample",
+    athleteId: "sample", weeks: 2, days: [dA, dB, dC] },
+    exercises: [1, 2].flatMap(w => [dA, dB, dC].map((d, i) => ({
+      id: `w${w}d${i + 1}e1`, week: w, day: d, name: "Back squat", sets: "3", reps: "5",
+      load: w === 1 ? "100" : "105", rpe: "RPE 7", tempo: "", rest: "2 min", logHint: "",
+      focus: "", progression: "" }))) };
+  store.clear(); app.SETTINGS = { ...app.SET_DEFAULTS };
+  app.loadProgram(twice);
+  app.openDate("2026-06-01"); app.applyClaim(1, dA); log("100", "5"); log("102", "4");
+  app.openDate("2026-06-04"); app.applyClaim(1, dB); log("90", "8");
+  app.openDate("2026-06-08"); app.applyClaim(2, dA); log("105", "5");
+  app.openDate("2026-06-11"); app.applyClaim(2, dB);
+  const sq = app.dayExercises()[0];
+  is(app.previousFor(sq, "2026-06-11").date, "2026-06-04",
+    "the same day last week beats a more recent session on another day");
+  assert(/90/.test(lt().text), "and the rail shows that session, not the most recent one");
+  app.openDate("2026-06-13"); app.applyClaim(2, dC);
+  is(app.previousFor(app.dayExercises()[0], "2026-06-13").date, "2026-06-08",
+    "with no same-day session last week it falls back to the most recent");
+
+  /* The popup: every set, read-only, prescription from THEN, closable. */
+  app.openDate("2026-06-08"); app.applyClaim(2, dA);
+  app.sheetClose();
+  lt().onclick();
+  const body = stubFor("#sheetBody");
+  is(stubFor("#sheetTitle").text, "Back squat", "tapping 'last time' opens a popup for that exercise");
+  assert(/Week 1/.test(stubFor("#sheetCopy").text), "saying which week it came from");
+  assert(!/Day 1 \(Mon\)/.test(stubFor("#sheetCopy").text),
+    "…and not repeating the day when it is the day being trained");
+  const cells = body.findAll(n => n.classList.contains("pg-c")).map(n => n.text);
+  assert(cells.includes("100") && cells.includes("102") && cells.includes("4"),
+    "every set of that session is listed, not just the matching one");
+  assert(/Prescribed then: 3 × 5 · 100/.test(body.text),
+    "the prescription is the one that week carried, not today's");
+  is(body.findAll(n => /^(INPUT|TEXTAREA|SELECT)$/.test(n.tagName)).length, 0,
+    "the popup is read-only — nothing in it can be typed into");
+  assert(body.findAll(n => n.classList.contains("pg-h")).some(n => /Knee|Pain/.test(n.text)),
+    "a tracked pain field gets a column");
+  assert(!!sheetButton(/^Close$/), "and it has a Close button within thumb reach");
+  sheetButton(/^Close$/).onclick();
+  app.SETTINGS.painPerExercise = false; app.renderMain && app.renderMain();
+  lt().onclick();
+  assert(!stubFor("#sheetBody").findAll(n => n.classList.contains("pg-h")).some(n => /Knee|Pain/.test(n.text)),
+    "a field that is switched off renders nowhere — not even as a column");
+  app.sheetClose(); app.SETTINGS.painPerExercise = true;
+
+  /* ---- the interval timer ---- */
+  const P = (reps, rest, name) => app.parseInterval({ reps, rest, name: name || "X" });
+  is(P("2", "EMOM / 90 sec"), { kind: "emom", phases: [{ label: "Go", sec: 90, work: true }] },
+    "an EMOM period is read from the rest column");
+  is(P("2", "-", "Push jerk (EMOM every 90s)").phases[0].sec, 90, "…or from the name");
+  is(P("45 sec hard / 75 sec easy", "Included").phases.map(p => [p.label, p.sec, p.work]),
+    [["Hard", 45, true], ["Easy", 75, false]], "a work/rest pair is read from reps, with its own words");
+  is(P("2 min hard / 1 min easy", "1 min easy between").phases.map(p => p.sec), [120, 60],
+    "minutes too");
+  is([P("20-30 sec / direction", "30-45 sec"), P("6/side", "60-90 sec"), P("5", "2 min"),
+      P("5 TnG power cleans + 15/12 cal bike", "~90 sec between rounds"), P("45 sec", "45-60 sec")],
+    [null, null, null, null, null], "anything that is not a stated interval gets no timer, not a guess");
+  ["program.sample.json", "program.v2.sample.json"].forEach(f => {
+    const rows = JSON.parse(fs.readFileSync(path.join(ROOT, "samples", f), "utf8")).exercises;
+    is(rows.filter(r => app.parseInterval(r)).map(r => r.name).filter((n, i, a) => a.indexOf(n) === i).sort(),
+      ["Air bike intervals", "Hang power clean (EMOM every 90s)"], `${f}: exactly the interval rows get a timer`);
+  });
+  const emom = app.intervalSpec({ sets: "3", reps: "2", rest: "EMOM / 90 sec" }, {});
+  is([emom.rounds, emom.total, emom.title], [3, 270, "EMOM 3 × 1:30"], "rounds come from the set plan");
+  is(app.intervalSpec({ sets: "3", reps: "2", rest: "EMOM / 90 sec" }, { setTarget: 5 }).rounds, 5,
+    "…as the athlete adjusted it, not only as prescribed");
+  const at = n => { const a = app.intervalAt(emom, n); return [a.state, a.round, a.left]; };
+  is([at(0), at(9), at(10), at(99), at(100), at(279), at(280)],
+    [["lead", 1, 10], ["lead", 1, 1], ["run", 1, 90], ["run", 1, 1], ["run", 2, 90], ["run", 3, 1], ["done", 3, 0]],
+    "a lead-in to get set, then each round counts down its period, then done");
+  const hiit = app.intervalSpec({ sets: "2", reps: "45 sec hard / 75 sec easy" }, {});
+  is([app.intervalAt(hiit, 54).label, app.intervalAt(hiit, 55).label, app.intervalAt(hiit, 55).left,
+      app.intervalAt(hiit, 130).round], ["Hard", "Easy", 75, 2], "work and rest alternate inside a round");
+
+  /* In the logger: it takes the rest clock's place, and starting it is one tap. */
+  const iday = "Day 1 (Mon) - EMOM";
+  store.clear(); app.SETTINGS = { ...app.SET_DEFAULTS };
+  app.loadProgram({ meta: { schema: "tp-program-2", block: "Intervals", athlete: "Sample",
+    athleteId: "sample", weeks: 1, days: [iday] },
+    exercises: [{ id: "w1d1e1", week: 1, day: iday, name: "Hang power clean (EMOM every 90s)",
+      sets: "7", reps: "2", load: "60", rpe: "", tempo: "", rest: "EMOM / 90 sec",
+      logHint: "", focus: "", progression: "" }] });
+  app.openDate("2026-06-01"); app.applyClaim(1, iday);
+  const locks = { req: 0, rel: 0 };
+  app.navigator.wakeLock = { request: () => { locks.req++;
+    return { then: ok => ok({ release(){ locks.rel++; }, addEventListener(){} }) }; } };
+  const timer = () => logCardNode().findAll(n => n.classList.contains("itimer"))[0];
+  assert(!!timer(), "an interval exercise shows a timer on the rail");
+  is(logCardNode().findAll(n => n.classList.contains("restclock") && !n.classList.contains("itimer")).length, 0,
+    "…instead of the rest clock, which means nothing inside an EMOM");
+  assert(/start EMOM 7 × 1:30/.test(timer().text), "idle, it says what it will run");
+  is(locks.req, 0, "and an idle timer never holds the screen");
+  timer().onclick();
+  const ent = () => app.getSession().entries.w1d1e1;
+  assert(/^\d{4}-/.test(ent().timer.startedAt), "one tap starts it — the only state is when");
+  assert(/get set/.test(timer().text), "it opens with a lead-in to get set");
+  is(locks.req, 1, "a running timer holds the screen awake");
+  is(ent().sets.length, 0, "and it never logs a round by itself");
+  const exported = JSON.stringify(app.buildSessionExport());
+  assert(!/timer|startedAt/.test(exported), "the timer never reaches an export");
+  /* Restart and Stop live behind a tap on the running timer. */
+  const s0 = app.getSession(); s0.entries.w1d1e1.timer.startedAt = new Date(Date.now() - 200000).toISOString();
+  app.saveSession(s0); app.renderMain();
+  assert(/round 3\/7 · Go/.test(timer().text), "derived from the start time: 200 s in is round 3");
+  timer().onclick();
+  assert(!!sheetButton(/^Restart$/) && !!sheetButton(/^Stop timer$/),
+    "tapping a running timer offers Restart and Stop — there is no pause");
+  const startedBefore = ent().timer.startedAt;
+  sheetButton(/^Restart$/).onclick();
+  assert(ent().timer.startedAt > startedBefore, "Restart starts it fresh");
+  timer().onclick(); sheetButton(/^Stop timer$/).onclick();
+  is(ent().timer, null, "Stop clears it");
+  assert(locks.rel >= 1, "and lets the screen sleep again");
+  /* A request still in flight when the timer stops must not leave the screen held. */
+  let resolveLock = null; const late = { released: 0 };
+  app.navigator.wakeLock = { request: () => ({ then: ok => { resolveLock = ok; } }) };
+  app.holdScreen(true); app.holdScreen(false);
+  resolveLock({ release(){ late.released++; }, addEventListener(){} });
+  is(late.released, 1, "a lock that resolves after Stop is released at once, not kept");
+  app.holdScreen(false);
+  delete app.navigator.wakeLock;
 
   /* ---- a typed-but-unlogged set waits for a tap, wherever the athlete goes ---- */
   /* Two exercises, so Next has somewhere to go. */
@@ -2480,8 +2635,8 @@ console.log("\ntwo settings scopes: what follows the account, and what stays on 
   is(app.ACCOUNT_KEYS.slice().sort(),
     ["bodyweight", "hrvNote", "painLabel", "painOnWaking", "painPerExercise", "readiness", "sleep"],
     "the tracked fields and the pain label follow the account");
-  is(app.DEVICE_KEYS.slice().sort(), ["mode", "palette", "sv", "view"],
-    "appearance and which view the app opens on stay on the device");
+  is(app.DEVICE_KEYS.slice().sort(), ["mode", "palette", "restCue", "sv", "view"],
+    "appearance, which view the app opens on, and whether the rest clock beeps stay on the device");
   app.DEVICE_KEYS.forEach(key =>
     assert(!app.accountScoped(key), `${key} is device-scoped`));
   app.ACCOUNT_KEYS.forEach(key =>

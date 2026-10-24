@@ -542,6 +542,32 @@
   .lt-value{font-size:var(--t-base);font-weight:800;color:var(--ink-dim);
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
   .lt-ago{font-size:var(--t-xs);color:var(--muted)}
+  /* The rail's "last time" is a button that must still look like a reading: the base
+     control chrome stripped, the row height unchanged. */
+  button.lasttime{background:transparent;border:0;border-radius:var(--r-sm);padding:0;
+    color:inherit;font-weight:inherit;min-height:26px}
+  button.lasttime:active{transform:none;background:var(--well)}
+  .lasttime .lt-ago{text-decoration:underline;text-underline-offset:2px}
+  /* The interval timer sits in the clock's slot and reads like it; tapping it starts it,
+     or opens Restart / Stop. Idle, its label is underlined — a quiet action, not amber. */
+  button.itimer{background:transparent;border:0;border-radius:var(--r-sm);padding:0;
+    color:inherit;font-weight:inherit;text-align:left;min-height:26px;max-width:60%}
+  button.itimer:active{transform:none;background:var(--well)}
+  .itimer[data-state="idle"] .rc-label{text-decoration:underline;text-underline-offset:2px}
+  /* The previous session's sets, in its popup. Muted ink: still the past, not a target. */
+  .prevsheet .rx{margin-bottom:var(--s3)}
+  .prevgrid{display:grid;grid-template-columns:2.4em repeat(3,minmax(0,1fr));
+    align-items:baseline}
+  .pg-h,.pg-c{padding-right:var(--s2)}
+  .prevgrid.pain{grid-template-columns:2.4em repeat(4,minmax(0,1fr))}
+  .pg-h{font-size:var(--t-xs);font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+    color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    padding-bottom:var(--s1)}
+  .pg-c{font-weight:700;color:var(--ink-dim);padding:var(--s2) 0;
+    border-top:1px solid var(--line-soft);overflow-wrap:anywhere}
+  .pg-n{grid-column:1/-1;font-size:var(--t-sm);color:var(--muted);padding-bottom:var(--s2)}
+  .pg-notes{margin-top:var(--s3);font-size:var(--t-sm);color:var(--muted);line-height:1.45;
+    white-space:pre-wrap}
 
   /* ---------- set editor (Log view, one set at a time) ----------
      Chips show every set already logged plus the one in progress; the fields below are
@@ -1238,13 +1264,13 @@ const FIELD_DEFS=[
 /* palette + mode + view are cosmetic and deliberately NOT part of the session export —
    the `tracking` block is built from FIELD_DEFS and painLabel alone, so nothing here can
    leak into a log. `sv` is a one-shot settings-migration marker — see loadSettings(). */
-const SET_DEFAULTS={painLabel:"Knee",palette:"a",mode:"auto",view:"focus",sv:1};
+const SET_DEFAULTS={painLabel:"Knee",palette:"a",mode:"auto",view:"focus",sv:1,restCue:false};
 FIELD_DEFS.forEach(f=>SET_DEFAULTS[f.key]=true);
 let SETTINGS={...SET_DEFAULTS};
 /* Which store owns a key is decided HERE and nowhere else, so a new setting cannot end
    up in the wrong scope by accident. */
 const ACCOUNT_KEYS=["painLabel"].concat(FIELD_DEFS.map(f=>f.key));
-const DEVICE_KEYS=["palette","mode","view","sv"];
+const DEVICE_KEYS=["palette","mode","view","sv","restCue"];
 function accountScoped(key){return ACCOUNT_KEYS.indexOf(key)>=0;}
 /* The account half, as {values, at}: the value plus one ISO stamp per field, which is
    what makes the conflict rule last-write-wins PER FIELD. */
@@ -1390,6 +1416,18 @@ function renderAppearance(host){
     :"Fixed, whatever the phone is set to."));
 }
 
+function restCueRow(){
+  const sw=el("button",{className:"sw",attrs:{role:"switch","aria-checked":String(!!SETTINGS.restCue),
+    "aria-label":"Rest-over cue"}});
+  sw.onclick=()=>{setSetting("restCue",!SETTINGS.restCue);sw.setAttribute("aria-checked",String(SETTINGS.restCue));
+    /* Switching it on plays it once, on purpose: the athlete hears what to listen for and
+       finds out now, not mid-set, that the media volume is down. */
+    primeCue();if(SETTINGS.restCue)restCue();};
+  return el("div",{className:"togrow"},[
+    el("div",{className:"tl"},[el("div",{className:"tn"},"Rest-over cue"),
+      el("div",{className:"td"},"A short beep and buzz when the prescribed rest is up, and at each change of an interval timer. Only while the app is open on screen — a locked phone stays silent — and the beep follows the media volume.")]),
+    sw]);
+}
 function renderFields(host){
   host.innerHTML="";
   host.append(el("p",{className:"dnote"},"Turn off what you don't need — nothing already logged is deleted."));
@@ -2700,7 +2738,7 @@ function buildSessionIndex(){
       const e=entries[id];
       const sets=(e&&Array.isArray(e.sets))?e.sets:[];
       if(!sets.length)return;                 /* nothing was committed — nothing to show */
-      logged.push({id,date,day:rec.day,week:rec.week,name:txt(e.name),sets});
+      logged.push({id,date,day:rec.day,week:rec.week,block:rec.block,name:txt(e.name),sets,entry:e});
     });
   }
   /* Ascending, so "the most recent one before this date" is a walk from the end. */
@@ -2734,6 +2772,26 @@ function lastLoggedFor(ex,date){
   (idx.byId.get(txt(ex.id))||[]).forEach(consider);
   (idx.byName.get(normName(ex.name))||[]).forEach(consider);
   return best;
+}
+/* "Last time" for the rail AND its popup — one answer, so the two cannot disagree. The
+   same programme day of the previous week wins: an exercise trained twice a week should
+   be compared with last Monday on a Monday, not with Thursday. Else the most recent. */
+function previousFor(ex,date,at){
+  if(!ex||!parseISO(date))return null;
+  const c=at||STATE,idx=sessionIndex(),week=Number(c.week)-1;
+  let best=null;
+  const consider=r=>{if(r.date<date&&r.block===txt(c.block)&&r.day===txt(c.day)&&
+    r.week===week&&(!best||r.date>best.date))best=r;};
+  (idx.byId.get(txt(ex.id))||[]).forEach(consider);
+  (idx.byName.get(normName(ex.name))||[]).forEach(consider);
+  return best||lastLoggedFor(ex,date);
+}
+/* The row as it was prescribed THEN, from its own block's programme — ids repeat across
+   blocks and loads progress week to week, so neither PROGRAM nor today's row will do. */
+function prescribedThen(rec){
+  const b=rec?blockByKey(rec.block):null;
+  const list=b&&b.program&&Array.isArray(b.program.exercises)?b.program.exercises:[];
+  return list.find(x=>x.id===rec.id)||null;
 }
 
 /* ---------- set mutation ---------- */
@@ -3662,8 +3720,8 @@ function renderAccountPage(){
     "Which optional fields you track, and what you call them, follow you to any device you sign in on. Change one on two devices at once and the most recent change wins, per field."+syncNote,
     renderFields));
   host.append(settingsGroup("This device",
-    "Appearance is about where you are standing — a basement at 6 a.m. and a kitchen at noon want different things — so it stays on this phone. So does the rest clock, which is always on and hides itself once you have left the gym.",
-    renderAppearance));
+    "Appearance is about where you are standing — a basement at 6 a.m. and a kitchen at noon want different things — so it stays on this phone. So does the rest clock, which is always on and hides itself once you have left the gym, and whether it beeps.",
+    host=>{const a=el("div");renderAppearance(a);host.append(a,restCueRow());}));
 }
 
 /* ---------- exercise head (shared by Overview and Log) ----------
@@ -3887,6 +3945,48 @@ function fmtClock(sec){
   const n=Math.max(0,Math.round(Number(sec)||0));
   return `${Math.floor(n/60)}:${String(n%60).padStart(2,"0")}`;
 }
+/* Inside the prescribed rest it counts DOWN to "you may go"; past it, it keeps counting
+   up as "+0:15" rather than expiring, so the number still means something. With no
+   countable rest it is the plain count-up. */
+function restReading(sec,target){
+  if(!target)return {value:fmtClock(sec),label:"since last set",ready:true};
+  if(sec<target)return {value:fmtClock(target-sec),label:`rest left · ${fmtClock(target)}`,ready:false};
+  return {value:"+"+fmtClock(sec-target),label:`past ${fmtClock(target)} rest`,ready:true};
+}
+/* The cue fires on the repaint that sees the rest run out — a two-second window, so a
+   reload long after the mark stays quiet — and once per set, keyed by the stamp it
+   measures from. Foreground only: a locked phone gets no cue, and the display is right
+   the moment it unlocks. Opt-in per device; see docs/design-rationale.md. */
+function restCueDue(sec,target){return target>0&&sec>=target&&sec-target<2;}
+let REST_CUED="",CUE_CTX=null;
+/* Browsers only let audio start from a tap, and the cue fires from a timer — so every
+   tap keeps the context unlocked while the cue is switched on. */
+function primeCue(){
+  if(!SETTINGS.restCue)return;
+  try{
+    const C=window.AudioContext||window.webkitAudioContext;
+    if(!CUE_CTX&&C)CUE_CTX=new C();
+    if(CUE_CTX&&CUE_CTX.state!=="running")CUE_CTX.resume();
+  }catch(e){}
+}
+function restCue(){
+  if(!SETTINGS.restCue)return;
+  /* Foreground only is a promise, not a side effect of throttling: a backgrounded tab can
+     still repaint inside the cue window. */
+  if(typeof document!=="undefined"&&document.visibilityState&&document.visibilityState!=="visible")return;
+  if(navigator.vibrate)try{navigator.vibrate([80,60,80]);}catch(e){}
+  const c=CUE_CTX;
+  if(!c||c.state!=="running")return;
+  try{
+    [0,0.22].forEach(at=>{
+      const o=c.createOscillator(),g=c.createGain(),t=c.currentTime+0.02+at;
+      o.frequency.value=880;
+      g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.5,t+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+0.16);
+      o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+0.18);
+    });
+  }catch(e){}
+}
 function restClockNode(ex,s){
   const target=parseRestSeconds(ex);
   /* aria-live off on purpose: a value that changes every second must never be announced. */
@@ -3898,10 +3998,134 @@ function restClockNode(ex,s){
     const sec=restSeconds(s);
     if(sec==null||sec>REST_HIDE_S){node.hidden=true;return;}
     node.hidden=false;
-    value.textContent=fmtClock(sec);
-    node.setAttribute("data-ready",String(!target||sec>=target));
-    label.textContent=target?`rest · ${fmtClock(target)} prescribed`:"since last set";
+    const r=restReading(sec,target);
+    value.textContent=r.value;label.textContent=r.label;
+    node.setAttribute("data-ready",String(r.ready));
+    if(SETTINGS.restCue&&restCueDue(sec,target)&&REST_CUED!==s.lastSetAt){REST_CUED=s.lastSetAt;restCue();}
   };
+  node._paint();
+  return node;
+}
+/* ---- the interval timer ----
+   For EMOMs and work/rest intervals it takes the rest clock's place on the rail. Same
+   invariant as the clock: the ONLY state is `e.timer.startedAt`; round, phase and time
+   left are derived from now − startedAt, so a lock, a reload or a killed PWA cannot
+   corrupt it. No pause — an EMOM you pause is not an EMOM — but Restart starts it fresh.
+   It never logs: committing a round is still the athlete's tap. */
+const TIMER_LEAD_S=10;
+function capWord(w){w=txt(w);return w?w.charAt(0).toUpperCase()+w.slice(1).toLowerCase():"";}
+function toSeconds(n,unit){return Math.round(parseFloat(n)*(/^m/i.test(unit)?60:1));}
+/* The interval shape the prescription states, or null. Two shapes in real programmes:
+   an EMOM period in `rest` ("EMOM / 90 sec") or the name ("every 90s"), and a work/rest
+   pair in `reps` ("45 sec hard / 75 sec easy"). Anything else gets no timer rather than
+   a guessed one. Rounds come from the caller — the plan as adjusted, not as prescribed. */
+const UNIT_RE="(sec(?:onds?|s)?|min(?:utes?|s)?|s|m)";
+function parseInterval(ex){
+  const reps=txt(ex&&ex.reps),rest=txt(ex&&ex.rest),name=txt(ex&&ex.name);
+  const pair=new RegExp("^\\s*(\\d+(?:\\.\\d+)?)\\s*"+UNIT_RE+"\\s+([a-z]+)\\s*\\/\\s*(\\d+(?:\\.\\d+)?)\\s*"+UNIT_RE+"\\s+([a-z]+)","i").exec(reps);
+  if(pair){
+    const work=toSeconds(pair[1],pair[2]),easy=toSeconds(pair[4],pair[5]);
+    if(work>0&&easy>0)return {kind:"intervals",phases:[
+      {label:capWord(pair[3])||"Work",sec:work,work:true},
+      {label:capWord(pair[6])||"Rest",sec:easy,work:false}]};
+  }
+  if(/\bemom\b/i.test(rest)||/\bemom\b|\bevery\s+\d/i.test(name)){
+    const m=new RegExp("(\\d+(?:\\.\\d+)?)\\s*"+UNIT_RE+"\\b","i").exec(rest)||
+      new RegExp("every\\s+(\\d+(?:\\.\\d+)?)\\s*"+UNIT_RE+"\\b","i").exec(name);
+    const period=m?toSeconds(m[1],m[2]):0;
+    if(period>0)return {kind:"emom",phases:[{label:"Go",sec:period,work:true}]};
+  }
+  return null;
+}
+function intervalSpec(ex,e){
+  const spec=parseInterval(ex);
+  if(!spec)return null;
+  spec.rounds=Math.max(1,targetSets(ex,e||{}));
+  spec.cycle=spec.phases.reduce((a,p)=>a+p.sec,0);
+  spec.total=spec.rounds*spec.cycle;
+  spec.title=(spec.kind==="emom"?"EMOM ":"")+spec.rounds+" × "+
+    spec.phases.map(p=>fmtClock(p.sec)).join(" / ");
+  return spec;
+}
+/* Where the timer is, `sec` seconds after Start: a short lead-in to get set, then the
+   rounds, then done. `key` names the phase, so a change of phase is a change of key. */
+function intervalAt(spec,sec){
+  if(sec<TIMER_LEAD_S)return {state:"lead",left:TIMER_LEAD_S-sec,round:1,label:"Get set",work:false,key:"lead"};
+  const t=sec-TIMER_LEAD_S;
+  if(t>=spec.total)return {state:"done",left:0,round:spec.rounds,label:"Done",work:false,key:"done"};
+  const round=Math.floor(t/spec.cycle)+1;
+  let into=t-(round-1)*spec.cycle,i=0;
+  while(into>=spec.phases[i].sec){into-=spec.phases[i].sec;i++;}
+  const ph=spec.phases[i];
+  return {state:"run",left:ph.sec-into,round,label:ph.label,work:ph.work,key:round+":"+i,into};
+}
+function timerSeconds(e,now){
+  const at=txt(e&&e.timer&&e.timer.startedAt);
+  const t=at?new Date(at).getTime():NaN;
+  return isNaN(t)?null:Math.max(0,Math.floor(((now||Date.now())-t)/1000));
+}
+/* The screen stays on while a timer runs — the spike showed that is the only signal
+   a locked phone cannot miss, because it never locks. Released whenever the page hides
+   (the browser does it), re-requested by the next repaint once it is visible again. */
+let TIMER_LOCK=null,TIMER_LOCK_PENDING=false,TIMER_LOCK_WANT=false,TIMER_CUED="";
+function holdScreen(want){
+  TIMER_LOCK_WANT=!!want;
+  if(!want){if(TIMER_LOCK){try{TIMER_LOCK.release();}catch(e){}TIMER_LOCK=null;}return;}
+  if(TIMER_LOCK||TIMER_LOCK_PENDING||!navigator.wakeLock||
+     (typeof document!=="undefined"&&document.visibilityState&&document.visibilityState!=="visible"))return;
+  TIMER_LOCK_PENDING=true;
+  navigator.wakeLock.request("screen").then(l=>{
+    TIMER_LOCK_PENDING=false;
+    /* Stopped, or paged away, while the request was in flight: a lock nobody wants
+       would keep the screen awake with no repaint left to release it. */
+    if(!TIMER_LOCK_WANT){try{l&&l.release();}catch(e){}return;}
+    TIMER_LOCK=l;
+    if(l&&l.addEventListener)l.addEventListener("release",()=>{if(TIMER_LOCK===l)TIMER_LOCK=null;});
+  },()=>{TIMER_LOCK_PENDING=false;});
+}
+function intervalNode(ex,e,s,onchange){
+  const spec=intervalSpec(ex,e);
+  const node=el("button",{className:"itimer restclock",attrs:{"aria-live":"off"}});
+  const value=el("span",{className:"rc-value tnum"});
+  const label=el("span",{className:"rc-label"});
+  node.append(value,label);
+  const start=()=>{e.timer={startedAt:new Date().toISOString()};TIMER_CUED="";saveSession(s);onchange();};
+  node.onclick=()=>{
+    if(timerSeconds(e)==null){start();return;}
+    const at=intervalAt(spec,timerSeconds(e));
+    const body=el("div");
+    const restart=el("button",{className:"ghost"},"Restart");
+    restart.onclick=()=>{sheetClose();start();};
+    const stop=el("button",{className:"ghost"},"Stop timer");
+    stop.onclick=()=>{sheetClose();e.timer=null;saveSession(s);holdScreen(false);onchange();};
+    const close=el("button",{className:"primary"},"Keep going");close.onclick=sheetClose;
+    body.append(el("div",{className:"sheet-actions"},[restart,stop]),
+      el("div",{className:"sheet-actions"},at.state==="done"?[]:[close]));
+    sheetOpen(spec.title,at.state==="done"?`Done — ${spec.rounds} rounds.`:
+      at.state==="lead"?"Starting…":`Round ${at.round} of ${spec.rounds} · ${at.label}`,body);
+  };
+  node._paint=()=>{
+    const sec=timerSeconds(e);
+    if(sec==null){
+      value.textContent="▶ "+fmtClock(spec.phases[0].sec);
+      label.textContent="start "+spec.title;
+      node.setAttribute("data-state","idle");node.setAttribute("data-ready","true");
+      holdScreen(false);return;
+    }
+    const at=intervalAt(spec,sec);
+    node.setAttribute("data-state",at.state);
+    /* Amber is "now": the work phase. Rest, lead-in and done stay quiet. */
+    node.setAttribute("data-ready",String(!at.work));
+    value.textContent=at.state==="done"?"✓":fmtClock(at.left);
+    label.textContent=at.state==="run"?`round ${at.round}/${spec.rounds} · ${at.label}`
+      :at.state==="lead"?"get set · "+spec.title:`done · ${spec.rounds} rounds`;
+    holdScreen(at.state!=="done");
+    /* One cue per phase change, inside the same two-second window as the rest cue. */
+    const fresh=at.state==="done"?sec-TIMER_LEAD_S-spec.total<2:at.state==="run"&&at.into<2;
+    const key=txt(e.timer.startedAt)+"|"+at.key;
+    if(SETTINGS.restCue&&fresh&&TIMER_CUED!==key){TIMER_CUED=key;restCue();}
+  };
+  node._release=()=>holdScreen(false);
   node._paint();
   return node;
 }
@@ -3909,11 +4133,15 @@ function restClockNode(ex,s){
    node it was painting has left the document, so a rebuild never leaves a second one
    running. */
 function startRestTick(node){
+  /* Paging away from a running timer lets the screen sleep again; the timer itself is
+     derived, so it is still right when the athlete comes back to it. */
+  if(REST_NODE&&REST_NODE!==node&&REST_NODE._release&&!(node&&node._release))REST_NODE._release();
   REST_NODE=node||null;
   if(REST_TICK||typeof setInterval!=="function")return;
   REST_TICK=setInterval(()=>{
     const n=REST_NODE;
     if(!n||typeof n._paint!=="function"||n.isConnected===false){
+      if(n&&n._release)n._release();
       if(typeof clearInterval==="function")clearInterval(REST_TICK);
       REST_TICK=null;REST_NODE=null;return;
     }
@@ -3943,7 +4171,7 @@ function agoWords(n){
   return weeks<9?weeks+" weeks ago":Math.round(n/30)+" months ago";
 }
 function lastTimeNode(ex,e){
-  const rec=lastLoggedFor(ex,STATE.date);
+  const rec=previousFor(ex,STATE.date);
   if(!rec||!rec.sets.length)return null;
   const n=((e&&Array.isArray(e.sets))?e.sets.length:0)+1;
   const same=rec.sets[n-1];
@@ -3952,17 +4180,56 @@ function lastTimeNode(ex,e){
   const value=[txt(row.load),withUnit(txt(row.reps),metricOf(ex).unit)]
     .filter(Boolean).join(" × ");
   if(!value)return null;
-  return el("div",{className:"lasttime"},[
-    el("span",{className:"lt-label"},same?`Set ${n} last time`:"Top set last time"),
+  const label=same?`Set ${n} last time`:"Top set last time";
+  const ago=agoWords(daysBetween(rec.date,STATE.date));
+  /* A button only so the whole session is one tap away — it still reads as a fact. */
+  const node=el("button",{className:"lasttime",
+    attrs:{"aria-label":`${label}: ${value}, ${ago}. Show every set.`}},[
+    el("span",{className:"lt-label"},label),
     el("span",{className:"lt-value tnum"},value),
-    el("span",{className:"lt-ago"},agoWords(daysBetween(rec.date,STATE.date)))]);
+    el("span",{className:"lt-ago"},ago+" ›")]);
+  node.onclick=()=>openPreviousSheet(ex,rec);
+  return node;
+}
+/* Every set of that session in a popup over the logger: a quick look, then back to the
+   same field. Read-only on purpose — nothing here copies into the draft, because a value
+   that appears in a field without being typed is a set that might not have happened. */
+function openPreviousSheet(ex,rec){
+  const metric=metricOf(ex),pain=!!SETTINGS.painPerExercise,round=!!circuitOf(ex);
+  const then=prescribedThen(rec),e=rec.entry||{};
+  const body=el("div",{className:"prevsheet"});
+  if(then)body.append(el("div",{className:"rx"},["Prescribed then: "].concat(rxLine(then))));
+  const grid=el("div",{className:"prevgrid"+(pain?" pain":"")});
+  const head=[round?"Rnd":"Set","Load",metric.fieldLabel,"RPE"];
+  if(pain)head.push(txt(SETTINGS.painLabel)||"Pain");
+  head.forEach(h=>grid.append(el("span",{className:"pg-h"},h)));
+  rec.sets.forEach((r,i)=>{
+    const cells=[String(i+1),txt(r.load),txt(r.reps),txt(r.rpe)];
+    if(pain)cells.push(txt(r.painDuring));
+    cells.forEach(v=>grid.append(el("span",{className:"pg-c tnum"},v||"–")));
+    if(txt(r.note))grid.append(el("span",{className:"pg-n"},txt(r.note)));
+  });
+  body.append(grid);
+  if(txt(e.notes))body.append(el("div",{className:"pg-notes"},txt(e.notes)));
+  const close=el("button",{className:"ghost"},"Close");close.onclick=sheetClose;
+  body.append(el("div",{className:"sheet-actions"},close));
+  /* Where it came from, said only when it differs from where the athlete is now. */
+  const where=[fmtDate(rec.date)];
+  if(then&&then.week)where.push("Week "+then.week);
+  if(rec.day!==txt(STATE.day))where.push(rec.day);
+  if(rec.block!==txt(STATE.block)){const b=blockByKey(rec.block),m=b&&b.program&&b.program.meta;
+    if(m&&m.block)where.push(m.block);}
+  where.push(agoWords(daysBetween(rec.date,STATE.date)));
+  sheetOpen(ex.name,where.join(" · "),body);
 }
 /* The two instruments on one rule. If the clock has nothing to say it hides itself and
    "last time" has the row to itself — on a 320×568 screen every row above the fields is
    a row the primary action moves down by. */
-function instrumentRail(ex,e,s){
+function instrumentRail(ex,e,s,onchange){
   const rail=el("div",{className:"instrument"});
-  const clock=restClockNode(ex,s);
+  /* An interval exercise swaps the rest clock for its timer: "since last set" means
+     nothing inside an EMOM. */
+  const clock=intervalSpec(ex,e)?intervalNode(ex,e,s,onchange||(()=>{})):restClockNode(ex,s);
   rail.append(clock);
   const last=lastTimeNode(ex,e);
   if(last)rail.append(last);
@@ -4490,7 +4757,7 @@ function logCard(ex,s,idx){
      inputs and is only ever redrawn after a deliberate tap, so this stays inside the
      repaint-don't-rebuild rule. */
   const railHost=el("div");
-  const paintRail=()=>{railHost.innerHTML="";railHost.append(instrumentRail(ex,e,s));};
+  const paintRail=()=>{railHost.innerHTML="";railHost.append(instrumentRail(ex,e,s,paintRail));};
   c.append(railHost);
 
   const summaryHost=el("div");
@@ -4669,6 +4936,7 @@ $("#fileInp").onchange=async e=>{
    conveniences — guarded, because the headless test harness has no event target.
    Suppressed while editing a set: an arrow key while STATE.setEdit is set would jump
    exercises with a chip (not an INPUT) focused mid-edit. */
+if(document.addEventListener)document.addEventListener("pointerdown",primeCue,{passive:true});
 if(document.addEventListener)document.addEventListener("keydown",e=>{
   if(window.TPAuthUI&&TPAuthUI.handleKeydown(e))return;
   if(e.key==="Escape"&&$("#sheetWrap").classList.contains("in")){sheetClose();return;}

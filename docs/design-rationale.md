@@ -85,13 +85,27 @@ check-in is honest missing data; a faked one is poison.
 One exercise, one set, with the name, prescription, committed sets, current fields, rest clock and
 last time all visible at once.
 
-**The rest clock counts up**, with the prescribed rest marked — not a countdown that expires and
-then means nothing. It is passive: no sound, no buzz, no notification permission, all of which
-fight the offline and no-dependency constraints and behave badly in an installed iOS PWA. It hides
+**The rest clock counts down the prescribed rest, then keeps counting up** (`+0:15`), so it never
+expires into a number that means nothing; with no countable rest it is a plain count-up. It hides
 itself past about fifteen minutes, when you have left the gym and a large number is just noise.
 
-**"Last time" is never coloured as a target.** It is a fact about the past, and making it green
-would quietly turn it into a prescription. It matches on a normalised name as well as `id` so it
+**Sound is opt-in, foreground-only and needs no permission.** A phone's browser cannot reliably
+signal while it is locked — timers stop, scheduled audio does not play, and notifications need a
+permission prompt the logging path must never depend on. So the cue (a beep, plus a buzz where the
+phone supports it) is a per-device switch, off by default, fired by the repaint that sees the rest
+run out; a locked phone gets no cue and the display is right the moment it unlocks.
+
+**The interval timer keeps the screen on instead of trying to alarm through a lock.** It is the one
+signal a locked phone cannot miss, because it never locks. There is no pause — an EMOM you pause is
+not an EMOM — but Restart starts it fresh. It never logs a round: a round that happened is still the
+athlete's tap, and the Log action does not change at a round boundary, because it is already the
+one amber thing to press.
+
+**"Last time" is never coloured as a target, and never copied.** It is a fact about the past, and
+making it green — or putting it into a field — would quietly turn it into a prescription or a set
+that did not happen. Its popup shows every set read-only. It prefers **the same programme day of the
+previous week**, because an exercise trained twice a week should be compared with last Monday on a
+Monday; failing that, the most recent session. It matches on a normalised name as well as `id` so it
 keeps working across blocks — which is exactly when it is most wanted — and stays silent rather
 than printing an empty row.
 
@@ -115,8 +129,8 @@ them meaningless.
 
 Which optional fields the athlete tracks, and what they are called, are about **who you are**, so
 they follow the athlete to any device: someone who tracks a tendon reading on one phone must not
-silently stop collecting it on another. Appearance and the rest clock are about **where you are
-standing** — a basement at 6 a.m. and a kitchen at noon want different things.
+silently stop collecting it on another. Appearance and whether the rest clock beeps are about
+**where you are standing** — a basement at 6 a.m. and a kitchen at noon want different things.
 
 A tracked-fields change made offline on two devices is not worth a conflict copy: unlike a workout,
 nothing is lost by resolving it and it can be re-set in one tap. Hence last write wins, per field.

@@ -4,48 +4,41 @@
 entry is deleted, not annotated. Ordered roughly by value-per-effort, and each item says *why*,
 because reliability and speed in the gym beat extra features.
 
-## High value
-
-**1. Interval / EMOM timer.** The programme leans on interval formats ("EMOM every 90s",
-"45 sec hard / 75 sec easy"), so the athlete uses a separate timer app and leaves the tracker
-mid-session. A timer that reads the `rest`/`reps` strings, or is set by hand, removes the one
-reason to switch apps. Two smaller pieces belong with it rather than ahead of it: a stopwatch on
-a `Hold (s)`/`Time (min)` field that writes elapsed seconds into the field, and an **active rest
-countdown** seeded from `rest`, with sound or haptics. All three are cheap to draw and worthless
-if they stop counting when the screen locks — **verify background behaviour before promising
-any of them.** That verification is the whole risk and the reason this has not been started.
-
-**2. One-tap "same as last week".** The logger already shows last session's load/reps/RPE
-(`lastTimeNode()`) and seeds each draft from the previous set, so the lookup exists. What is
-missing is the single tap that accepts it outright.
-
-**3. Restore from a backup.** `Export account data` produces a complete `tp-account-export-1`
-file, but nothing reads one back. Without restore, the export protects against a lost phone only
-if it is re-entered by hand. Browsers can evict storage for unused sites; installed PWAs are more
-durable, but restore is the cheap insurance.
-
 ## Medium value
 
-**4. Per-exercise trend view.** Load and RPE over weeks, plus the pain trend. "No upward trend
+**1. Per-exercise trend view.** Load and RPE over weeks, plus the pain trend. "No upward trend
 week over week" is one of the coaching rules, so surfacing it in-app would let the athlete
 self-correct before the coach review. The past-sessions *list* is not part of this — the hub and
 the calendar already are that.
 
-**5. Reduce export→save friction.** Export downloads a file, which the athlete then files into
-Drive through the share sheet. `navigator.share` is unused; a share button or a whole-week export
-would shorten it.
+**2. A timer for what the parser cannot read.** The interval timer appears only when the
+prescription states an EMOM period or a work/rest pair, which covers every interval row today. A
+"Set up timer" sheet (work, rest, rounds) would cover a hand-written or unusual format. It pairs
+with a **hold stopwatch** on `Hold (s)`/`Time (min)` fields that writes the elapsed time into the
+field only on a tap.
 
-**6. `localStorage` housekeeping.** `tp_sess_v1::*` keys accumulate forever. Harmless at this
+**3. `localStorage` housekeeping.** `tp_sess_v1::*` keys accumulate forever. Harmless at this
 volume, but a "clear sessions older than N months" action — after a backup — keeps it tidy.
 
-**7. Log an earlier block's session late.** The claim picker offers the weeks of the block that
+**4. Log an earlier block's session late.** The claim picker offers the weeks of the block that
 owns the date, so the old block's last session, done on the new block's first Monday, can only be
 claimed by moving the new block's start. A "from the previous block" choice in the picker, shown
 only in a block's first week or two, would cover it.
 
 ## Lower value / speculative
 
-**8. Plate calculator.** The athlete does this arithmetic automatically.
+Sessions sync to the account, so the exported file is a secondary copy for the coaching side, not
+the backup — which is why the two export items sit here.
+
+**5. Restore from a backup.** `Export account data` produces a complete `tp-account-export-1`
+file, but nothing reads one back. Cheap insurance against evicted storage on a device that never
+synced.
+
+**6. Share instead of download.** Export downloads a file the athlete then files into Drive
+through the share sheet. `navigator.share` with the file would shorten it; a whole-week export
+would too.
+
+**7. Plate calculator.** The athlete does this arithmetic automatically.
 
 ## Deferred on purpose
 
