@@ -18,6 +18,14 @@ must accept every version it has ever emitted**. What changed:
 Version detection is `meta.schema` / `schema`. Neither reader should infer version from the
 presence of a field.
 
+**No schema change since `tp-session-3`.** The app has since learned to read the prescription
+more closely — what the reps field measures, whether work is ordinary sets or a circuit, and
+which circuit format needs live round taps versus one final result — but every one of those is
+**inference from strings the generator already writes**. No field was added, removed or retyped on either side, and
+`program-builder` needs no matching change. Where that inference changes how a value should be
+*read*, it is written down below: see `reps` and `logHint` in the programme table, and
+"Reading a logged `reps` value" on the session side.
+
 ---
 
 # The contract
@@ -43,7 +51,7 @@ every entry against a blank template at export, so on the session side "optional
 *value* may be `""`, not that the key may be missing. That is why the review step never has to
 probe.
 
-`program-builder` enforces the input table via `scripts/validate_program.py`, which runs on the
+`program-builder` enforces the input table via its own `scripts/validate_program.py`, which runs on the
 assembled programme before the file is written. **The app enforces almost none of it, on
 purpose** — a slightly-off programme must still open in a gym basement rather than hard-fail in
 front of an athlete who came to train. That leniency is only safe because something upstream is
@@ -73,7 +81,7 @@ strict. Do not move the strictness into the app.
 | `exercises[].sets`, `reps`, `load`, `rpe`, `tempo`, `rest` | **string** | skill | Renders empty. **Never numbers** — they hold ranges and prose (`"8-10 min"`, `"~115-135 kg"`). |
 | `exercises[].logHint` | string | skill | No blue "Log:" line. |
 | `exercises[].focus`, `progression` | string | skill | Section collapsed/absent. |
-| `exercises[].category` | string | skill | Guessed from `name`; no tag if nothing matches. Purely presentational — nothing filters or gates on it. |
+| `exercises[].category` | string | skill | Guessed from `name`; neutral rail if nothing matches. Colours the rail, and `tendon` additionally makes the app ask for a pain reading — see below. |
 
 ## `tp-session-*` — required
 
@@ -95,7 +103,7 @@ reader never has to probe.
 | `entries[].exercise` | string | ✅ | ✅ | ✅ | app | Entries are keyed by name, not `id` — so the v1→v2 id change does not affect logs. |
 | `entries[].prescribed` | object | ✅ | ✅ | ✅ | skill→app | Denormalised so a log is reviewable without the programme. |
 | `entries[].done` | bool | ✅ | ✅ | ✅ | athlete | |
-| `entries[].sets[]` | array | — | ✅ | ✅ | athlete | `[]` when only the summary was logged. Contiguous from 1. |
+| `entries[].sets[]` | array | — | ✅ | ✅ | athlete | Ordinary sets or completed circuit rounds. `[]` when nothing was logged, or when a circuit was logged as one final result. Contiguous from 1. |
 
 ## `tp-session-*` — value-optional
 
@@ -113,8 +121,8 @@ it is *not collected*. Distinguishing those two is the whole reason `tracking` e
 programme side, `meta.weeks` and `exercises[].week`. Everything else is a string, including
 every prescription — never assume one parses numerically.
 
-**Keys never disappear.** Switching a field off in the drawer's Tracked fields section flips a `tracking`
-flag; the key stays and its value is `""`. That is what lets a reader tell *not logged* from
+**Keys never disappear.** Switching a field off in the Account screen's Tracked fields section flips a
+`tracking` flag; the key stays and its value is `""`. That is what lets a reader tell *not logged* from
 *not tracked*, and it means the review step never probes for missing keys.
 
 ---
@@ -167,16 +175,20 @@ flag; the key stays and its value is `""`. That is what lets a reader tell *not 
 | `exercises[].id` | Unique per exercise **across the whole file**. v2 convention `w<week>d<daySlot>e<exerciseIndex>`, where `daySlot` is the number in the `Day N` label (`Day 3` → `d3`), falling back to position in `meta.days` if the labels aren't distinctly numbered. v1 was `d<dayIndex>e<exerciseIndex>`. **This is the key the app stores logged data under** — the v1→v2 id change means logs recorded against a v1 programme do not line up with the v2 one. Expected and accepted at the version boundary; exported session files are unaffected because they denormalise `prescribed` and are keyed by exercise name. |
 | `exercises[].week` | **v2: load-bearing.** The app renders only the exercises whose `week` matches the selected week. In v1 it was ignored. |
 | `exercises[].day` | Must match a string in `meta.days` **exactly** — the app filters by string equality. Day labels must be byte-identical across weeks, or a day will look empty in some weeks. |
-| `sets`/`reps`/`load`/`rpe`/`tempo`/`rest` | **All strings, not numbers.** They hold ranges and prose ("1 + 3", "8-10 min", "~115-135 kg", "RPE 6-6.5"). Never assume they parse as numeric. |
-| `logHint` | Comes from the spreadsheet's "Completed Notes" column. Rendered as the blue "Log:" line — it tells the athlete which data actually matters for this movement. Empty string for warm-ups. |
+| `sets`/`reps`/`load`/`rpe`/`tempo`/`rest` | **All strings, not numbers.** They hold ranges and prose ("1 + 3", "8-10 min", "~115-135 kg", "RPE 6-6.5"). Never assume they parse as numeric. **`sets` also drives the set-at-a-time logger**: a plain integer, a plain numeric range (`"3-4"`, lower bound used), or an integer followed by a word (`"4 rounds"` → 4) materialises that many set chips; anything else — `"AMRAP"`, `"1 + 3"`, a decorated range like `"8-10 min"` — collapses to a single "Set 1 of 1", which is the correct shape for open-ended work. Prefer a plain integer when the exercise really is N even sets. |
+| `reps` | **Also decides what the logging field asks for**, via the app's `metricOf()`: seconds → `Hold (s)`, minutes → `Time (min)`, metres → `Dist (m)`, calories → `Work (cal)`, a plain count or range → `Reps`, and anything composite (`"45 sec hard / 75 sec easy"`, `"5 TnG power cleans + 15/12 cal bike"`) → a free-text `Result`. This is **inference from the string the generator already writes** — no new field, and nothing to change upstream. It only affects the label, the placeholder, the on-screen keyboard, and the unit appended to the logged summary; see the session-side note below. Writing `"45 sec"` rather than `"45s"` or `"0:45"` is the safest form, but all three resolve. |
+| `logHint` | Comes from the spreadsheet's "Completed Notes" column. It tells the athlete which data actually matters for this movement, and the app now **parses it** rather than just printing it: split on semicolons into a row of `Capture` chips (four at most), and scanned for pain cues (`pain`, `sore`, `stiff`, `response`, a named joint…) to decide which exercises get an accented pain field and a one-off nudge on Finish. Nothing is ever *hidden* on the strength of it. Semicolons are therefore load-bearing punctuation — `"Top load; RPE-1; knee pain during + next AM"` reads as three instructions, and a `+` inside one stays part of it. Empty string for warm-ups. |
 | `focus` | Coaching cues (spreadsheet "Focus / Notes"). Collapsed by default. |
 | `progression` | Spreadsheet "Progression Rule". **Meaning changed in v2:** it is now *rationale* — why this week's prescription differs from last week's, plus the hold/stop gate. In v1 it was an instruction the athlete had to execute. Collapsed by default either way. |
-| `category` | **Optional.** Drives the coloured left rail and the tag on each exercise card. Not currently emitted by `program-builder` — see below. |
+| `category` | **Optional.** Drives the coloured left rail, and `tendon` gates the pain ask. Emitted by `program-builder` from the `Category` column of `rows.json` — see below. |
 
 ### Optional: `exercises[].category`
 
-Purely presentational — it groups a day visually (skill vs strength vs conditioning) so the
-card list is scannable. **The app never filters, reorders or gates anything on it.**
+Mostly presentational: it colours each card's left rail so a day is scannable (skill vs
+strength vs conditioning). Nothing filters, reorders or hides on it — but **it is not inert.**
+`painAsked()` treats the `tendon` slot as pain-relevant, so a declared `tendon` (or an alias:
+`prehab`, `rehab`, `isometric`) accents the pain field and nudges once on Finish **even when the
+exercise has no `logHint` saying so.** That is the one behaviour a wrong category changes.
 
 Recognised values, each with a fixed *slot* whose colour comes from the active theme
 (`--cat-*`): `warmup`, `tendon`, `skill`, `strength`,
@@ -189,18 +201,20 @@ Recognised values, each with a fixed *slot* whose colour comes from the active t
 generator does not currently emit the field at all:
 
 1. **Declared and recognised** → that category's label + colour.
-2. **Declared but unrecognised** (e.g. `"Grip work"`) → the string is shown verbatim as the
-   tag, with a colour derived deterministically from it. A generator can invent its own
-   vocabulary without the UI breaking or falling back to grey.
+2. **Declared but unrecognised** (e.g. `"Grip work"`) → a colour derived deterministically
+   from the string. A generator can invent its own vocabulary without the UI breaking or
+   falling back to grey — but an invented word resolves to no slot, so prehab work named that
+   way loses the pain ask above. `validate_program.py` warns on one for exactly that reason.
 3. **Absent** → guessed from keywords in `exercises[].name`. Ordered, so skill lifts win
    before the EMOM/interval rule (`Hang power clean (EMOM every 90s)` is skill, not
    conditioning).
-4. **Absent and no keyword matches** → **no tag at all**, neutral rail. The app never
-   asserts a category it had to invent.
+4. **Absent and no keyword matches** → neutral rail, no colour. The app never asserts a
+   category it had to invent.
 
-Because step 3 is a guess, adding a real `category` to the generator is the honest fix — it
-would replace inference with declaration for every exercise. That is a `program-builder`
-change; until then step 3/4 carry the UI and are correct on the current sample programme.
+Step 3 is a guess, so declaring beats inferring: `program-builder` emits the field from the
+`Category` column, and its validator warns when a file declares one on some exercises and not
+others — the undeclared rows then fall back to the guess, and nothing in the file says why.
+The bundled samples deliberately declare none, because they are what exercises steps 3 and 4.
 
 ### Day label format
 
@@ -224,13 +238,13 @@ disk for the athlete to import.
 
 ```bash
 python3 athlete/skills/program-builder/scripts/validate_program.py program.json
-python3 samples/validatortest.py     # 32 checks: fixtures pass, 23 breakages rejected
+python3 samples/validatortest.py     # fixtures pass; every known breakage is rejected
 ```
 
 | | |
 |---|---|
 | **ERROR** (exit 1, blocks the write) | The app will visibly do the wrong thing: a missing required field, a wrong type, a `day` not in `meta.days`, duplicate ids, a v2 week with no rows. |
-| **WARNING** (printed, never fatal) | Plausibly deliberate but usually an authoring slip: a week missing one day, no `logHint` anywhere, no `category` declared, a v1 file. |
+| **WARNING** (printed, never fatal) | Plausibly deliberate but usually an authoring slip: a week missing one day, no `logHint` anywhere, a category declared on only some exercises or spelled outside the recognised vocabulary, a v1 file, an `exercises[].sets` with no digit in it. |
 
 Note the division of labour with `rows_common.load_rows`, which validates the builder's
 **input**. They answer different questions, and the second cannot be folded into the first: a
@@ -372,22 +386,80 @@ see which set was which.
 | `note` | Free text for this set. Usually empty. |
 
 **The flat `load` / `reps` / `rpe` / `painDuring` stay, and stay authoritative for the summary
-view.** They are not derived — the app keeps them as what the athlete considers the headline
-number for the exercise, and a v1 reader that ignores `sets` still gets a sensible answer.
+view.** The app derives them from committed rows until the athlete edits the summary directly;
+after that it preserves the override. A v1 reader that ignores `sets` still gets a sensible answer.
 When they disagree with `sets` (as above: flat `load: "80"`, first set `100`), the flat value
 is the athlete's own summary, not a bug.
 
-**How the app produces `sets`.** Per-set rows are opt-in per exercise — tapping "Log each set"
-materialises the prescribed number of rows, and a value typed into one row flows down into
-every row below it that the athlete has not edited. So the common case (all sets the same)
-costs one entry per field, and correcting set 3 downwards costs one more. Rows that are
-left completely empty are dropped at export and the rest renumbered, so a `set: 3` in a log
-file always means a third set was actually performed. The whole feature can be switched off
-per device in the drawer's Tracked fields section, which shows up as `tracking.perSetLogging: false`.
+**How the app produces `sets`.** An ordinary exercise starts with the prescribed set count and
+shows exactly one set editor at a time. Confirming a set appends one row and seeds the next
+editor from it. Adding or removing planned sets is a secondary action and never changes the
+original prescription. Completely empty rows are dropped at export and the rest are renumbered,
+so a `set: 3` in a log file always means a third set or circuit round was actually performed.
 
-**Reading rule for the coach:** use `sets` when it is non-empty — it is strictly more
-information. Fall back to the flat fields when `sets` is `[]` or absent (any v1 file). Do not
-average `sets` into a single load; the shape of a session (100 → 80 → 80) *is* the signal.
+**Reading rule for the coach:** for ordinary exercises, use `sets` when it is non-empty — it
+is strictly more information. Fall back to the flat fields when `sets` is `[]` or absent (any
+v1 file). Do not average `sets` into a single load; the shape of a session (100 → 80 → 80) *is*
+the signal. Circuit entries are the explicit exception described below: their flat result and
+round rows are complementary.
+
+**How the app fills these fields** (no schema change is involved — this is behaviour, not shape):
+
+- `sets` is normally non-empty for any ordinary exercise actually trained, because the app logs
+  one set at a time. For a circuit prescription, `[]` can instead mean the athlete chose
+  **Final result** and logged the outcome directly in the flat fields.
+- The flat `load`/`reps`/`rpe`/`painDuring` are **auto-filled from `sets` as each one is confirmed
+  and stay editable.** They remain the athlete's own headline number and a reader must not
+  recompute them, but a disagreement with `sets` most often means a *deliberate override* —
+  worth a line in the review rather than skipped.
+- **`sets.length` is the number of sets actually performed.** The export contains only committed
+  sets: a draft the app seeded from the previous set is not a set that happened, and a set the
+  athlete typed is in the file only once they confirmed it — by logging it, ending the exercise,
+  or answering the prompt Finish and Export raise for a typed-but-unlogged set.
+- RPE may carry a half point (`"7.5"`); the picker offers 1–10 in 0.5 increments. Stored as a
+  string, and legacy prose values remain readable — parse as a float if at all, never an integer.
+- `tracking.perSetLogging` is unconditionally `true`: it is not a switch, it is how every exercise
+  is logged. `false` appears in older files and keeps its meaning there.
+
+### Circuit logging (`rounds`, `AMRAP`, `EMOM`, `for time`, ladders)
+
+The app chooses a low-friction default from `prescribed.sets`, with a quiet mode override:
+
+- A fixed `"4 rounds"` prescription defaults to **Quick rounds**. Each tap appends one
+  `sets[]` row whose `reps` is `"As prescribed"`; the denormalised `prescribed.reps` contains
+  the movements that phrase refers to. The flat `reps` becomes a headline such as
+  `"4 rounds · 12:34"`.
+- **Round details** also uses `sets[]`, but each row may carry its own split/result, changed
+  load, RPE, pain and note.
+- AMRAP, EMOM, for-time work and numeric ladders default to **Final result**. These can export
+  `sets: []` with the outcome in flat `reps`, for example `"4 rounds + 12 reps"`,
+  `"12 min completed"`, or `"Time 08:42 · as prescribed"`.
+
+For a circuit, never discard the flat `reps` merely because `sets[]` is non-empty: the rows
+say which rounds were completed or how they differed, while the flat field carries the final
+round count/time/partial work. `"As prescribed"` is explicit confirmation of one complete
+round, not missing data. The UI's selected logging mode is local bookkeeping and is never
+exported.
+
+### Reading a logged `reps` value
+
+Unchanged in shape — a string, whatever the athlete typed — but worth knowing how the app now
+labels the field, because it changes what the string means without changing its type:
+
+| `prescribed.reps` | The field the athlete saw | A logged `reps` of `"45"` means | Summary shape |
+|---|---|---|---|
+| `"2"`, `"4-6"`, `"6/side"` | `Reps` | 45 reps | `"7x2"` |
+| `"45 sec"`, `"20-30 sec/side"` | `Hold (s)` | 45 **seconds** | `"3x45s"` |
+| `"8-10 min"` | `Time (min)` | 45 **minutes** | `"9min"` |
+| `"20 m"` | `Dist (m)` | 45 **metres** | `"6x20m"` |
+| `"15/12 cal"` | `Work (cal)` | 45 **calories** | `"15cal"` |
+| anything composite | `Result` (free text) | whatever it says | as typed |
+
+So **read the unit off `prescribed.reps`**, exactly as before — that is what makes the log
+self-contained. The only difference is that the app's own derived summary now appends the unit
+(`"3x45s"` rather than `"3x45"`), so a duration is no longer mistakable for a rep count at a
+glance. Per-set `sets[].reps` values stay bare, as typed. Still never assume either parses
+numerically, and note that a `Result` field is prose by design.
 
 Programme-side prescriptions stay one-load-per-exercise: `tp-program-2` has no per-set array.
 Ramping sets are expressed in the `load` string as they always were ("60/70/80 kg"). Add a
@@ -396,12 +468,14 @@ prescribed per-set array only if that stops being expressive enough.
 ### Field notes
 
 - `tracking` — **additive; added when optional fields became switchable in the app's
-  Tracked fields section.** It disambiguates an empty value: `painDuring: ""` with
+  Tracked fields section, which is now account-scoped rather than device-local.** It disambiguates an empty value: `painDuring: ""` with
   `tracking.painPerExercise: true` means *no pain logged*, whereas `false` means *this
   athlete does not track pain at all*. Without it the coach cannot tell silence from
   absence. Older session files predate the key — treat a missing `tracking` as all-true.
   - `painLabel` is the body part the athlete named (`"Knee"`, `"Shoulder"`, or `""` for a
-    generic "Pain"). It affects labels only; the stored keys never change.
+    generic "Pain"). It affects labels only; the stored keys never change. It follows the
+    athlete's *account*, so the same block logged on a second device carries the same
+    label — the export shape is unchanged either way.
   - **The keys in `session` and `entries[]` never change shape**, whether a field is
     switched on or not — the review step never has to probe for missing keys.
   - A value logged *before* a field was switched off is still exported as-is. The app does
@@ -411,7 +485,7 @@ prescribed per-set array only if that stops being expressive enough.
 - `session.readiness` — one of `""`, `"Green"`, `"Amber"`, `"Red"`.
 - `session.sleep` — 1–5 subjective scale (string).
 - `session.amPainOnWaking` — **v3**, replacing `amPainNextDay`. Pain 0–10 on waking *this* morning, i.e. the response to the **previous** session. Switchable via `tracking.painOnWaking`, on by default. See the dedicated section below before reading one.
-- `painDuring` — per-exercise knee pain 0–10 during the movement. Switchable via `tracking.painPerExercise`.
+- `painDuring` — per-exercise knee pain 0–10 during the movement. Switchable via `tracking.painPerExercise`, and **only** via that: the app accents the field's label on exercises whose `logHint` asks for a reading, and nudges once if one is finished without it, but it never renders the field on some exercises and not others. An empty `painDuring` therefore means the same thing on every entry in the file — *not logged* — which is exactly what `tracking` is for. Do not read an accented-vs-plain distinction out of a log; it does not exist there.
 - `athleteId` — **v2.** Slug from `program.json`'s `meta.athleteId`, naming the `athlete/<slug>/logs/` folder this file belongs in. Two athletes exporting into the same Drive folder is otherwise only distinguishable by the human-readable `athlete` name. Absent in v1 files.
 - Everything the athlete typed is a **string** (straight from inputs); unfilled fields are `""`, never `null`. The numbers in these files are only the ones the app computes: top-level `week`, `programVersion`, and `sets[].set`. On the programme side, `meta.weeks` and `exercises[].week` are likewise numbers. Never assume a prescription string parses numerically.
 - `prescribed` is denormalised into each entry on purpose, so a session file is self-contained and reviewable without the original programme.
@@ -467,19 +541,21 @@ against `meta.version`.
 
 ### Consumer expectations (the review step)
 
-The coach reads the newest `athlete/<slug>/logs/*.json` and compares logged load/reps/RPE against `prescribed`, checks `painDuring` and the morning pain field against the pain-monitoring rules, reads `readiness`/`sleep` for the autoregulation call, and then recommends the smallest effective adjustment. Keep that in mind before dropping any field. That step is the `review-workout-log` skill in `athlete/skills/` — its `SKILL.md` is the authoritative description of how these files are read.
+The coach reads the newest `athlete/<slug>/logs/*.json` and compares logged load/reps/RPE against `prescribed`, checks `painDuring` and the morning pain field against the pain-monitoring rules, reads `readiness`/`sleep` for the autoregulation call, and then recommends the smallest effective adjustment. **Keep that in mind before dropping any field** — that is the reason this section exists.
 
-**Read `schema` first**, then `tracking`, then the entries.
+**Read `schema` first**, then `tracking`, then the entries. Everything a reader needs to do that
+is above: the two tables, "Per-set logging", "Circuit logging", "Morning pain" and
+"`programVersion`".
 
-- `schema` tells you which fields exist. `tp-session-1`, `-2` and `-3` must all be readable; a
-  block spans the boundaries. v1 has no `sets[]`; v1 and v2 have `amPainNextDay` rather than
-  `amPainOnWaking`, and the two describe **different mornings**.
-- **`tracking`**: if `painPerExercise` / `painOnWaking` (or `painNextMorning` on an older file)
-  are `false`, the pain-monitoring rules simply don't apply to that athlete — absent pain data is
-  a configuration choice, not a missing log or a clean week.
-- **`programVersion`** against the current `meta.version` answers "did they train off this
-  programme?" in one comparison. On a v1/v2 log the field is absent — fall back to diffing
-  `prescribed`.
-- Review the athlete whose folder the file is in. `athleteId` (v2) confirms it; a file that
-  landed in the wrong folder is a filing mistake, not a licence to apply another athlete's
-  loading rules.
+What to *do* with those facts — the order of the review, which deviations are findings, how an
+adjustment is sized and gated — belongs to the `review-workout-log` skill in `athlete/skills/`,
+not here. This document owns the shape of the file; the skill owns the procedure.
+
+## Account portability file (`tp-account-export-1`)
+
+This is deliberately not a coaching contract and cannot be imported or restored. It is an
+owner-access export with `schema`, `exportedAt`, an `account` identity, cloud `programmes` (including
+30-day tombstones), cloud `sessions` (canonical and conflicts), and `device` state for the current
+installation (`activeProgram`, position, settings, local sessions and dirty sync queue). It must not
+contain Supabase sessions/tokens, the installation owner marker, credentials, or any `tp_demo_*`
+data. Sanitized examples belong in `samples/`; real exports must never be committed.

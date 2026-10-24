@@ -1,13 +1,18 @@
 .DS_Store
 
+# Playwright MCP browser-test diagnostics
+.playwright-mcp/
+
 # Python bytecode, anywhere in the repo. athlete/.gitignore already covers the
 # builder scripts' own __pycache__/; this covers everywhere else, which nothing
 # did.
 __pycache__/
 *.pyc
 
-# personal details
-docs/athlete-context.md
+# Local credentials for scripts/pull_logs.py (Supabase URL/keys, login).
+# NEVER commit — this repo is public.
+.env
+.env.*
 
 # --- Athlete data: NEVER commit. The GitHub repo is public. ---
 # Deny-by-default: EVERYTHING under athlete/ is ignored, and only the shared,

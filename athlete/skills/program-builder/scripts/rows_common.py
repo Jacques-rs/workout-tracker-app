@@ -8,9 +8,13 @@ they disagreed, the workbook and program.json silently described different
 programmes - a wrong prescription reaching the gym. Everything both scripts need
 to interpret a row lives here so there is one rule, not two.
 
-The 13 columns, in order:
+The 14 columns, in order:
   Week | Day | Exercise | Sets | Reps | Load | Intensity (RPE) | Tempo | Rest |
-  Completed | Completed Notes | Focus / Notes | Progression Rule
+  Completed | Completed Notes | Focus / Notes | Progression Rule | Category
+
+Category was appended, never inserted, because every archived rows.json under a
+block's revisions/ is 13 wide and must stay rebuildable - that is the whole point
+of snapshotting it. A 13-field row is accepted and padded with an empty Category.
 """
 import json
 import re
@@ -18,10 +22,10 @@ import sys
 
 COLS = ["Week", "Day", "Exercise", "Sets", "Reps", "Load", "Intensity (RPE)",
         "Tempo", "Rest", "Completed", "Completed Notes", "Focus / Notes",
-        "Progression Rule"]
+        "Progression Rule", "Category"]
 N_COLS = len(COLS)
 
-WEEK, DAY, EXERCISE = 0, 1, 2
+WEEK, DAY, EXERCISE, CATEGORY = 0, 1, 2, 13
 
 
 def die(msg):
@@ -34,6 +38,9 @@ def load_rows(path):
     Rejects: wrong column count, tabs/newlines in any cell (they break both the
     spreadsheet and the app's single-line layout), a missing or non-positive-
     integer Week, and an empty Day or Exercise.
+
+    A row of N_COLS - 1 fields is accepted and right-padded with an empty
+    Category, so a rows.json archived before that column existed still rebuilds.
     """
     try:
         with open(path, encoding="utf-8") as f:
@@ -51,11 +58,13 @@ def load_rows(path):
 
     out, problems = [], []
     for i, r in enumerate(rows):
-        if not isinstance(r, list) or len(r) != N_COLS:
+        if not isinstance(r, list) or len(r) not in (N_COLS, N_COLS - 1):
             n = len(r) if isinstance(r, list) else "not a list"
-            problems.append(f"row {i}: has {n} fields (need {N_COLS})")
+            problems.append(f"row {i}: has {n} fields (need {N_COLS}, or "
+                            f"{N_COLS - 1} for a file written before Category)")
             continue
         cells = ["" if c is None else str(c) for c in r]
+        cells += [""] * (N_COLS - len(cells))
         for j, s in enumerate(cells):
             if "\t" in s or "\n" in s:
                 problems.append(f"row {i}: col '{COLS[j]}' contains a tab/newline "

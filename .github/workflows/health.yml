@@ -1,0 +1,38 @@
+name: Public availability check
+
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check public shell, privacy page and service worker
+        run: |
+          set -euo pipefail
+          base='https://jacques-rs.github.io/workout-tracker-app'
+          curl --fail --silent --show-error --max-time 20 "$base/" >/dev/null
+          curl --fail --silent --show-error --max-time 20 "$base/privacy.html" >/dev/null
+          curl --fail --silent --show-error --max-time 20 "$base/sw.js" >/dev/null
+      - name: Check Supabase Auth and Data API availability without user data
+        run: |
+          set -euo pipefail
+          # Read the hosted config off the live site so the key has one owner: js/auth-config.js.
+          config=$(curl --fail --silent --show-error --max-time 20 'https://jacques-rs.github.io/workout-tracker-app/js/auth-config.js')
+          hosted=$(printf '%s\n' "$config" | grep -A2 'const HOSTED')
+          base=$(printf '%s\n' "$hosted" | grep -o 'https://[a-z0-9]*\.supabase\.co' | head -n1)
+          key=$(printf '%s\n' "$hosted" | grep -o 'sb_publishable_[A-Za-z0-9_-]*' | head -n1)
+          test -n "$base"
+          test -n "$key"
+          curl --fail --silent --show-error --max-time 20 -H "apikey: $key" "$base/auth/v1/health" >/dev/null
+          code=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 20 -H "apikey: $key" "$base/rest/v1/")
+          test "$code" != '000'
+          test "$code" != '500'
+          test "$code" != '502'
+          test "$code" != '503'
+          test "$code" != '504'
