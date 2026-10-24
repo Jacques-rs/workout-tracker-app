@@ -1,54 +1,84 @@
 # Roadmap & known gaps
 
-Ordered roughly by value-per-effort. Each item says *why*, because the guiding principle is that reliability and speed in the gym beat extra features.
+**Only what is not built.** Nothing here records completed work — when something ships, its
+entry is deleted, not annotated. Ordered roughly by value-per-effort, and each item says *why*,
+because reliability and speed in the gym beat extra features.
 
 ## High value
 
-**1. Interval / EMOM timer.**
-The programme leans on EMOM and interval formats ("EMOM every 90s", "45 sec hard / 75 sec easy", "2 min hard / 1 min easy"). Right now the athlete uses a separate timer app, which means leaving the tracker mid-session. An in-app timer that reads the `rest`/`reps` strings (or is set manually) would remove the one reason to switch apps. Must keep running with the screen locked or backgrounded if possible — verify behaviour before promising it.
+**1. Interval / EMOM timer.** The programme leans on interval formats ("EMOM every 90s",
+"45 sec hard / 75 sec easy"), so the athlete uses a separate timer app and leaves the tracker
+mid-session. A timer that reads the `rest`/`reps` strings, or is set by hand, removes the one
+reason to switch apps. Two smaller pieces belong with it rather than ahead of it: a stopwatch on
+a `Hold (s)`/`Time (min)` field that writes elapsed seconds into the field, and an **active rest
+countdown** seeded from `rest`, with sound or haptics. All three are cheap to draw and worthless
+if they stop counting when the screen locks — **verify background behaviour before promising
+any of them.** That verification is the whole risk and the reason this has not been started.
 
-**2. "Prefill from last time" per exercise.**
-Most logged values barely change week to week. Showing last session's actual load/reps/RPE as placeholder text (or a one-tap "same as last week") would cut logging time significantly. The data is already in `localStorage` — this is mostly a lookup across session keys.
+**2. One-tap "same as last week".** The logger already shows last session's load/reps/RPE
+(`lastTimeNode()`) and seeds each draft from the previous set, so the lookup exists. What is
+missing is the single tap that accepts it outright.
 
-**3. Backup / restore all data.**
-Everything lives in `localStorage`. There is currently no way to snapshot it. A single "Export all data" (and matching import) protects against a cleared browser, a lost phone, or storage eviction. **Risk worth verifying:** browsers can evict storage for sites that go unused; installed PWAs are generally more durable, but a periodic backup is the cheap insurance either way.
+**3. Restore from a backup.** `Export account data` produces a complete `tp-account-export-1`
+file, but nothing reads one back. Without restore, the export protects against a lost phone only
+if it is re-entered by hand. Browsers can evict storage for unused sites; installed PWAs are more
+durable, but restore is the cheap insurance.
 
-**3b. Emit `category` from `program-builder`.**
-The exercise cards colour-code by category (skill / strength / conditioning / tendon work).
-`tp-program-1` has no such field, so the app currently *guesses* from the exercise name — it
-is correct on the present sample, but it is inference, and a renamed exercise can silently
-change colour. Adding an optional `category` per exercise in the generator replaces the
-guess with a declaration. Cheap on both sides, and the app already prefers the declared
-value and degrades to no-tag when it can't tell. See `docs/data-contracts.md`.
+**4. Emit `category` from `program-builder`.** Cards colour-code by category (skill / strength /
+conditioning / tendon work) and no programme schema emits one, so the app *guesses* from the
+exercise name. It is right on the current sample, but a renamed exercise can silently change
+colour. An optional `category` per exercise replaces the guess with a declaration; the app already
+prefers a declared value and degrades to no-tag. Needs a 14th spreadsheet column, so it is a
+`program-builder` change. See `docs/data-contracts.md`.
 
 ## Medium value
 
-**4. Session history / trend view.**
-A simple list of past sessions, and per-exercise history (load and RPE over weeks, plus the knee-pain trend). The pain trend is genuinely decision-relevant — "no upward trend week over week" is one of the coaching rules — so surfacing it in-app would let the athlete self-correct before the coach review.
+**5. Per-exercise trend view.** Load and RPE over weeks, plus the pain trend. "No upward trend
+week over week" is one of the coaching rules, so surfacing it in-app would let the athlete
+self-correct before the coach review. The past-sessions *list* is not part of this — the hub and
+the calendar already are that.
 
-**5. Reduce the export→save friction.**
-Today: export downloads a file, then the athlete saves it into the Drive folder via the share sheet. Options, in increasing effort: (a) a "share" button using the Web Share API so it goes straight to Files/Drive; (b) exporting a whole week in one file; (c) real cloud sync via the Drive API, which would mean credentials and a backend — explicitly rejected so far.
+**6. Reduce export→save friction.** Export downloads a file, which the athlete then files into
+Drive through the share sheet. `navigator.share` is unused; a share button or a whole-week export
+would shorten it.
 
-**6. `localStorage` housekeeping.**
-Old `tp_sess_v1::*` keys accumulate forever. Harmless at this volume, but a "clear sessions older than N months" action (after backup) keeps things tidy.
+**7. `localStorage` housekeeping.** `tp_sess_v1::*` keys accumulate forever. Harmless at this
+volume, but a "clear sessions older than N months" action — after a backup — keeps it tidy.
 
-**7. Week-aware exercise filtering.**
-The app currently filters by day only, because the generator authors Week 1 as a template. If the `program-builder` skill is ever changed to author all weeks explicitly, the filter must become day **and** week, and the "apply your progression rule" banner should be removed. Coordinate both sides — see `docs/data-contracts.md`.
+**8. Log an earlier block's session late.** The claim picker offers the weeks of the block that
+owns the date, so the old block's last session, done on the new block's first Monday, can only be
+claimed by moving the new block's start. A "from the previous block" choice in the picker, shown
+only in a block's first week or two, would cover it.
 
 ## Lower value / speculative
 
-**8. Set-by-set logging.** Currently one row per exercise (actual load, sets×reps, RPE). Per-set rows would be more precise for top-set + back-off work, but adds taps in the gym. Probably not worth it — the coach reasons about top sets and overall quality, not every rep.
+**9. Plate calculator.** The athlete does this arithmetic automatically.
 
-**9. Plate calculator.** Nice-to-have; the athlete is advanced and does this arithmetic automatically.
+## Deferred on purpose
 
-**10. Multiple programmes side by side.** Only one programme is stored (`tp_program_v1`). Fine for a linear block structure; would only matter if running two blocks at once.
+Each of these is a real feature with a cost worth naming, not an oversight.
 
-## Explicitly not doing
+- **Off-programme workouts** (a pickup session, a race, a swim). A workout with no `(week, day)`
+  and no prescribed rows means either `tp-session-3` grows a variant or `review-workout-log`
+  receives a session it cannot compare against. Worth doing; worth not doing accidentally.
+- **Rest-day notes.** A rest day offers the next session and the claim picker. A place to write
+  "travelled, walked 8km" is small, but needs a store that can never be mistaken for a workout.
+- **Structured schedule fields.** The reader already accepts `meta.startDate` and a per-day
+  `weekday`; emitting them is a `program-builder` change and must land in lockstep.
+- **A prescribed per-set array.** Ramping sets stay in the `load` string ("60/70/80 kg"). Only
+  add one if that stops being expressive enough — it doubles the generator's surface.
+- **Swipe gestures.** Horizontal swipe collides with the pip strip and with text fields.
+  Prev/Next and the pips are unambiguous; arrow keys work on a desktop browser.
+- **Analytics, a framework rewrite, a native app-store build, coach roles, shared or team
+  accounts, public programme discovery, subscriptions, live collaborative editing, and any
+  server-side AI call.** None are in scope for a personal invite-only tool.
 
-Accounts, multi-user, a backend, analytics, a framework rewrite, an app-store native build. All rejected: they add maintenance and failure modes to a tool whose main virtue is that it opens instantly and works with no signal.
+## Accepted limitations
 
-## Housekeeping reminders
-
-- Bump `CACHE` in `sw.js` whenever a shell file changes.
-- Keep `program.json` in the repo as a **sample** only — never a real programme, never real logs.
-- Re-check the JSON contracts in `docs/data-contracts.md` if either side of the loop changes.
+- **320px needs one scroll** to reach the primary action on an exercise with a long prose
+  prescription. 390px — every current iPhone — fits without one. Fixing 320 properly means
+  truncating prescription text, which is worse.
+- **A rest day loses the morning reading.** `amPainOnWaking` is captured only on days the athlete
+  trains, so the morning after a session followed by a rest day is never recorded. A standalone
+  rest-day check-in means a second export shape for a reading that matters less than the trend it
+  feeds; `review-workout-log` compensates by attributing readings by date gap.

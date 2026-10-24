@@ -1,0 +1,40 @@
+# macOS
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# Editor / OS noise
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# --- Athlete data: NEVER commit ---
+# Deny-by-default, mirroring the repo-root .gitignore. Everything here is an
+# athlete folder (personal-profile.md, plans/, programs/, logs/) except the
+# shared parts named back in below, which hold no personal data. Ignoring the
+# lot means a file nobody anticipated — an export saved one level too high, a
+# scratch note, an archive/ directory — is covered without editing this file.
+#
+# No trailing slash on `/*`: it must match stray FILES here too, not just
+# directories.
+#
+# Do NOT swap this for a list of filenames to exclude. Listing what to hide
+# means anything unlisted is published by default.
+/*
+!/.gitignore
+!/README.md
+!/skills/
+!/sources/
+
+# Python
+__pycache__/
+*.pyc
+
+# Transient build output
+~$*.xlsx
+
+# Packaged skill bundles are build artefacts — skills/ is canonical.
+# See skills/README.md for how to rebuild one.
+*.skill
