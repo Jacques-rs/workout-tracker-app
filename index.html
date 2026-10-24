@@ -542,6 +542,26 @@
   .lt-value{font-size:var(--t-base);font-weight:800;color:var(--ink-dim);
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
   .lt-ago{font-size:var(--t-xs);color:var(--muted)}
+  /* The rail's "last time" is a button that must still look like a reading: the base
+     control chrome stripped, the row height unchanged. */
+  button.lasttime{background:transparent;border:0;border-radius:var(--r-sm);padding:0;
+    color:inherit;font-weight:inherit;min-height:26px}
+  button.lasttime:active{transform:none;background:var(--well)}
+  .lasttime .lt-ago{text-decoration:underline;text-underline-offset:2px}
+  /* The previous session's sets, in its popup. Muted ink: still the past, not a target. */
+  .prevsheet .rx{margin-bottom:var(--s3)}
+  .prevgrid{display:grid;grid-template-columns:2.4em repeat(3,minmax(0,1fr));
+    align-items:baseline}
+  .pg-h,.pg-c{padding-right:var(--s2)}
+  .prevgrid.pain{grid-template-columns:2.4em repeat(4,minmax(0,1fr))}
+  .pg-h{font-size:var(--t-xs);font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+    color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    padding-bottom:var(--s1)}
+  .pg-c{font-weight:700;color:var(--ink-dim);padding:var(--s2) 0;
+    border-top:1px solid var(--line-soft);overflow-wrap:anywhere}
+  .pg-n{grid-column:1/-1;font-size:var(--t-sm);color:var(--muted);padding-bottom:var(--s2)}
+  .pg-notes{margin-top:var(--s3);font-size:var(--t-sm);color:var(--muted);line-height:1.45;
+    white-space:pre-wrap}
 
   /* ---------- set editor (Log view, one set at a time) ----------
      Chips show every set already logged plus the one in progress; the fields below are
@@ -2700,7 +2720,7 @@ function buildSessionIndex(){
       const e=entries[id];
       const sets=(e&&Array.isArray(e.sets))?e.sets:[];
       if(!sets.length)return;                 /* nothing was committed — nothing to show */
-      logged.push({id,date,day:rec.day,week:rec.week,name:txt(e.name),sets});
+      logged.push({id,date,day:rec.day,week:rec.week,block:rec.block,name:txt(e.name),sets,entry:e});
     });
   }
   /* Ascending, so "the most recent one before this date" is a walk from the end. */
@@ -2734,6 +2754,26 @@ function lastLoggedFor(ex,date){
   (idx.byId.get(txt(ex.id))||[]).forEach(consider);
   (idx.byName.get(normName(ex.name))||[]).forEach(consider);
   return best;
+}
+/* "Last time" for the rail AND its popup — one answer, so the two cannot disagree. The
+   same programme day of the previous week wins: an exercise trained twice a week should
+   be compared with last Monday on a Monday, not with Thursday. Else the most recent. */
+function previousFor(ex,date,at){
+  if(!ex||!parseISO(date))return null;
+  const c=at||STATE,idx=sessionIndex(),week=Number(c.week)-1;
+  let best=null;
+  const consider=r=>{if(r.date<date&&r.block===txt(c.block)&&r.day===txt(c.day)&&
+    r.week===week&&(!best||r.date>best.date))best=r;};
+  (idx.byId.get(txt(ex.id))||[]).forEach(consider);
+  (idx.byName.get(normName(ex.name))||[]).forEach(consider);
+  return best||lastLoggedFor(ex,date);
+}
+/* The row as it was prescribed THEN, from its own block's programme — ids repeat across
+   blocks and loads progress week to week, so neither PROGRAM nor today's row will do. */
+function prescribedThen(rec){
+  const b=rec?blockByKey(rec.block):null;
+  const list=b&&b.program&&Array.isArray(b.program.exercises)?b.program.exercises:[];
+  return list.find(x=>x.id===rec.id)||null;
 }
 
 /* ---------- set mutation ---------- */
@@ -3943,7 +3983,7 @@ function agoWords(n){
   return weeks<9?weeks+" weeks ago":Math.round(n/30)+" months ago";
 }
 function lastTimeNode(ex,e){
-  const rec=lastLoggedFor(ex,STATE.date);
+  const rec=previousFor(ex,STATE.date);
   if(!rec||!rec.sets.length)return null;
   const n=((e&&Array.isArray(e.sets))?e.sets.length:0)+1;
   const same=rec.sets[n-1];
@@ -3952,10 +3992,47 @@ function lastTimeNode(ex,e){
   const value=[txt(row.load),withUnit(txt(row.reps),metricOf(ex).unit)]
     .filter(Boolean).join(" × ");
   if(!value)return null;
-  return el("div",{className:"lasttime"},[
-    el("span",{className:"lt-label"},same?`Set ${n} last time`:"Top set last time"),
+  const label=same?`Set ${n} last time`:"Top set last time";
+  const ago=agoWords(daysBetween(rec.date,STATE.date));
+  /* A button only so the whole session is one tap away — it still reads as a fact. */
+  const node=el("button",{className:"lasttime",
+    attrs:{"aria-label":`${label}: ${value}, ${ago}. Show every set.`}},[
+    el("span",{className:"lt-label"},label),
     el("span",{className:"lt-value tnum"},value),
-    el("span",{className:"lt-ago"},agoWords(daysBetween(rec.date,STATE.date)))]);
+    el("span",{className:"lt-ago"},ago+" ›")]);
+  node.onclick=()=>openPreviousSheet(ex,rec);
+  return node;
+}
+/* Every set of that session in a popup over the logger: a quick look, then back to the
+   same field. Read-only on purpose — nothing here copies into the draft, because a value
+   that appears in a field without being typed is a set that might not have happened. */
+function openPreviousSheet(ex,rec){
+  const metric=metricOf(ex),pain=!!SETTINGS.painPerExercise,round=!!circuitOf(ex);
+  const then=prescribedThen(rec),e=rec.entry||{};
+  const body=el("div",{className:"prevsheet"});
+  if(then)body.append(el("div",{className:"rx"},["Prescribed then: "].concat(rxLine(then))));
+  const grid=el("div",{className:"prevgrid"+(pain?" pain":"")});
+  const head=[round?"Rnd":"Set","Load",metric.fieldLabel,"RPE"];
+  if(pain)head.push(txt(SETTINGS.painLabel)||"Pain");
+  head.forEach(h=>grid.append(el("span",{className:"pg-h"},h)));
+  rec.sets.forEach((r,i)=>{
+    const cells=[String(i+1),txt(r.load),txt(r.reps),txt(r.rpe)];
+    if(pain)cells.push(txt(r.painDuring));
+    cells.forEach(v=>grid.append(el("span",{className:"pg-c tnum"},v||"–")));
+    if(txt(r.note))grid.append(el("span",{className:"pg-n"},txt(r.note)));
+  });
+  body.append(grid);
+  if(txt(e.notes))body.append(el("div",{className:"pg-notes"},txt(e.notes)));
+  const close=el("button",{className:"ghost"},"Close");close.onclick=sheetClose;
+  body.append(el("div",{className:"sheet-actions"},close));
+  /* Where it came from, said only when it differs from where the athlete is now. */
+  const where=[fmtDate(rec.date)];
+  if(then&&then.week)where.push("Week "+then.week);
+  if(rec.day!==txt(STATE.day))where.push(rec.day);
+  if(rec.block!==txt(STATE.block)){const b=blockByKey(rec.block),m=b&&b.program&&b.program.meta;
+    if(m&&m.block)where.push(m.block);}
+  where.push(agoWords(daysBetween(rec.date,STATE.date)));
+  sheetOpen(ex.name,where.join(" · "),body);
 }
 /* The two instruments on one rule. If the clock has nothing to say it hides itself and
    "last time" has the row to itself — on a 320×568 screen every row above the fields is

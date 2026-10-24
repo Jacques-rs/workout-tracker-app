@@ -8,7 +8,7 @@ It must not reach `dev`.
 
 | # | Piece | Status |
 |---|---|---|
-| A | Previous-session detail: tap "last time" to see every set | build first, no platform risk |
+| A | Previous-session detail: tap "last time" to see every set | **built** — landing notes still owed |
 | S | Spike: what an installed iPhone PWA actually does with timers, wake lock and sound | gates B and C |
 | B | Rest countdown with an end-of-rest cue | after S |
 | C | Interval / EMOM timer | after S |
@@ -183,10 +183,13 @@ commit; delete roadmap #6 when it lands.
 - `samples/README.md`: the test inventory, if new suites are added.
 - `sw.js`: a `CACHE` bump with every shell change.
 
-## Open decisions for Jacques
+## Decisions (Jacques)
 
-1. Rule 1 for "previous" (same day last week first): agree?
-2. Beep default: on or off?
-3. Spike page temporarily on `dev`: OK?
-4. Timer pause in v1: yes or no? (Recommendation: no.)
-5. Should a round boundary make the Log action more prominent, or stay silent visually too?
+1. "Previous" = same programme day last week first, else most recent. **Yes.**
+2. Beep default: **off.**
+3. Spike page temporarily on `dev`: **OK.**
+4. Timer: **no pause, but it must have a restart** (restart = a fresh `startedAt`, after a
+   confirm if mid-run).
+5. Round boundary: Claude's call, by the athlete's experience. Decided under C when built.
+6. A is a **popup** over the logger (the existing bottom sheet: scrim, × in the corner) with
+   a full-width **Close** at the bottom for the thumb — a quick look, never a page change.

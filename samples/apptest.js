@@ -2391,6 +2391,55 @@ console.log("\nthe focus logger: the instruments, and the regressions this can r
     ["yesterday", "6 days ago", "3 weeks ago", "4 months ago"],
     "how long ago is worded at the scale it matters");
 
+  /* ---- "last time" prefers the same day last week, and opens every set ---- */
+  /* One lift on three days, so "most recent" and "same day last week" disagree. */
+  const dA = "Day 1 (Mon) - A", dB = "Day 2 (Thu) - B", dC = "Day 3 (Sat) - C";
+  const twice = { meta: { schema: "tp-program-2", block: "Twice", athlete: "Sample",
+    athleteId: "sample", weeks: 2, days: [dA, dB, dC] },
+    exercises: [1, 2].flatMap(w => [dA, dB, dC].map((d, i) => ({
+      id: `w${w}d${i + 1}e1`, week: w, day: d, name: "Back squat", sets: "3", reps: "5",
+      load: w === 1 ? "100" : "105", rpe: "RPE 7", tempo: "", rest: "2 min", logHint: "",
+      focus: "", progression: "" }))) };
+  store.clear(); app.SETTINGS = { ...app.SET_DEFAULTS };
+  app.loadProgram(twice);
+  app.openDate("2026-06-01"); app.applyClaim(1, dA); log("100", "5"); log("102", "4");
+  app.openDate("2026-06-04"); app.applyClaim(1, dB); log("90", "8");
+  app.openDate("2026-06-08"); app.applyClaim(2, dA); log("105", "5");
+  app.openDate("2026-06-11"); app.applyClaim(2, dB);
+  const sq = app.dayExercises()[0];
+  is(app.previousFor(sq, "2026-06-11").date, "2026-06-04",
+    "the same day last week beats a more recent session on another day");
+  assert(/90/.test(lt().text), "and the rail shows that session, not the most recent one");
+  app.openDate("2026-06-13"); app.applyClaim(2, dC);
+  is(app.previousFor(app.dayExercises()[0], "2026-06-13").date, "2026-06-08",
+    "with no same-day session last week it falls back to the most recent");
+
+  /* The popup: every set, read-only, prescription from THEN, closable. */
+  app.openDate("2026-06-08"); app.applyClaim(2, dA);
+  app.sheetClose();
+  lt().onclick();
+  const body = stubFor("#sheetBody");
+  is(stubFor("#sheetTitle").text, "Back squat", "tapping 'last time' opens a popup for that exercise");
+  assert(/Week 1/.test(stubFor("#sheetCopy").text), "saying which week it came from");
+  assert(!/Day 1 \(Mon\)/.test(stubFor("#sheetCopy").text),
+    "…and not repeating the day when it is the day being trained");
+  const cells = body.findAll(n => n.classList.contains("pg-c")).map(n => n.text);
+  assert(cells.includes("100") && cells.includes("102") && cells.includes("4"),
+    "every set of that session is listed, not just the matching one");
+  assert(/Prescribed then: 3 × 5 · 100/.test(body.text),
+    "the prescription is the one that week carried, not today's");
+  is(body.findAll(n => /^(INPUT|TEXTAREA|SELECT)$/.test(n.tagName)).length, 0,
+    "the popup is read-only — nothing in it can be typed into");
+  assert(body.findAll(n => n.classList.contains("pg-h")).some(n => /Knee|Pain/.test(n.text)),
+    "a tracked pain field gets a column");
+  assert(!!sheetButton(/^Close$/), "and it has a Close button within thumb reach");
+  sheetButton(/^Close$/).onclick();
+  app.SETTINGS.painPerExercise = false; app.renderMain && app.renderMain();
+  lt().onclick();
+  assert(!stubFor("#sheetBody").findAll(n => n.classList.contains("pg-h")).some(n => /Knee|Pain/.test(n.text)),
+    "a field that is switched off renders nowhere — not even as a column");
+  app.sheetClose(); app.SETTINGS.painPerExercise = true;
+
   /* ---- a typed-but-unlogged set waits for a tap, wherever the athlete goes ---- */
   /* Two exercises, so Next has somewhere to go. */
   const twoDay = "Day 1 (Mon) - Two lifts";
