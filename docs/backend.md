@@ -35,6 +35,12 @@ relational metadata columns:
 | `session_logs` | A `tp-session-*` snapshot plus owner, programme/conflict references, session metadata, revision and soft-delete timestamps |
 | `user_settings` | One row per owner: which optional fields are tracked and what the pain field is called, plus a per-field timestamp map. Preferences only — no workout payload, no health readings, nothing that reaches a log file |
 
+One link table, `coach_athletes`: an administrator-created coach → athlete pair, revocable by
+either side. A coach reaches a linked athlete's programmes and logs **only** through the
+link-checked `coach_*` functions; the three tables' policies stay owner-only, because the app
+lists them through RLS alone and a coach policy would put an athlete's rows in the coach's own
+library.
+
 Add a table only when a demonstrated requirement cannot be expressed cleanly here, and do not
 prematurely normalize every exercise and set. Analytics can use Postgres JSON queries or derived
 views first.

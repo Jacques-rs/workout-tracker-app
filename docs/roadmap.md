@@ -4,6 +4,30 @@
 entry is deleted, not annotated. Ordered roughly by value-per-effort, and each item says *why*,
 because reliability and speed in the gym beat extra features.
 
+## In progress — the coaching loop through the account
+
+Every hand-off in the plan → track → review loop is a file moved by a person: `program.json` to
+the phone, each session export into `logs/`, and every revision re-imported with nothing telling
+the phone it is stale. Sessions already sync and the library already offers **Update device**, so
+the coaching side reads and writes through the account instead, and the files remain the contract
+and the local archive. Reviews become **weekly**: every session since the last review, revising
+the weeks ahead. Each step lands on its own:
+
+1. **Coach link.** `coach_athletes` plus link-checked `coach_*` functions; the tables stay
+   owner-only, so a coach's own app never lists an athlete's rows. Links are created by an
+   administrator and revocable by the athlete.
+2. **Contract.** Two additive `tp-program-2` meta fields — a short change note the athlete sees,
+   and the last session date a revision reviewed, from which "already reviewed" is derived —
+   and `program-builder` emitting `meta.startDate`.
+3. **Coach sync script.** Signs in as the coach; pulls a week into `logs/`, publishes a new block
+   to the athlete's library, and publishes a revision onto the existing row. It refuses a change
+   to any week that already has a logged session, and any reorder that shifts exercise ids.
+4. **`review-workout-log`, weekly.** Input is everything since the reviewed-through date.
+5. **App.** The change note on **Update device**; a coach-published block in the library with its
+   suggested start. The athlete still activates — the coach never swaps a plan on a phone.
+6. **Docs.** `CLAUDE.md`'s files-only integration rule and `docs/backend.md`'s boundary are
+   rewritten for the coach link, and this entry is deleted.
+
 ## Medium value
 
 **1. Per-exercise trend view.** Load and RPE over weeks, plus the pain trend. "No upward trend
@@ -55,9 +79,9 @@ Each of these is a real feature with a cost worth naming, not an oversight.
   add one if that stops being expressive enough — it doubles the generator's surface.
 - **Swipe gestures.** Horizontal swipe collides with the pip strip and with text fields.
   Prev/Next and the pips are unambiguous; arrow keys work on a desktop browser.
-- **Analytics, a framework rewrite, a native app-store build, coach roles, shared or team
-  accounts, public programme discovery, subscriptions, live collaborative editing, and any
-  server-side AI call.** None are in scope for a personal invite-only tool.
+- **Analytics, a framework rewrite, a native app-store build, coach roles beyond the one-way
+  coach link, shared or team accounts, public programme discovery, subscriptions, live
+  collaborative editing, and any server-side AI call.** None are in scope for a personal invite-only tool.
 
 ## Accepted limitations
 
