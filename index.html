@@ -3704,10 +3704,21 @@ function settingsGroup(title,note,build){
   box.append(body);
   return box;
 }
+/* The build is the service worker's cache name (`CACHE` in sw.js), read back from the cache
+   it actually filled, so the label names what this phone is running, not what the server has. */
+function buildLabel(){
+  const p=el("p",{className:"page-copy"},"");
+  if(window.caches&&caches.keys)caches.keys().then(keys=>{
+    const k=keys.filter(n=>/^tp-tracker-/.test(n)).sort().pop();
+    if(k)p.textContent="App build "+k.replace(/^tp-tracker-/,"");
+  }).catch(()=>{});
+  return p;
+}
 function renderAccountPage(){
   const host=$("#pageBody");if(!host)return;
   host.innerHTML="";
   if(window.TPProfileUI&&TPProfileUI.renderAccount)TPProfileUI.renderAccount(host);
+  host.append(buildLabel());
   /* Only an owner has an account for these to follow. */
   if(!cachedAccess())return;
   const sync=window.TPAccountSettings&&TPAccountSettings.getState
