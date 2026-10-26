@@ -3709,8 +3709,8 @@ function settingsGroup(title,note,build){
 function buildLabel(){
   const p=el("p",{className:"page-copy"},"");
   if(window.caches&&caches.keys)caches.keys().then(keys=>{
-    const k=keys.filter(n=>/^tp-tracker-/.test(n)).sort().pop();
-    if(k)p.textContent="App build "+k.replace(/^tp-tracker-/,"");
+    const n=keys.map(k=>+(/^tp-tracker-v(\d+)$/.exec(k)||[])[1]).filter(x=>x>0);
+    if(n.length)p.textContent="App build v"+Math.max.apply(null,n);
   }).catch(()=>{});
   return p;
 }
