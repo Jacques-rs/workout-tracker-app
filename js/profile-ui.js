@@ -244,6 +244,8 @@
         accountActions.push(button("Export account data", "ghost profile-wide", run(async () => {
           if (options.onExportAccount) await options.onExportAccount();
         })));
+        // A Google sign-in may never have set a password, and deletion re-authenticates with one.
+        accountActions.push(button("Set or change password", "ghost profile-wide", () => openAuth("set-password")));
         accountActions.push(button("Delete account…", "ghost danger profile-wide", run(async () => {
           if (options.onDeleteAccount) await options.onDeleteAccount();
         })));
