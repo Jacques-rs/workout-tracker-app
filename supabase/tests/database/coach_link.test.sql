@@ -5,7 +5,7 @@ set search_path = public, extensions;
 select no_plan();
 
 -- The coach link: an administrator-created pair, read and written only through the
--- link-checked coach_* functions. See docs/roadmap.md, "the coaching loop".
+-- link-checked coach_* functions. See docs/backend.md, "The current boundary".
 select ok(to_regclass('public.coach_athletes') is not null, 'coach_athletes table exists');
 select ok(
   (select relrowsecurity and relforcerowsecurity

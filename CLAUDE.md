@@ -78,11 +78,12 @@ the athlete to any device (last write wins, per field); device-scoped ones stay 
 ## The wider workflow this app sits in
 
 This repo is **step 3** of a four-step loop: a coaching project **plans** and **builds** a
-programme, the athlete **tracks** it here, and `review-workout-log` **reviews** the exported log and
-revises the next week. Steps 1, 2 and 4 live under `athlete/` — see `athlete/README.md`. Cloud
-backup does not connect the app to those tools: their only integration is the versioned JSON
-contracts, `program.json` in and `session-<date>-<day>.json` out. A revised week is re-imported by
-hand; the app does not prompt for it.
+programme, the athlete **tracks** it here, and `review-workout-log` **reviews** each week and
+revises the weeks ahead. Steps 1, 2 and 4 live under `athlete/` — see `athlete/README.md`. The
+versioned JSON contracts are the whole interface — `program.json` in, `session-<date>-<day>.json`
+out — and `coach_sync.py` carries them through the account. **A coach reaches an athlete only
+through the link-checked `coach_*` functions, never a policy on the athlete's tables, and never
+activates or replaces a programme on a phone:** the athlete taps Activate or Update device.
 
 **Implication for design decisions:** the app's job is to make *capturing decision-relevant data*
 fast and reliable under gym conditions. Every field exists because a coach needs it downstream.

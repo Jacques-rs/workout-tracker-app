@@ -22,7 +22,8 @@ preserves a recoverable conflict copy rather than silently merging individual se
 
 Invite-only private beta on Supabase, using administrator invitations; public and anonymous
 sign-up are disabled. Sign-in is email and password with verification and recovery. Programmes are
-private and user-owned, imported through the existing JSON flow, with one active at a time.
+private and user-owned, imported through the existing JSON flow or published into the library by a
+linked coach, with one active at a time.
 One installation belongs to one account: a first successful sign-in binds it, and a different
 account is rejected without deleting local data.
 
@@ -53,6 +54,10 @@ Features outside this boundary are listed under **Deferred on purpose** in `docs
 - **Hosted Auth-email sends require explicit approval.** See `CLAUDE.md` § Verifying changes —
   it owns this rule. Check the live project's rate-limit/SMTP configuration rather than assuming
   a documented default.
+- **Coach writes stop at the library.** A `coach_*` function may add a programme row or revise
+  one from the revision the coach read; it never deletes, activates, or writes `session_logs`.
+  Widening coach access means a new function with its own link check and two-user test, never
+  a policy on the owner tables.
 - **Device persistence stays in the immediate autosave path.** Remote sync is asynchronous and
   retryable, and the data flow is one-directional: UI → local store → sync queue → remote store.
   Rendering and input handlers must never make a direct network write.

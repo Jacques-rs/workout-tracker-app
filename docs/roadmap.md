@@ -4,14 +4,6 @@
 entry is deleted, not annotated. Ordered roughly by value-per-effort, and each item says *why*,
 because reliability and speed in the gym beat extra features.
 
-## In progress — the coaching loop through the account
-
-`coach_sync.py` moves sessions to the weekly review and revisions to the athlete's library
-(`athlete/README.md`). One piece is not built:
-
-1. **Docs.** `CLAUDE.md`'s files-only integration rule and `docs/backend.md`'s boundary are
-   rewritten for the coach link, and this entry is deleted.
-
 ## Medium value
 
 **1. Per-exercise trend view.** Load and RPE over weeks, plus the pain trend. "No upward trend
