@@ -132,6 +132,8 @@ ok(/2026-08-14/.test(copy) && /Squat/.test(copy) && /Moved well/.test(copy),
   "a copy that is not on this device stays readable");
 button("Download JSON").onclick(); button("Copy JSON").onclick();
 button("Export account data").onclick(); button("Delete account…").onclick();
+opened.length = 0; button("Set or change password").onclick();
+same(opened, ["set-password"], "a signed-in owner can set a password, so a Google-only account can still be deleted");
 button("Start workout").onclick(); button("Import programme JSON…").onclick(); button("Remove").onclick();
 same([workoutOpens, imports], [1, 1], "programme actions enter training or request a library import");
 same([historyDownloads, historyCopies], [1, 1], "history export actions stay behind profile callbacks");

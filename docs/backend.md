@@ -21,9 +21,11 @@ preserves a recoverable conflict copy rather than silently merging individual se
 ## The current boundary
 
 Invite-only private beta on Supabase, using administrator invitations; public and anonymous
-sign-up are disabled. Sign-in is email and password with verification and recovery. Programmes are
-private and user-owned, imported through the existing JSON flow or published into the library by a
-linked coach, with one active at a time.
+sign-up are disabled. Sign-in is email and password with verification and recovery, or Google for an
+invited email: Supabase links that Google identity to the existing user, and a Google account whose
+email was never invited is refused as a sign-up. Programmes are private and user-owned, imported
+through the existing JSON flow or published into the library by a linked coach, with one active at
+a time.
 One installation belongs to one account: a first successful sign-in binds it, and a different
 account is rejected without deleting local data.
 
@@ -58,6 +60,13 @@ Features outside this boundary are listed under **Deferred on purpose** in `docs
   one from the revision the coach read; it never deletes, activates, or writes `session_logs`.
   Widening coach access means a new function with its own link check and two-user test, never
   a policy on the owner tables.
+- **Google is the only OAuth provider, and the client keeps `flowType: "implicit"`.** PKCE would
+  reject the administrator's invite links, which carry no code verifier. The Google OAuth client
+  and its secret live in Google Cloud and the hosted dashboard, never in the repo; its one redirect
+  URI is the project's `/auth/v1/callback`. Google is an extra way in, not a replacement: accepting
+  an invite still sets a password, because account deletion re-authenticates with one and it is
+  the fallback whenever Google is unavailable. `supabase/config.toml` leaves Google off locally, so the
+  local stack and CI need no Google credentials.
 - **Device persistence stays in the immediate autosave path.** Remote sync is asynchronous and
   retryable, and the data flow is one-directional: UI → local store → sync queue → remote store.
   Rendering and input handlers must never make a direct network write.

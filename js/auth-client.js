@@ -13,12 +13,17 @@
     location: root.location,
     history: root.history,
     navigator: root.navigator,
+    fetch: root.fetch ? root.fetch.bind(root) : null,
     addWindowListener: root.addEventListener ? root.addEventListener.bind(root) : null
   });
 })(typeof globalThis !== "undefined" ? globalThis : this, (function () {
   "use strict";
 
   const FLOW_TYPES = new Set(["invite", "recovery", "signup"]);
+  // A provider's redirect carries its own wording, so codes the athlete can act on get ours.
+  const REDIRECT_MESSAGES = {
+    signup_disabled: "That Google account is not invited. Use the Google account with the email your invitation was sent to."
+  };
 
   function text(value) {
     return String(value == null ? "" : value).trim();
@@ -71,6 +76,7 @@
       over_request_rate_limit: "Too many attempts. Wait a little and try again.",
       request_timeout: "The request timed out. Check your connection and try again.",
       account_conflict: "This installation is already bound to a different beta account.",
+      provider_disabled: "Google sign-in is not set up yet. Use your email and password.",
       auth_unavailable: "Account services are unavailable. Cached workouts still work."
     };
     if (isNetworkError(error)) return { code: "network_error", message: "You appear to be offline. Try again when connected." };
@@ -90,12 +96,15 @@
     let client = null;
     let state = {
       status: "loading", user: null, owner, flow: captured.flow,
-      error: captured.errorCode ? {
-        code: captured.errorCode,
-        message: captured.errorDescription || "This account link is invalid or has expired."
-      } : null,
+      error: capturedError(),
       online: networkAvailable
     };
+
+    function capturedError() {
+      if (!captured.errorCode) return null;
+      return { code: captured.errorCode, message: REDIRECT_MESSAGES[captured.errorCode] ||
+        captured.errorDescription || "This account link is invalid or has expired." };
+    }
 
     function publicState() {
       return {
@@ -235,10 +244,7 @@
       }
       if (captured.errorCode) {
         initialized = true;
-        emit({ status: deriveStatus(), error: {
-          code: captured.errorCode,
-          message: captured.errorDescription || "This account link is invalid or has expired."
-        }});
+        emit({ status: deriveStatus(), error: capturedError() });
         cleanReturnUrl();
       }
       return publicState();
@@ -252,6 +258,51 @@
         if (result.error) return { ok: false, error: friendlyError(result.error) };
         const accepted = await acceptSession(result.data && result.data.session, null);
         return accepted ? { ok: true } : { ok: false, error: friendlyError({ code: "account_conflict" }) };
+      } catch (error) {
+        if (isNetworkError(error)) networkAvailable = false;
+        return { ok: false, error: friendlyError(error) };
+      }
+    }
+
+    // Asks the project first: an OAuth redirect to a disabled provider lands on a raw JSON error
+    // page outside the app, so only an explicit `google: true` lets the redirect start. Returns
+    // the refusal's error code, or null to proceed. Bounded, so a stalled request frees the button.
+    async function googleRefusal() {
+      if (typeof deps.fetch !== "function") return null;
+      const abort = typeof AbortController === "function" ? new AbortController() : null;
+      let timer = null;
+      const timedOut = new Promise(resolve => {
+        timer = setTimeout(() => { if (abort) abort.abort(); resolve("timeout"); },
+          deps.settingsTimeoutMs || 8000);
+      });
+      try {
+        const response = await Promise.race([timedOut, deps.fetch(`${config.url}/auth/v1/settings`,
+          { headers: { apikey: config.publishableKey }, signal: abort ? abort.signal : undefined })]);
+        if (response === "timeout") return "request_timeout";
+        if (!response || !response.ok) return "auth_unavailable";
+        const settings = await response.json();
+        return settings && settings.external && settings.external.google === true ? null : "provider_disabled";
+      } catch (error) {
+        return isNetworkError(error) ? "network_error" : "auth_unavailable";
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    // Leaves the app for Google; the session arrives on the redirect back and goes through
+    // handleAuthEvent like any other, so the installation-owner check still applies.
+    async function signInWithGoogle() {
+      if (!client || !client.auth.signInWithOAuth) return { ok: false, error: friendlyError({ code: "auth_unavailable" }) };
+      if (!networkAvailable) return { ok: false, error: friendlyError({ code: "network_error" }) };
+      try {
+        const refusal = await googleRefusal();
+        if (refusal) return { ok: false, error: friendlyError({ code: refusal }) };
+        const result = await client.auth.signInWithOAuth({ provider: "google", options: {
+          redirectTo: config.redirectUrl,
+          queryParams: { prompt: "select_account" }
+        } });
+        if (result && result.error) return { ok: false, error: friendlyError(result.error) };
+        return { ok: true };
       } catch (error) {
         if (isNetworkError(error)) networkAvailable = false;
         return { ok: false, error: friendlyError(error) };
@@ -370,6 +421,7 @@
         return () => listeners.delete(listener);
       },
       signIn,
+      signInWithGoogle,
       requestRecovery,
       updatePassword,
       signOutLocal,

@@ -99,6 +99,19 @@
       const submit = node(document, "button", { className: "primary", type: "submit", textContent: "Sign in" });
       const forgot = node(document, "button", { className: "quietaction", type: "button", textContent: "Forgot password?" });
       forgot.onclick = () => open("recovery");
+      if (auth.signInWithGoogle) {
+        const google = node(document, "button", { className: "ghost auth-google", type: "button",
+          textContent: "Continue with Google" });
+        google.onclick = async () => {
+          setError(error, ""); setBusy(google, true, "Continue with Google");
+          const result = await auth.signInWithGoogle();
+          // On success the page is already leaving for Google, so the button stays busy.
+          if (result.ok) return;
+          setBusy(google, false, "Continue with Google");
+          setError(error, result.error.message);
+        };
+        form.append(google, node(document, "p", { className: "auth-or" }, "or use your email and password"));
+      }
       form.append(node(document, "label", { className: "auth-field" }, [
         node(document, "span", {}, "Email"), email
       ]));
@@ -142,17 +155,17 @@
       return form;
     }
 
-    function passwordForm() {
+    function passwordForm(chosen) {
       const state = auth.getState();
-      const invite = state.flow === "invite" || state.owner && state.owner.pendingFlow === "invite";
+      const invite = !chosen && (state.flow === "invite" || state.owner && state.owner.pendingFlow === "invite");
+      const label = invite ? "Accept invitation" : chosen ? "Save password" : "Update password";
       const form = node(document, "form", { className: "auth-form" });
       const password = node(document, "input", { type: "password",
         attrs: { required: "", minlength: "8", autocomplete: "new-password", "aria-label": "New password" } });
       const confirm = node(document, "input", { type: "password",
         attrs: { required: "", minlength: "8", autocomplete: "new-password", "aria-label": "Confirm new password" } });
       const error = node(document, "div", { className: "auth-error", hidden: true, attrs: { role: "alert" } });
-      const submit = node(document, "button", { className: "primary", type: "submit",
-        textContent: invite ? "Accept invitation" : "Update password" });
+      const submit = node(document, "button", { className: "primary", type: "submit", textContent: label });
       form.append(node(document, "p", { className: "auth-rule" },
         "Use at least 8 characters, including a letter and a number."));
       form.append(node(document, "label", { className: "auth-field" }, [
@@ -168,12 +181,11 @@
           setError(error, "Use at least 8 characters, including a letter and a number."); return;
         }
         if (password.value !== confirm.value) { setError(error, "Passwords do not match."); return; }
-        const label = invite ? "Accept invitation" : "Update password";
         setBusy(submit, true, label);
         const result = await auth.updatePassword(password.value);
         setBusy(submit, false, label);
         if (!result.ok) { setError(error, result.error.message); return; }
-        close(); toast(invite ? "Invitation accepted — signed in" : "Password updated");
+        close(); toast(invite ? "Invitation accepted — signed in" : chosen ? "Password saved" : "Password updated");
       };
       return { form, invite };
     }
@@ -191,8 +203,18 @@
           built.form, { locked: true });
         return;
       }
+      if (mode === "set-password") {
+        modal("Set or change password", "Confirms sensitive actions such as deleting this account. Google sign-in keeps working.",
+          passwordForm(true).form);
+        return;
+      }
       if (mode === "error") {
         const state = auth.getState();
+        if (state.error && state.error.code === "signup_disabled") {
+          modal("Google account not invited", "Private beta accounts are created by administrator invitation.",
+            messagePanel(state.error.message));
+          return;
+        }
         modal("Account link problem", "The invitation or recovery link could not be used.",
           messagePanel(state.error && state.error.message || "Ask for a new link and try again."));
         return;
@@ -259,7 +281,7 @@
       unsubscribe = auth.subscribe(state => {
         if (state.status === "setup-required" && state.flow && lastAutoFlow !== state.flow) {
           lastAutoFlow = state.flow; open("password");
-        } else if (state.error && ["otp_expired", "access_denied", "bad_code_verifier"].includes(state.error.code)) {
+        } else if (state.error && ["otp_expired", "access_denied", "bad_code_verifier", "signup_disabled"].includes(state.error.code)) {
           open("error");
         }
       });
