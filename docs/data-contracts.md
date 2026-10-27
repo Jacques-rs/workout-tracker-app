@@ -78,6 +78,9 @@ strict. Do not move the strictness into the app.
 |---|---|---|---|
 | `meta.version` | number ≥1 | skill | Treated as **`0`**, not `1` — the app does not invent a revision number it cannot know. Shown as `· v<N>` in the header (silent when `0`) and stamped into every export as `programVersion`. |
 | `meta.generated` | string | skill | No effect. |
+| `meta.startDate` | `YYYY-MM-DD` | skill | The block's suggested start — snapped to its Monday, and never over an anchor the athlete has already set. Absent = the Monday after the previous block, else this week. |
+| `meta.changeNote` | string, one line, ≤280 | skill | A revision's what-and-why, for the athlete. No note. |
+| `meta.reviewedThrough` | `YYYY-MM-DD` | skill | The last session date the revision's review covered. The next weekly review starts after it. |
 | `exercises[].sets`, `reps`, `load`, `rpe`, `tempo`, `rest` | **string** | skill | Renders empty. **Never numbers** — they hold ranges and prose (`"8-10 min"`, `"~115-135 kg"`). |
 | `exercises[].logHint` | string | skill | No blue "Log:" line. |
 | `exercises[].focus`, `progression` | string | skill | Section collapsed/absent. |
@@ -171,6 +174,9 @@ every prescription — never assume one parses numerically.
 | `meta.days` | **Ordered** list of day labels. Drives the day selector; order matters. |
 | `meta.weeks` | Populates the week selector (1..N). Under v2 every one of those weeks has rows. |
 | `meta.version` | **Optional.** Revision number of this programme: `1` on the initial build, +1 each time `review-workout-log` revises a week mid-block. It exists so a `program.json`, its archived copy in `revisions/program-v<N>.json` and its `CHANGELOG.md` entry line up. The app reads it in exactly one place, `progVersion()`, which shows it as `· v<N>` in the header and stamps it into every export as `programVersion` — so a log states which revision it was trained off. **A file with no `version` reads as `0`, not `1`:** the app stays silent rather than claiming a revision number it cannot know. Nothing about rendering or filtering depends on it. |
+| `meta.startDate` | **Optional.** Emitted by `program-builder --start-date` for a new block. The app reads it only through `anchorFor()` and `suggestedStart()`, snaps it to the Monday of its week, and lets an anchor already stored for that `programKey` win, so a revision carrying the same date never moves a running block. `validate_program.py` rejects a non-date and warns on a non-Monday. |
+| `meta.changeNote` | **Optional, revisions only.** One line saying what changed and why, written by `review-workout-log` and meant for the athlete's eyes, unlike `CHANGELOG.md`. Single line, at most 280 characters, never blank — the validator rejects all three, and warns if it appears on a `version` below 2. |
+| `meta.reviewedThrough` | **Optional, revisions only.** The date of the last session the review covered. "Already reviewed" is derived from it, so no log row is ever written by the coaching side. A non-date is an error. |
 | `meta.athleteId` | **v2.** Lowercase slug of `meta.athlete`, matching the `athlete/<slug>/` folder. Passed through to the session export so a log file identifies its athlete without relying on the filename. Absent in v1 — fall back to slugging `meta.athlete`. |
 | `exercises[].id` | Unique per exercise **across the whole file**. v2 convention `w<week>d<daySlot>e<exerciseIndex>`, where `daySlot` is the number in the `Day N` label (`Day 3` → `d3`), falling back to position in `meta.days` if the labels aren't distinctly numbered. v1 was `d<dayIndex>e<exerciseIndex>`. **This is the key the app stores logged data under** — the v1→v2 id change means logs recorded against a v1 programme do not line up with the v2 one. Expected and accepted at the version boundary; exported session files are unaffected because they denormalise `prescribed` and are keyed by exercise name. |
 | `exercises[].week` | **v2: load-bearing.** The app renders only the exercises whose `week` matches the selected week. In v1 it was ignored. |
@@ -288,17 +294,21 @@ convention on the coaching side (owned by the `review-workout-log` skill, not by
 - The superseded `program.json` is archived to `revisions/program-v<N>.json` **before** the new
   one is written, alongside the `rows.json` it was built from.
 - `meta.version` increments; `CHANGELOG.md` in the block folder records the date, what changed
-  and **why**.
-- The athlete re-imports. **This is a manual step with no prompt.** Until they do, the app is
-  showing a superseded prescription and is not wrong to — it has no way to know.
+  and **why**, and the revision's own `meta.changeNote` and `meta.reviewedThrough` carry the
+  athlete-facing summary and the last session reviewed.
+- `coach_sync.py revise` publishes it onto the athlete's existing library row, and the app
+  offers **Update device**; it never swaps the prescription without that tap. Without the
+  account, the athlete re-imports by hand. Until either happens the app is showing a superseded
+  prescription and is not wrong to.
 
 **What the app must do about all this: almost nothing.** `version` is additive — the app
 displays it and passes it through to the export, and nothing else keys off it. Importing a
 revised programme is an ordinary import, and logged data keyed by exercise `id` survives as long
 as the ids are stable — which they are, because they are derived from week, day slot and
 position. Reordering or inserting exercises within a revised day *does* shift the ids below the
-change, and logs already recorded against those ids will land on the wrong exercise. Prefer
-substituting an exercise in place over reordering a day mid-block.
+change, and logs already recorded against those ids will land on the wrong exercise — which is
+why `coach_sync.py revise` refuses one, along with any edit to a day already trained.
+Substitute an exercise in place instead.
 
 **How a reader detects a stale log:** compare the log's `programVersion` against the current
 `meta.version` — one integer comparison. On a `tp-session-1` or `-2` log the field does not
@@ -533,7 +543,7 @@ Integer. The `meta.version` of the programme the app had loaded when the session
 log states which revision it was actually trained off. `0` means the programme predates the
 revision convention — the app does not invent a `1` it cannot know.
 
-It exists because re-importing after a revision is a manual step with no prompt (see "Revisions
+It exists because a revision reaches the phone only when the athlete takes it (see "Revisions
 mid-block"). Before this field the only way to detect an athlete training off a superseded week
 was to diff the log's denormalised `prescribed` values against the current `program.json` — which
 works, and is still the fallback for older logs, but is inference. Now it is a direct comparison
@@ -541,7 +551,7 @@ against `meta.version`.
 
 ### Consumer expectations (the review step)
 
-The coach reads the newest `athlete/<slug>/logs/*.json` and compares logged load/reps/RPE against `prescribed`, checks `painDuring` and the morning pain field against the pain-monitoring rules, reads `readiness`/`sleep` for the autoregulation call, and then recommends the smallest effective adjustment. **Keep that in mind before dropping any field** — that is the reason this section exists.
+The coach reads every `athlete/<slug>/logs/*.json` logged since the programme's `meta.reviewedThrough` and compares logged load/reps/RPE against `prescribed`, checks `painDuring` and the morning pain field against the pain-monitoring rules, reads `readiness`/`sleep` for the autoregulation call, and then recommends the smallest effective adjustment. **Keep that in mind before dropping any field** — that is the reason this section exists.
 
 **Read `schema` first**, then `tracking`, then the entries. Everything a reader needs to do that
 is above: the two tables, "Per-set logging", "Circuit logging", "Morning pain" and

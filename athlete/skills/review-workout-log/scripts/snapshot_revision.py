@@ -39,8 +39,9 @@ CHANGELOG_HEADER = """# Revision changelog
 One entry per revision of this block, newest first. Each records what changed and
 **why** - the why is what makes the next block's planning better.
 
-After any entry below, the athlete must re-import `program.json` into the tracker
-app; it keeps showing the previous prescription until they do.
+After any entry below, the athlete must tap Update device in the tracker app (or
+re-import `program.json` if the revision was not published); it keeps showing the
+previous prescription until they do.
 """
 
 
@@ -144,7 +145,7 @@ def main():
     entry = (f"## v{nxt} - {date} (supersedes v{version})\n\n"
              f"**Changed:** {a.changed.strip()}\n\n"
              f"**Why:** {a.reason.strip()}\n\n"
-             f"**Athlete action:** re-import `program.json` into the tracker.\n\n")
+             f"**Athlete action:** tap Update device in the tracker.\n\n")
     changelog = os.path.join(block_dir, "CHANGELOG.md")
 
     if a.dry_run:
@@ -174,9 +175,13 @@ def main():
     print(f"  build_program_json.py --input rows.json --output program.json \\\n"
           f"    --block {meta.get('block', '<block>')!r} "
           f"--athlete {meta.get('athlete', '<athlete>')!r} "
-          f"--weeks {meta.get('weeks', '<n>')} --version {nxt}")
+          f"--weeks {meta.get('weeks', '<n>')} --version {nxt} \\\n"
+          + (f"    --start-date {meta['startDate']} \\\n" if meta.get("startDate") else "")
+          + "    --change-note '<one line: what changed and why>' "
+            "--reviewed-through <date of the last session reviewed>")
     print("  build_xlsx.py --input rows.json --output '<Block name> - Programme.xlsx'")
-    print("Then tell the athlete to re-import program.json.")
+    print("Then publish it: coach_sync.py revise --athlete <slug> --program program.json "
+          "--dry-run, then without --dry-run.")
 
 
 if __name__ == "__main__":

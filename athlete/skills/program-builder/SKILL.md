@@ -159,9 +159,10 @@ Emit the same programme as structured JSON so the athlete's tracker PWA can inge
 python3 athlete/skills/program-builder/scripts/build_program_json.py \
   --input  athlete/<slug>/programs/rows.json \
   --output athlete/<slug>/programs/program.json \
-  --block "<Block name>" --athlete "<display name>" --weeks <n>
+  --block "<Block name>" --athlete "<display name>" --weeks <n> \
+  --start-date <YYYY-MM-DD, the Monday week 1 begins>
 ```
-`--version` defaults to `1` and should be left alone here — the initial build of a block is always v1. It is bumped only by `review-workout-log` when a week is revised mid-block.
+Pass `--start-date` with the Monday the approved plan starts the block on; the athlete sees it as the suggested start and can still move it. `--version` defaults to `1` and should be left alone here — the initial build of a block is always v1. It is bumped only by `review-workout-log` when a week is revised mid-block, together with `--change-note` and `--reviewed-through`, which an initial build never passes.
 
 Schema (`tp-program-2`): `{ "meta": {block, athlete, athleteId, weeks, version, generated, days[], schema}, "exercises": [{id, week, day, name, sets, reps, load, rpe, tempo, rest, logHint, focus, progression, category}] }`, where `logHint` = the Completed Notes text (tells the app which fields to prompt for), `category` is omitted entirely when the Category cell is blank, and `athleteId` is the `athlete/<slug>/` folder name, derived from `--athlete`. Exercise ids are `w<week>d<day>e<index>` and are unique across the whole file, where `<day>` is the number in the `Day N` label (so `Day 3` is `d3`, matching its colour band in the workbook). Keep `program.json` and the `.xlsx` in sync — both come from the one `rows.json`.
 
