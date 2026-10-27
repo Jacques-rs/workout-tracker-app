@@ -802,7 +802,8 @@
   .auth-field{display:flex;flex-direction:column;gap:var(--s1);font-size:var(--t-sm);
     color:var(--muted);font-weight:700}
   .auth-field input{width:100%;min-height:var(--h-field);font-size:16px;color:var(--ink)}
-  .auth-form>.primary,.auth-message+.primary{width:100%;min-height:var(--h-primary)}
+  .auth-form>.primary,.auth-message+.primary,.auth-form>.auth-google{width:100%;min-height:var(--h-primary)}
+  .auth-or{color:var(--muted);font-size:var(--t-sm);text-align:center;margin:0}
   .auth-error{padding:var(--s2) var(--s3);border:1px solid var(--bad);
     border-radius:var(--r-sm);background:color-mix(in srgb,var(--bad) 10%,transparent);
     color:var(--bad);font-size:var(--t-sm);line-height:1.4}
@@ -905,7 +906,7 @@
   <div class="profile-hero">
     <div class="profile-kicker">Training Tracker</div>
     <h1 class="profile-title" id="profileTitle" tabindex="-1">Your training, ready when you are.</h1>
-    <p class="profile-lead">Open a cached programme, import one for this device, or explore the sample. <a href="./privacy.html">Privacy</a></p>
+    <p class="profile-lead">Open a cached programme, import one for this device, or explore the sample. <a href="./privacy.html">Privacy</a><span id="entryBuild"></span></p>
   </div>
   <main class="profile-body" id="profileBody" aria-live="polite"></main>
 </div>
@@ -2370,7 +2371,7 @@ async function boot(){
         "This device’s personal data will be cleared after deletion succeeds. Offline data on other devices and managed backups may remain temporarily. Choose Export account data first if you want a copy."
       );
       if(!approved)return;
-      const password=window.prompt&&window.prompt("Enter your current password to confirm account deletion:");
+      const password=window.prompt&&window.prompt("Enter your current password to confirm account deletion. Signed in with Google and never set one? Cancel, then use Set or change password.");
       if(password==null)return;
       await TPAccountData.deleteAccount(password);
       toast("Account deleted on this device");
@@ -3704,10 +3705,21 @@ function settingsGroup(title,note,build){
   box.append(body);
   return box;
 }
+/* The build is the service worker's cache name (`CACHE` in sw.js), read back from the cache
+   it actually filled, so the label names what this phone is running, not what the server has. */
+function buildLabel(prefix,node){
+  node=node||el("p",{className:"page-copy"},"");
+  if(window.caches&&caches.keys)caches.keys().then(keys=>{
+    const n=keys.map(k=>+(/^tp-tracker-v(\d+)$/.exec(k)||[])[1]).filter(x=>x>0);
+    if(n.length)node.textContent=prefix+"v"+Math.max.apply(null,n);
+  }).catch(()=>{});
+  return node;
+}
 function renderAccountPage(){
   const host=$("#pageBody");if(!host)return;
   host.innerHTML="";
   if(window.TPProfileUI&&TPProfileUI.renderAccount)TPProfileUI.renderAccount(host);
+  host.append(buildLabel("App build "));
   /* Only an owner has an account for these to follow. */
   if(!cachedAccess())return;
   const sync=window.TPAccountSettings&&TPAccountSettings.getState
@@ -4956,6 +4968,7 @@ if(document.addEventListener)document.addEventListener("keydown",e=>{
 });
 
 if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));}
+buildLabel(" · ",$("#entryBuild"));
 boot();
 </script>
 </body>
