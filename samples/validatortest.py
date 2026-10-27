@@ -208,6 +208,20 @@ CASES = {
         lambda p: p.pop("meta"),
     "category emitted as a number":
         lambda p: p["exercises"][0].__setitem__("category", 3),
+    "startDate in prose":
+        lambda p: p["meta"].__setitem__("startDate", "next Monday"),
+    "startDate that is not a calendar day":
+        lambda p: p["meta"].__setitem__("startDate", "2026-02-30"),
+    "reviewedThrough in day-first order":
+        lambda p: p["meta"].__setitem__("reviewedThrough", "26/10/2026"),
+    "changeNote blank":
+        lambda p: p["meta"].__setitem__("changeNote", "   "),
+    "changeNote over two lines":
+        lambda p: p["meta"].__setitem__("changeNote", "W4 squat held\nknee 4/10"),
+    "changeNote longer than a phone prompt":
+        lambda p: p["meta"].__setitem__("changeNote", "x" * 281),
+    "changeNote emitted as a list":
+        lambda p: p["meta"].__setitem__("changeNote", ["W4 squat held"]),
 }
 
 for name, fn in CASES.items():
@@ -224,6 +238,28 @@ check("allow_partial_weeks still warns about it", bool(rep.warnings))
 rep = validate(mutated(CASES["duplicate exercise id"]), "fixture",
                allow_partial_weeks=True)
 check("allow_partial_weeks does not relax anything else", bool(rep.errors))
+
+# --- Revision fields: what the coach sync script and Update device read -----
+def _revision(**meta):
+    prog = copy.deepcopy(base)
+    prog["meta"].update(meta)
+    return validate(prog, "fixture")
+
+
+rep = _revision(version=3, startDate="2026-10-19", reviewedThrough="2026-10-24",
+                changeNote="W4 D2: front squat held at 80 kg; knee 4/10 next morning")
+_revision_warnings = [w for w in rep.warnings
+                      if re.search(r"startDate|changeNote|reviewedThrough", w)]
+check("a well-formed revision passes without a revision-field warning",
+      not rep.errors and not _revision_warnings,
+      (rep.errors + _revision_warnings or [""])[0])
+rep = _revision(startDate="2026-10-21")
+check("a startDate that is not a Monday warns, not errors",
+      not rep.errors and any("not a Monday" in w for w in rep.warnings))
+rep = _revision(version=1, changeNote="Initial build")
+check("a changeNote on the initial build warns, not errors",
+      not rep.errors and any("describes a revision" in w for w in rep.warnings))
+
 
 # --- rows.json: the builder's INPUT contract --------------------------------
 # Category was appended as column 14, never inserted, because every archived
@@ -257,6 +293,17 @@ check("a 13-wide row emits no 'category' key at all",
 prog = build(loaded14, "B", "Test Athlete", 1, False)
 check("a 14-wide row carries its category into program.json",
       prog["exercises"][0].get("category") == "strength")
+
+# Optional meta is omitted when not passed, never written empty.
+prog = build(loaded, "B", "Test Athlete", 1, False)
+check("a build without revision flags emits none of the revision keys",
+      not {"startDate", "changeNote", "reviewedThrough"} & set(prog["meta"]))
+prog = build(loaded, "B", "Test Athlete", 1, False, version=2, start_date="2026-10-19",
+             change_note="Squat held", reviewed_through="2026-10-24")
+check("a revision build carries startDate, changeNote and reviewedThrough",
+      (prog["meta"].get("startDate"), prog["meta"].get("changeNote"),
+       prog["meta"].get("reviewedThrough")) == ("2026-10-19", "Squat held", "2026-10-24"))
+check("...and the result validates", not validate(prog, "built").errors)
 
 # 12 or 15 fields are still a hard error - the relaxation is exactly one column.
 for n, label in ((12, "too few"), (15, "too many")):

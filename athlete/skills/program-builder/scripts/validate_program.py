@@ -35,6 +35,7 @@ Usage:
   python3 validate_program.py --strict program.json   # warnings count as errors
 """
 import argparse
+import datetime
 import json
 import re
 import sys
@@ -45,9 +46,12 @@ META_REQUIRED = {"block": str, "athlete": str, "weeks": int, "days": list,
 # v2 additionally requires athleteId - it names the athlete/<slug>/ folder that
 # every exported session log gets filed into.
 META_REQUIRED_V2 = {"athleteId": str}
-# Optional, but typed when present. `version` is ignored by the app and used by
-# review-workout-log to line a file up with its revisions/ snapshot.
-META_OPTIONAL = {"version": int, "generated": str}
+# Optional, but typed when present. The revision fields are read by the coach
+# sync script and shown to the athlete; none of them changes what the app renders.
+META_OPTIONAL = {"version": int, "generated": str, "startDate": str,
+                 "changeNote": str, "reviewedThrough": str}
+# The athlete reads the note on the Update device prompt, on a phone.
+CHANGE_NOTE_MAX = 280
 
 EX_REQUIRED = {"id": str, "day": str, "name": str}
 EX_REQUIRED_V2 = {"week": int}
@@ -161,6 +165,8 @@ def validate(prog, path="program.json", allow_partial_weeks=False):
         if meta["version"] < 1:
             rep.error(f"meta.version is {meta['version']}; revisions start at 1")
 
+    _check_revision_meta(rep, meta)
+
     days = meta.get("days")
     if isinstance(days, list):
         _check_days(rep, days, meta, v2)
@@ -177,6 +183,45 @@ def validate(prog, path="program.json", allow_partial_weeks=False):
                  "progression rule' banner. Rebuild as tp-program-2 unless this "
                  "is an archived file")
     return rep
+
+
+def _iso_date(value):
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        return None
+    try:
+        return datetime.date.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _check_revision_meta(rep, meta):
+    """startDate, changeNote and reviewedThrough - see data-contracts.md."""
+    for key in ("startDate", "reviewedThrough"):
+        val = meta.get(key)
+        if isinstance(val, str) and _iso_date(val) is None:
+            rep.error(f"meta.{key} is {val!r}; must be a calendar date, YYYY-MM-DD")
+    start = meta.get("startDate")
+    if isinstance(start, str) and _iso_date(start) and _iso_date(start).weekday() != 0:
+        rep.warn(f"meta.startDate {start} is not a Monday; the app starts the block "
+                 "on the Monday of that week")
+
+    note = meta.get("changeNote")
+    if isinstance(note, str):
+        if not note.strip():
+            rep.error("meta.changeNote is empty; omit it rather than show a blank note")
+        if re.search(r"[\t\r\n]", note):
+            rep.error("meta.changeNote contains a tab or newline; keep it one line, "
+                      "separating points with ';'")
+        if len(note) > CHANGE_NOTE_MAX:
+            rep.error(f"meta.changeNote is {len(note)} characters; the athlete reads it "
+                      f"on a phone, so keep it to {CHANGE_NOTE_MAX}")
+
+    version = meta.get("version")
+    is_revision = isinstance(version, int) and not isinstance(version, bool) and version >= 2
+    for key in ("changeNote", "reviewedThrough"):
+        if key in meta and not is_revision:
+            rep.warn(f"meta.{key} describes a revision, but meta.version is "
+                     f"{version!r}; the initial build is v1 and has nothing to review")
 
 
 def _check_days(rep, days, meta, v2):

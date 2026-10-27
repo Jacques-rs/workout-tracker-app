@@ -13,19 +13,13 @@ the coaching side reads and writes through the account instead, and the files re
 and the local archive. Reviews become **weekly**: every session since the last review, revising
 the weeks ahead. Each step lands on its own:
 
-1. **Coach link.** `coach_athletes` plus link-checked `coach_*` functions; the tables stay
-   owner-only, so a coach's own app never lists an athlete's rows. Links are created by an
-   administrator and revocable by the athlete.
-2. **Contract.** Two additive `tp-program-2` meta fields — a short change note the athlete sees,
-   and the last session date a revision reviewed, from which "already reviewed" is derived —
-   and `program-builder` emitting `meta.startDate`.
-3. **Coach sync script.** Signs in as the coach; pulls a week into `logs/`, publishes a new block
+1. **Coach sync script.** Signs in as the coach; pulls a week into `logs/`, publishes a new block
    to the athlete's library, and publishes a revision onto the existing row. It refuses a change
    to any week that already has a logged session, and any reorder that shifts exercise ids.
-4. **`review-workout-log`, weekly.** Input is everything since the reviewed-through date.
-5. **App.** The change note on **Update device**; a coach-published block in the library with its
+2. **`review-workout-log`, weekly.** Input is everything since the reviewed-through date.
+3. **App.** The change note on **Update device**; a coach-published block in the library with its
    suggested start. The athlete still activates — the coach never swaps a plan on a phone.
-6. **Docs.** `CLAUDE.md`'s files-only integration rule and `docs/backend.md`'s boundary are
+4. **Docs.** `CLAUDE.md`'s files-only integration rule and `docs/backend.md`'s boundary are
    rewritten for the coach link, and this entry is deleted.
 
 ## Medium value
@@ -73,8 +67,8 @@ Each of these is a real feature with a cost worth naming, not an oversight.
   receives a session it cannot compare against. Worth doing; worth not doing accidentally.
 - **Rest-day notes.** A rest day offers the next session and the claim picker. A place to write
   "travelled, walked 8km" is small, but needs a store that can never be mistaken for a workout.
-- **Structured schedule fields.** The reader already accepts `meta.startDate` and a per-day
-  `weekday`; emitting them is a `program-builder` change and must land in lockstep.
+- **A structured per-day weekday.** The reader already accepts `{label, weekday}` day entries;
+  emitting them is a `program-builder` change and must land in lockstep.
 - **A prescribed per-set array.** Ramping sets stay in the `load` string ("60/70/80 kg"). Only
   add one if that stops being expressive enough — it doubles the generator's surface.
 - **Swipe gestures.** Horizontal swipe collides with the pip strip and with text fields.

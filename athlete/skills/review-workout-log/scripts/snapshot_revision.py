@@ -174,7 +174,10 @@ def main():
     print(f"  build_program_json.py --input rows.json --output program.json \\\n"
           f"    --block {meta.get('block', '<block>')!r} "
           f"--athlete {meta.get('athlete', '<athlete>')!r} "
-          f"--weeks {meta.get('weeks', '<n>')} --version {nxt}")
+          f"--weeks {meta.get('weeks', '<n>')} --version {nxt} \\\n"
+          + (f"    --start-date {meta['startDate']} \\\n" if meta.get("startDate") else "")
+          + "    --change-note '<one line: what changed and why>' "
+            "--reviewed-through <date of the last session reviewed>")
     print("  build_xlsx.py --input rows.json --output '<Block name> - Programme.xlsx'")
     print("Then tell the athlete to re-import program.json.")
 
