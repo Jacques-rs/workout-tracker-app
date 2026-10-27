@@ -81,6 +81,8 @@
       updatedAt: text(row.updated_at),
       athlete: text(meta.athlete),
       weeks: Math.max(1, Number(meta.weeks) || 1),
+      changeNote: text(meta.changeNote).slice(0, 280),
+      startDate: /^\d{4}-\d{2}-\d{2}$/.test(text(meta.startDate)) ? text(meta.startDate) : "",
       payload: row.payload
     };
   }
@@ -132,6 +134,8 @@
           updatedAt: row.updatedAt,
           athlete: row.athlete,
           weeks: row.weeks,
+          changeNote: row.changeNote,
+          startDate: row.startDate,
           active: !!(active && active.id === row.id),
           current: !!(active && active.id === row.id && !active.pending && active.revision === row.revision)
         }))

@@ -44,6 +44,9 @@ supabase --agent no db lint --local --schema public,private --level warning --fa
 echo "==> Running local authentication integration tests"
 node supabase/tests/auth/auth_flow.test.js
 
+echo "==> Running local coach sync integration tests"
+python3 supabase/tests/coach/coach_sync_flow.test.py
+
 echo "==> Checking browser JavaScript"
 python3 scripts/check_inline_js.py
 
@@ -83,5 +86,8 @@ node samples/swtest.js
 
 echo "==> Running programme-validator tests"
 python3 samples/validatortest.py
+
+echo "==> Running coach sync guard tests"
+python3 samples/coachsynctest.py
 
 echo "All repository verification passed."

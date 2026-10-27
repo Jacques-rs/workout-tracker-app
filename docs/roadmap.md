@@ -49,15 +49,15 @@ Each of these is a real feature with a cost worth naming, not an oversight.
   receives a session it cannot compare against. Worth doing; worth not doing accidentally.
 - **Rest-day notes.** A rest day offers the next session and the claim picker. A place to write
   "travelled, walked 8km" is small, but needs a store that can never be mistaken for a workout.
-- **Structured schedule fields.** The reader already accepts `meta.startDate` and a per-day
-  `weekday`; emitting them is a `program-builder` change and must land in lockstep.
+- **A structured per-day weekday.** The reader already accepts `{label, weekday}` day entries;
+  emitting them is a `program-builder` change and must land in lockstep.
 - **A prescribed per-set array.** Ramping sets stay in the `load` string ("60/70/80 kg"). Only
   add one if that stops being expressive enough — it doubles the generator's surface.
 - **Swipe gestures.** Horizontal swipe collides with the pip strip and with text fields.
   Prev/Next and the pips are unambiguous; arrow keys work on a desktop browser.
-- **Analytics, a framework rewrite, a native app-store build, coach roles, shared or team
-  accounts, public programme discovery, subscriptions, live collaborative editing, and any
-  server-side AI call.** None are in scope for a personal invite-only tool.
+- **Analytics, a framework rewrite, a native app-store build, coach roles beyond the one-way
+  coach link, shared or team accounts, public programme discovery, subscriptions, live
+  collaborative editing, and any server-side AI call.** None are in scope for a personal invite-only tool.
 
 ## Accepted limitations
 

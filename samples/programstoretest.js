@@ -91,6 +91,8 @@ function fakeAuth(client) {
   const importedId = "10000000-0000-4000-8000-000000000002";
   const offlineId = "10000000-0000-4000-8000-000000000003";
   const first = programme("Existing cloud block", 2);
+  first.meta.changeNote = "W2 squat held";
+  first.meta.startDate = "not a date";
   const client = fakeClient([remoteRow(firstId, first)]);
   const auth = fakeAuth(client);
   const storage = memoryStorage();
@@ -111,6 +113,11 @@ function fakeAuth(client) {
   await store.refresh();
   assert.deepEqual(store.getState().items.map(item => item.title), ["Existing cloud block"]);
   assert.equal(store.getState().items[0].programVersion, 2);
+  assert.equal(store.getState().items[0].changeNote, "W2 squat held",
+    "a revision's change note reaches the library summary");
+  assert.equal(store.getState().items[0].startDate, "",
+    "a malformed start date is dropped rather than shown");
+  assert.equal(store.getState().items[0].payload, undefined, "the summary still carries no payload");
   assert.deepEqual(store.getActiveIdentity(), null, "no cloud identity is invented before activation");
 
   console.log("\nimport is local first and then backed up");
