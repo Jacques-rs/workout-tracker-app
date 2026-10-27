@@ -155,7 +155,10 @@ Activation writes the selected payload through the existing `loadProgram()` path
 `tp_program_v1` remains the one offline workout source and existing position/session behavior does
 not branch on cloud state. If the active cloud row has a newer revision than the cached marker, the
 profile labels the update and waits for an explicit **Update device** action; a reconnect must not
-replace the prescription underneath an open workout.
+replace the prescription underneath an open workout. The pending revision's `meta.changeNote` is
+shown beside that action, and an inactive row with a `meta.startDate` shows it as a suggested
+start — the start-date sheet on activation still decides. Rows a coach publishes through
+`coach_sync.py` are ordinary rows of the athlete's own library.
 
 Import is local-first. The parsed contract payload is written to `tp_program_v1` immediately, a
 browser-generated UUID and `pending: true` are written to `tp_active_program_v1`, and the insert is

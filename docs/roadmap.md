@@ -7,11 +7,9 @@ because reliability and speed in the gym beat extra features.
 ## In progress — the coaching loop through the account
 
 `coach_sync.py` moves sessions to the weekly review and revisions to the athlete's library
-(`athlete/README.md`). Two pieces are not built:
+(`athlete/README.md`). One piece is not built:
 
-1. **App.** The change note on **Update device**; a coach-published block in the library with its
-   suggested start. The athlete still activates — the coach never swaps a plan on a phone.
-2. **Docs.** `CLAUDE.md`'s files-only integration rule and `docs/backend.md`'s boundary are
+1. **Docs.** `CLAUDE.md`'s files-only integration rule and `docs/backend.md`'s boundary are
    rewritten for the coach link, and this entry is deleted.
 
 ## Medium value
