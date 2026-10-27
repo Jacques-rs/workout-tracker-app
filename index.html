@@ -905,7 +905,7 @@
   <div class="profile-hero">
     <div class="profile-kicker">Training Tracker</div>
     <h1 class="profile-title" id="profileTitle" tabindex="-1">Your training, ready when you are.</h1>
-    <p class="profile-lead">Open a cached programme, import one for this device, or explore the sample. <a href="./privacy.html">Privacy</a></p>
+    <p class="profile-lead">Open a cached programme, import one for this device, or explore the sample. <a href="./privacy.html">Privacy</a><span id="entryBuild"></span></p>
   </div>
   <main class="profile-body" id="profileBody" aria-live="polite"></main>
 </div>
@@ -3704,10 +3704,21 @@ function settingsGroup(title,note,build){
   box.append(body);
   return box;
 }
+/* The build is the service worker's cache name (`CACHE` in sw.js), read back from the cache
+   it actually filled, so the label names what this phone is running, not what the server has. */
+function buildLabel(prefix,node){
+  node=node||el("p",{className:"page-copy"},"");
+  if(window.caches&&caches.keys)caches.keys().then(keys=>{
+    const n=keys.map(k=>+(/^tp-tracker-v(\d+)$/.exec(k)||[])[1]).filter(x=>x>0);
+    if(n.length)node.textContent=prefix+"v"+Math.max.apply(null,n);
+  }).catch(()=>{});
+  return node;
+}
 function renderAccountPage(){
   const host=$("#pageBody");if(!host)return;
   host.innerHTML="";
   if(window.TPProfileUI&&TPProfileUI.renderAccount)TPProfileUI.renderAccount(host);
+  host.append(buildLabel("App build "));
   /* Only an owner has an account for these to follow. */
   if(!cachedAccess())return;
   const sync=window.TPAccountSettings&&TPAccountSettings.getState
@@ -4956,6 +4967,7 @@ if(document.addEventListener)document.addEventListener("keydown",e=>{
 });
 
 if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));}
+buildLabel(" · ",$("#entryBuild"));
 boot();
 </script>
 </body>
