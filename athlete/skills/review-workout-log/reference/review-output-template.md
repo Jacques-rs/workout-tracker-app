@@ -10,23 +10,28 @@ nothing to say get one line, not a paragraph of hedging.
 
 ## 1. What you did
 
-One or two sentences: which session, which week and day, and the headline. Name the file so
-there is no ambiguity about which log this is.
+One or two sentences: the window (first and last session date), how many sessions it holds, and
+the headline. List the files so there is no ambiguity about which logs these are.
 
-> **Week 4, Day 1 (Mon)** — logged 2026-07-27. Session completed; front squat top set came in
-> 20 kg under prescription and the sled was cut short.
+> **Week 4** — 3 sessions, 2026-07-27 to 2026-07-31 (`session-2026-07-27-…`, `-29-…`, `-31-…`).
+> Everything completed except Friday's sled, cut short; front squat top sets ran 20 kg under
+> prescription all week.
+
+If the window also holds sessions an earlier "no change" review covered, say so in one line and
+treat them as trend context.
 
 If `programVersion` is behind the current `meta.version` (or, on an older log, the `prescribed`
 values disagree), say it **here**, before anything else:
 
-> ⚠️ This log is stamped v2; the programme is on v3. You trained off the older week — re-import
-> `program.json` before the next session. The deviations below are read against what your app
+> ⚠️ This log is stamped v2; the programme is on v3. You trained off the older week — tap
+> Update device before the next session. The deviations below are read against what your app
 > actually showed you, not against v3.
 
 ## 2. Against the prescription
 
-A short table, only for exercises that matter (the ones the builder gave a `logHint`). Skip
-warm-ups and mobility.
+A short table per session, only for exercises that matter (the ones the builder gave a
+`logHint`). Skip warm-ups and mobility. Where the same lift recurs across the week, one row per
+session makes the pattern visible.
 
 | Exercise | Prescribed | Logged | Read |
 |---|---|---|---|
@@ -86,7 +91,7 @@ card. Say that.
 Explicit, and explicit that nothing has been written.
 
 > Nothing's been changed yet. Say the word and I'll revise W5, snapshot the current version as
-> v2, and log the reason in the changelog — then you re-import `program.json` into the app.
+> v2, log the reason in the changelog, and publish it — then you tap Update device in the app.
 
 ---
 
@@ -94,10 +99,11 @@ Explicit, and explicit that nothing has been written.
 
 Confirm in four lines or fewer:
 
-> Done — programme now at **v3**. Snapshot of v2 in `revisions/program-v2.json`, reason logged
-> in `CHANGELOG.md`. Workbook rebuilt.
+> Done — programme now at **v3**, published with the note "W5 D1: low-bar squat replaces
+> front squat; knee 4→6/10 over three weeks". Snapshot of v2 in `revisions/program-v2.json`,
+> reason logged in `CHANGELOG.md`. Workbook rebuilt.
 >
-> **Re-import `program.json` into the tracker** — the app will keep showing the old W5 until
-> you do.
+> **Tap Update device in the app** — it will keep showing the old W5 until you do.
 
-The re-import instruction is the last line. Every time.
+The Update device instruction is the last line. Every time. If the publish could not run, the
+last line tells the athlete to re-import `program.json` instead.

@@ -6,17 +6,12 @@ because reliability and speed in the gym beat extra features.
 
 ## In progress — the coaching loop through the account
 
-Every hand-off in the plan → track → review loop is a file moved by a person: `program.json` to
-the phone, each session export into `logs/`, and every revision re-imported with nothing telling
-the phone it is stale. Sessions already sync and the library already offers **Update device**, so
-the coaching side reads and writes through the account instead, and the files remain the contract
-and the local archive. Reviews become **weekly**: every session since the last review, revising
-the weeks ahead. Each step lands on its own:
+`coach_sync.py` moves sessions to the weekly review and revisions to the athlete's library
+(`athlete/README.md`). Two pieces are not built:
 
-1. **`review-workout-log`, weekly.** Input is everything since the reviewed-through date.
-2. **App.** The change note on **Update device**; a coach-published block in the library with its
+1. **App.** The change note on **Update device**; a coach-published block in the library with its
    suggested start. The athlete still activates — the coach never swaps a plan on a phone.
-3. **Docs.** `CLAUDE.md`'s files-only integration rule and `docs/backend.md`'s boundary are
+2. **Docs.** `CLAUDE.md`'s files-only integration rule and `docs/backend.md`'s boundary are
    rewritten for the coach link, and this entry is deleted.
 
 ## Medium value

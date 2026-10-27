@@ -296,16 +296,19 @@ convention on the coaching side (owned by the `review-workout-log` skill, not by
 - `meta.version` increments; `CHANGELOG.md` in the block folder records the date, what changed
   and **why**, and the revision's own `meta.changeNote` and `meta.reviewedThrough` carry the
   athlete-facing summary and the last session reviewed.
-- The athlete re-imports. **This is a manual step with no prompt.** Until they do, the app is
-  showing a superseded prescription and is not wrong to — it has no way to know.
+- `coach_sync.py revise` publishes it onto the athlete's existing library row, and the app
+  offers **Update device**; it never swaps the prescription without that tap. Without the
+  account, the athlete re-imports by hand. Until either happens the app is showing a superseded
+  prescription and is not wrong to.
 
 **What the app must do about all this: almost nothing.** `version` is additive — the app
 displays it and passes it through to the export, and nothing else keys off it. Importing a
 revised programme is an ordinary import, and logged data keyed by exercise `id` survives as long
 as the ids are stable — which they are, because they are derived from week, day slot and
 position. Reordering or inserting exercises within a revised day *does* shift the ids below the
-change, and logs already recorded against those ids will land on the wrong exercise. Prefer
-substituting an exercise in place over reordering a day mid-block.
+change, and logs already recorded against those ids will land on the wrong exercise — which is
+why `coach_sync.py revise` refuses one, along with any edit to a day already trained.
+Substitute an exercise in place instead.
 
 **How a reader detects a stale log:** compare the log's `programVersion` against the current
 `meta.version` — one integer comparison. On a `tp-session-1` or `-2` log the field does not
@@ -540,7 +543,7 @@ Integer. The `meta.version` of the programme the app had loaded when the session
 log states which revision it was actually trained off. `0` means the programme predates the
 revision convention — the app does not invent a `1` it cannot know.
 
-It exists because re-importing after a revision is a manual step with no prompt (see "Revisions
+It exists because a revision reaches the phone only when the athlete takes it (see "Revisions
 mid-block"). Before this field the only way to detect an athlete training off a superseded week
 was to diff the log's denormalised `prescribed` values against the current `program.json` — which
 works, and is still the fallback for older logs, but is inference. Now it is a direct comparison
@@ -548,7 +551,7 @@ against `meta.version`.
 
 ### Consumer expectations (the review step)
 
-The coach reads the newest `athlete/<slug>/logs/*.json` and compares logged load/reps/RPE against `prescribed`, checks `painDuring` and the morning pain field against the pain-monitoring rules, reads `readiness`/`sleep` for the autoregulation call, and then recommends the smallest effective adjustment. **Keep that in mind before dropping any field** — that is the reason this section exists.
+The coach reads every `athlete/<slug>/logs/*.json` logged since the programme's `meta.reviewedThrough` and compares logged load/reps/RPE against `prescribed`, checks `painDuring` and the morning pain field against the pain-monitoring rules, reads `readiness`/`sleep` for the autoregulation call, and then recommends the smallest effective adjustment. **Keep that in mind before dropping any field** — that is the reason this section exists.
 
 **Read `schema` first**, then `tracking`, then the entries. Everything a reader needs to do that
 is above: the two tables, "Per-set logging", "Circuit logging", "Morning pain" and

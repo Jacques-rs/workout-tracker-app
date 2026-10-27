@@ -1,18 +1,24 @@
 ---
 name: review-workout-log
-description: Use when an athlete or coach wants a logged training session reviewed and the upcoming week adjusted. Reads the newest exported session log (tp-session-1, -2 or -3) for that athlete, compares every logged load/reps/RPE/pain against the prescription for that exact week and day, applies the pain-monitoring and readiness rules from the profile and phase map, and proposes the smallest effective adjustment plus pre-authorised conditional rules the athlete can apply alone at the gym. Stops at an approval gate; only on approval does it revise program.json, snapshot the old revision and bump the version. Do NOT use this to scope a new block — that is the program-planner skill — or to write a programme from an approved plan, which is program-builder. Triggers on "review my last session", "here's my log", "how did that session go", "what do we do next", "adjust the programme".
+description: Use when an athlete or coach wants a training week reviewed and the weeks ahead adjusted. Pulls every session logged since the programme's reviewedThrough date (tp-session-1, -2 or -3), compares each logged load/reps/RPE/pain against the prescription for that exact week and day, applies the pain-monitoring and readiness rules from the profile and phase map, and proposes the smallest effective adjustment to the untrained weeks plus pre-authorised conditional rules the athlete can apply alone at the gym. Stops at an approval gate; only on approval does it snapshot, rebuild with a change note, and publish the revision to the athlete's phone. Do NOT use this to scope a new block — that is the program-planner skill — or to write a programme from an approved plan, which is program-builder. Triggers on "review my week", "weekly review", "review my last session", "here's my log", "what do we do next", "adjust the programme".
 ---
 
 # Review Workout Log
 
 The third step of the coaching loop: **plan** (`program-planner`) → **build** (`program-builder`) → **train** (the tracker PWA) → **review** (this skill).
 
+The unit is the **review window**: every session logged after the active programme's
+`meta.reviewedThrough` (from its first session, if it has none). A review covers the whole
+window, never a single file picked out of it.
+
 A review that ends in chat has not been delivered: the app goes on showing the original
 prescription, and the advice sits in a scrollback the athlete cannot read under a barbell. So a
-review ends in an actual revised week, a version bump, and a changelog entry recording **why**.
+review that changes anything ends in a revised programme **published to the athlete's phone**,
+with a version bump, a one-line change note the athlete sees, and a changelog entry recording
+**why**.
 
 ## When NOT to use
-- No log file yet — the athlete has trained but not exported. Ask them to export from the app and save it into `athlete/<slug>/logs/`.
+- The window is empty after the pull in step 1 — nothing has been logged since the last review. Say so and stop.
 - The athlete wants a whole new block scoped → `program-planner`.
 - An approved plan needs writing into a programme → `program-builder`.
 - A single factual question about one exercise ("was I meant to do 4 or 5 sets?") → read the programme and answer directly. Don't run a review.
@@ -21,9 +27,10 @@ review ends in an actual revised week, a version bump, and a changelog entry rec
 
 1. **Approval gate is mandatory.** This skill *proposes*. Nothing under `athlete/<slug>/programs/` is written before the athlete says yes — not `rows.json`, not `program.json`, not the workbook.
 2. **Smallest effective change.** One bad session is not a reason to redesign a block. If nothing needs to change, say so plainly — "as written, no change" is a valid and common outcome.
-3. **Never restructure an existing programme folder.** Work with the layout you find (see "The block folder").
-4. **Snapshot before overwrite.** A revision that loses the superseded version has destroyed the record the next block's planning depends on. Use `scripts/snapshot_revision.py`; it refuses to clobber an existing snapshot.
-5. **Read the athlete whose folder the log is in**, established **before opening any file** —
+3. **Only untrained weeks change.** A revision edits weeks and days with no logged session, and substitutes an exercise in place rather than reordering a day. `coach_sync.py revise` refuses anything else, so a refusal means the proposal was wrong — rework it, never work around it.
+4. **Never restructure an existing programme folder.** Work with the layout you find (see "The block folder").
+5. **Snapshot before overwrite.** A revision that loses the superseded version has destroyed the record the next block's planning depends on. Use `scripts/snapshot_revision.py`; it refuses to clobber an existing snapshot.
+6. **Read the athlete whose folder the log is in**, established **before opening any file** —
    from the request, or from the folder the log sits in. Never apply one athlete's loading rules
    to another's log. Procedure, and what `athleteId` does and does not settle:
    `athlete/README.md`.
@@ -32,16 +39,25 @@ review ends in an actual revised week, a version bump, and a changelog entry rec
 
 **The block folder is the directory containing the active `program.json`**, and everything for
 that block lives beside it. Two layouts exist and both work — `athlete/README.md` has them, and
-hard rule 3 above says to leave the one you find alone.
+hard rule 4 above says to leave the one you find alone.
 
 The case that matters here: **if a folder holds more than one `program.json`, ask which block is
 active.** Do not guess by modification time.
 
 ## Process
 
-### 1. Read everything before saying anything
+### 1. Pull the window, then read everything before saying anything
 
-- The **newest** `athlete/<slug>/logs/*.json`. If the athlete pointed at a specific file, use that one. If several are unreviewed, review them together — a week's pattern says more than one session does.
+```bash
+python3 athlete/skills/program-builder/scripts/coach_sync.py pull --athlete <slug>
+```
+This writes every session synced since the latest `reviewedThrough` into `athlete/<slug>/logs/`;
+add `--since <date>` only when the athlete asks for a different window. If the pull cannot run —
+no network, or the athlete is not linked to the coach account — ask the athlete to export the
+missing sessions from the app into `logs/`, and say the review was built from files.
+
+- **Every log in the window**, read together — the week's pattern is the evidence, and a single session inside it is one data point. A conflict copy (`-conflict-` in its name) is the same session edited on two devices: read both and say which one you relied on.
+- **Logs in the window that a previous "no change" review already covered** are trend context: name what they showed in one line and spend the review on what is new.
 - `athlete/<slug>/personal-profile.md` — injuries, pain-monitoring protocol, readiness hard stops, overreaching history. **This is where the rules come from.** They are never hardcoded here.
 - The active `program.json`, for the prescription for that exact week and day.
 - The block's **Architecture & Phase Map** — the week's purpose, what was meant to progress, what was meant to stay stable, and the review trigger the builder wrote for exactly this moment.
@@ -95,7 +111,7 @@ value as zero.
 
 ### 3. Compare against the prescription, explicitly
 
-For each exercise that carries a `logHint` (the app's blue "Log:" line — the builder marked those as the ones that matter), state the prescription and what actually happened side by side. **Flag deviations rather than glossing over them**, including the ones in the athlete's favour. Load below prescription, RPE above prescription, sets dropped, an exercise skipped, and pain above the protocol threshold are all findings, not noise.
+For each session in the window, and each exercise that carries a `logHint` (the app's blue "Log:" line — the builder marked those as the ones that matter), state the prescription and what actually happened side by side. **Flag deviations rather than glossing over them**, including the ones in the athlete's favour. Load below prescription, RPE above prescription, sets dropped, an exercise skipped, and pain above the protocol threshold are all findings, not noise.
 
 Then read the session-level context — `readiness`, `sleep`, `hrvNote`, `bodyweightKg`, `overall` — because the same deviation means different things after a red-readiness night than after a green one.
 
@@ -111,9 +127,9 @@ Not from memory of a previous athlete, and not from general coaching instinct wh
 
 ### 5. Propose the smallest effective adjustment
 
-Name the weeks affected — usually just the next one. For each change: the exercise, the old prescription, the new one, and **the reason in one sentence tied to the logged data**. If a change ripples (dropping the sled affects the day's conditioning footprint), say so.
+Name the weeks affected — usually just the next one, and never one that already has a logged session. For each change: the exercise, the old prescription, the new one, and **the reason in one sentence tied to the logged data**. If a change ripples (dropping the sled affects the day's conditioning footprint), say so.
 
-If the answer is "no change", say that and stop. Bringing a change to every review is how a block gets redesigned one small edit at a time.
+If the answer is "no change", say that and stop: nothing is written or published, and the next review's window still opens at the same `reviewedThrough`, so it covers these sessions again as trend context. Bringing a change to every review is how a block gets redesigned one small edit at a time.
 
 ### 6. Write conditional rules the athlete can apply alone
 
@@ -154,9 +170,14 @@ In this order. The snapshot comes first because it is the step that cannot be un
    edit should come back the width it went in.
 
 3. **Rebuild both outputs from the edited `rows.json`.** `snapshot_revision.py` printed the exact
-   `build_program_json.py` command, with this block's name, athlete, week count and the next
-   version already filled in from `meta` — **use it** rather than retyping the arguments. Then
-   rebuild the workbook from the same file:
+   `build_program_json.py` command, with this block's name, athlete, week count, start date and
+   the next version already filled in from `meta` — **use it** rather than retyping the
+   arguments, and fill its two placeholders:
+   - `--change-note` — one line, at most 280 characters, written **to the athlete**: what changes
+     in which week and the logged reason. `"W5 D1: low-bar squat replaces front squat; knee 4→6/10 over three weeks"`, not `"revision per review"`.
+   - `--reviewed-through` — the date of the **latest session in the window**.
+
+   Then rebuild the workbook from the same file:
    ```bash
    python3 athlete/skills/program-builder/scripts/build_xlsx.py \
      --input  athlete/<slug>/programs/<block>/rows.json \
@@ -167,7 +188,19 @@ In this order. The snapshot comes first because it is the step that cannot be un
 
 4. **Check the changelog entry reads as an explanation**, not a diff. The "why" is what makes the next block's planning better; "W5 load reduced" tells a future reader nothing.
 
-5. **Tell the athlete to re-import** `program.json` into the tracker, and that the app will keep showing the old prescription until they do. This is a manual step with no prompt in the app — say it every time, in the last line of the response, not buried mid-paragraph.
+5. **Publish the revision**, dry run first:
+   ```bash
+   python3 athlete/skills/program-builder/scripts/coach_sync.py revise \
+     --athlete <slug> --program athlete/<slug>/programs/<block>/program.json --dry-run
+   ```
+   Then the same command without `--dry-run`. A refusal names the rule broken (hard rule 3):
+   fix `rows.json`, rebuild, and run it again — the snapshot and changelog entry already written
+   stay, because they describe the revision being prepared.
+
+6. **Tell the athlete to tap Update device** in the app, and that the app keeps
+   showing the old prescription until they do. If the publish could not run, they re-import
+   `program.json` instead. Say it every time, in the last line of the response, not buried
+   mid-paragraph.
 
 ## Versioning and revision convention
 
@@ -177,17 +210,21 @@ In this order. The snapshot comes first because it is the step that cannot be un
 | `revisions/program-v<N>.json` | The superseded programme, byte-for-byte. Its own date is in `meta.generated`. |
 | `revisions/rows-v<N>.json` | The rows it was built from, so a past revision's workbook can be rebuilt. Written only if `rows.json` sits beside `program.json`. |
 | `CHANGELOG.md` | One entry per revision, in the block folder: date, version, **what changed**, and **why**. Newest first. |
-| Re-import | Manual, by the athlete, after every revision. The app shows `· v<N>` beside the block name but has **no prompt** to fetch a new one, so nothing tells them to. |
+| `meta.changeNote` | One line for the athlete: what changed and why. The `CHANGELOG.md` entry is the full explanation; this is its headline. |
+| `meta.reviewedThrough` | The latest session date the revision's review covered. The next window opens after it. |
+| Delivery | `coach_sync.py revise` publishes onto the athlete's library row; the athlete taps **Update device**. Without the account, a manual re-import. |
 
 `tp-session-3` logs carry `programVersion`, so a log states which revision it was trained off. Older logs don't — for those, compare the denormalised `prescribed` against the current `program.json` instead.
 
 ## Output
 
-A single chat response, structured as `reference/review-output-template.md`. No file is written before approval. On approval: an updated `rows.json`, `program.json` and `.xlsx`, a new `revisions/program-v<N>.json`, and an appended `CHANGELOG.md`.
+A single chat response, structured as `reference/review-output-template.md`. No file is written before approval. On approval: an updated `rows.json`, `program.json` and `.xlsx`, a new `revisions/program-v<N>.json`, an appended `CHANGELOG.md`, and the revision published to the athlete's library.
 
 ## Verification checklist (before presenting the review)
 
 - The **right athlete's** profile was read, and every rule applied comes from *that* profile.
+- Every session in the window was read — the count of logs reviewed matches what the pull wrote,
+  plus any already in `logs/` after `reviewedThrough`.
 - The prescription compared against is the one for the **logged week and day** — and either
   `programVersion` matches the current `meta.version` (or `prescribed` matches, on an older log),
   or the mismatch is called out before any deviation is interpreted.
@@ -196,7 +233,8 @@ A single chat response, structured as `reference/review-output-template.md`. No 
 - The entries were read as written: `sets[]` used where present and never averaged, circuit rows
   and the flat final result read together, and `done: false` exercises accounted for.
 - The pain trend is assessed **across weeks**, not from this session alone.
-- Every proposed change names its reason, and one variable moves per exercise.
+- Every proposed change names its reason, one variable moves per exercise, and every change
+  lands in a week with no logged session.
 - Every "it depends how you feel" is a bounded conditional rule with **every branch authorised**,
   and it is written where the app will show it.
 - The response ends at an approval gate and says that nothing has been written.
@@ -208,4 +246,7 @@ from both is the check. What they cannot tell you:
 - The **workbook** was rebuilt too, from the same `rows.json`.
 - The `CHANGELOG.md` entry reads as an **explanation**, not a diff. "W5 load reduced" tells the
   next block's planning nothing.
-- The **last line** of the response tells the athlete to re-import.
+- The change note reads as a sentence to the athlete, and `--reviewed-through` is the window's
+  latest session date.
+- `coach_sync.py revise` exited 0 — a dry run alone published nothing.
+- The **last line** of the response tells the athlete to tap Update device.
