@@ -27,6 +27,7 @@ on disk. Test both programme fixtures after any change to import, filtering, or 
 | `accountdatatest.js` (node) | The account portability snapshot: what it includes, and that credentials, the owner marker and demo keys are excluded. |
 | `swtest.js` (node) | App-shell caching and the cross-origin authentication/Data API boundary. |
 | `validatortest.py` (python3) | The builder refuses to emit a **bad** one: every fixture passes `validate_program.py`, and every known single-mutation breakage is rejected. The case count is printed by the test, not recorded here. |
+| `coachsynctest.py` (python3) | `coach_sync.py`'s revision guard refuses every way a revision would rewrite a trained day or move logged sets to another id, and its `slug`/`programKey`/filename mirrors agree with the app. `supabase/tests/coach/coach_sync_flow.test.py` runs the same script against the local stack. |
 
 `validatortest.py` mutates `program.v2.sample.json` one field at a time — a duplicate id, a
 `day` not in `meta.days`, a `load` emitted as a number, a week with no rows. The negative cases

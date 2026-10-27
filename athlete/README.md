@@ -4,8 +4,8 @@ This folder holds everything the **coaching side** of the loop needs: the skills
 and build programmes, the research they draw on, and one folder per athlete containing that
 person's private data.
 
-Nothing in here is served by the PWA. The app and the coaching project never talk to each
-other — the only integration is JSON files on disk.
+Nothing in here is served by the PWA. The contract between the two sides is the versioned
+JSON files; `coach_sync.py` (below) moves them through the athlete's account instead of by hand.
 
 ## Layout
 
@@ -83,6 +83,19 @@ Then write `athlete/<slug>/personal-profile.md` — `program-planner` carries a 
 in `skills/program-planner/reference/athlete-profile-template.md` — and run `program-planner`.
 There is nothing to register and no file to edit: the ignore rules already cover the new folder
 (see below).
+
+## Reaching the athlete's account — `coach_sync.py`
+
+`skills/program-builder/scripts/coach_sync.py` signs in as **the coach** and reaches only the
+athletes an administrator has linked to that account; its docstring has the commands and the
+connection settings. It pulls unreviewed sessions into `<slug>/logs/`, publishes a new block to
+the athlete's library, and publishes a revision onto the block already there. It never activates
+anything: the athlete taps Activate or Update device on their own phone.
+
+`revise` refuses — before sending — a revision that edits a day already trained, moves an exercise
+to a different id, skips a version, or arrives without `changeNote` and `reviewedThrough`. Run it
+with `--dry-run` first. The athlete is found by the slug their programmes carry, so their first
+block needs `publish --athlete-email`. The password is prompted for and never stored.
 
 ## Privacy — read before committing anything here
 
