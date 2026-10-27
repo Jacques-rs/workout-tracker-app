@@ -60,6 +60,9 @@ Features outside this boundary are listed under **Deferred on purpose** in `docs
   one from the revision the coach read; it never deletes, activates, or writes `session_logs`.
   Widening coach access means a new function with its own link check and two-user test, never
   a policy on the owner tables.
+- **The security advisor's "signed-in users can execute SECURITY DEFINER" warnings on the
+  `coach_*` functions and `delete_own_account` are by design.** Each checks the link or a fresh
+  password itself; a new one on any other function is a real finding.
 - **Google is the only OAuth provider, and the client keeps `flowType: "implicit"`.** PKCE would
   reject the administrator's invite links, which carry no code verifier. The Google OAuth client
   and its secret live in Google Cloud and the hosted dashboard, never in the repo; its one redirect
