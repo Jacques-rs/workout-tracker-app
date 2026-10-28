@@ -18,6 +18,15 @@
     "createdAt": "2026-08-01T00:00:00Z",
     "updatedAt": "2026-08-14T06:00:00Z"
   },
+  "healthConsents": [
+    {
+      "id": "20000000-0000-0000-0000-000000000001",
+      "action": "given",
+      "consentVersion": 1,
+      "decidedAt": "2026-08-01T06:00:00Z",
+      "recordedAt": "2026-08-01T06:00:01Z"
+    }
+  ],
   "programmes": [
     {
       "id": "10000000-0000-0000-0000-000000000001",
@@ -58,6 +67,17 @@
     "schedule": {
       "programKey": "sample-block|sample-athlete|6|4",
       "anchorMonday": "2026-08-10"
+    },
+    "healthConsent": {
+      "decisions": [
+        {
+          "id": "20000000-0000-0000-0000-000000000001",
+          "action": "given",
+          "version": 1,
+          "decidedAt": "2026-08-01T06:00:00.000Z",
+          "synced": true
+        }
+      ]
     },
     "sessions": [],
     "syncQueue": []

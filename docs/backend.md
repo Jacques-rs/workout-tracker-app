@@ -38,11 +38,38 @@ relational metadata columns:
 | `session_logs` | A `tp-session-*` snapshot plus owner, programme/conflict references, session metadata, revision and soft-delete timestamps |
 | `user_settings` | One row per owner: which optional fields are tracked and what the pain field is called, plus a per-field timestamp map. Preferences only — no workout payload, no health readings, nothing that reaches a log file |
 
+One append-only record, `health_consents`: each health-data consent decision (`given`,
+`declined` or `withdrawn`) with the consent version and when it was made. See **Health-data
+consent** below.
+
 One link table, `coach_athletes`: an administrator-created coach → athlete pair, revocable by
 either side. A coach reaches a linked athlete's programmes and logs **only** through the
 link-checked `coach_*` functions; the three tables' policies stay owner-only, because the app
 lists them through RLS alone and a coach policy would put an athlete's rows in the coach's own
 library.
+
+## Health-data consent
+
+Pain per exercise, pain on waking, sleep, bodyweight and HRV / notes are health data, recorded on
+an account only with the athlete's explicit consent. Readiness and training are not, and are always
+logged. What it promises:
+
+- **Asked once, in the app.** The first open after sign-in asks; Not now is a decision too. The
+  athlete gives or withdraws consent at any time in Account → Health data. A signed-out install
+  keeps everything on the phone and is never asked.
+- **Without consent, logging is unchanged except that the health fields are hidden.** The check is
+  local and never waits on the network; see `docs/architecture.md`.
+- **Every decision is kept.** Rows are insert-only for the athlete — changing your mind is a new
+  row — and the latest by `decided_at` is in force. The server sets `recorded_at` and clamps a
+  future `decided_at` to it. Rows are in `export_own_account()` and go with the account.
+- **Withdrawal stops further use, and does not erase.** Without consent in force,
+  `coach_session_logs` blanks every health reading and marks it untracked in *every* log, earlier
+  ones included; readiness and training still reach the coach. Logs keep their stored readings, and
+  erasure is Delete account.
+- **New terms ask again.** `private.health_consent_version()` and `CONSENT_VERSION` in
+  `index.html` are bumped together, in a migration, only when the health-data terms change; a
+  decision under an older version is not in force. Edit `privacy.html`'s consent paragraph in the
+  same change.
 
 Add a table only when a demonstrated requirement cannot be expressed cleanly here, and do not
 prematurely normalize every exercise and set. Analytics can use Postgres JSON queries or derived
@@ -56,6 +83,9 @@ Features outside this boundary are listed under **Deferred on purpose** in `docs
 - **Hosted Auth-email sends require explicit approval.** See `CLAUDE.md` § Verifying changes —
   it owns this rule. Check the live project's rate-limit/SMTP configuration rather than assuming
   a documented default.
+- **A coach reads health data only through the consent check.** Any new `coach_*` function that
+  returns a session payload passes it through `private.strip_health()` unless
+  `private.health_consent_given()` holds, with a two-user test.
 - **Coach writes stop at the library.** A `coach_*` function may add a programme row or revise
   one from the revision the coach read; it never deletes, activates, or writes `session_logs`.
   Widening coach access means a new function with its own link check and two-user test, never
