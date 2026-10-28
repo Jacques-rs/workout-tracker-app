@@ -175,6 +175,7 @@ Object.defineProperties(globalThis, {
   ,ACCOUNT_SETTINGS:{get:()=>ACCOUNT_SETTINGS,set:v=>{ACCOUNT_SETTINGS=v}}
   ,ACCOUNT_KEYS:  {get:()=>ACCOUNT_KEYS}
   ,DEVICE_KEYS:   {get:()=>DEVICE_KEYS}
+  ,ACCENTS:       {get:()=>ACCENTS}
   ,SESSION_INDEX: {get:()=>SESSION_INDEX}
 });`;
 vm.runInContext(blocks[blocks.length - 1] + EPILOGUE, sandbox, { filename: "index.html<script>" });
@@ -1404,6 +1405,27 @@ console.log("\nthere is no drawer, and nothing lacks a home");
   const appearance = new El("div"); app.renderAppearance(appearance);
   assert(appearance.findAll(n => n.classList.contains("pal")).length >= 2,
     "Appearance still offers its palettes");
+  /* Mono offers accents; Mint keeps its own, so it offers none and clears the attribute
+     rather than leaving a Mono accent that no CSS block would match anyway. */
+  const accents = host => host.findAll(n => n.classList.contains("acc"));
+  is(app.SET_DEFAULTS.accent, "amber", "Mono's default accent is amber");
+  app.SETTINGS = { ...app.SET_DEFAULTS, palette: "a", accent: "blue" };
+  app.applyTheme();
+  const mono = new El("div"); app.renderAppearance(mono);
+  is(accents(mono).length, app.ACCENTS.length, "Mono offers every accent");
+  is(accents(mono).filter(b => b.getAttribute("aria-pressed") === "true").length, 1,
+    "with exactly one marked as chosen");
+  is(app.document.documentElement.dataset.accent, "blue", "the chosen accent reaches <html>");
+  app.SETTINGS = { ...app.SET_DEFAULTS, palette: "b", accent: "blue" };
+  app.applyTheme();
+  const mint = new El("div"); app.renderAppearance(mint);
+  is(accents(mint).length, 0, "Mint offers no accent picker");
+  assert(!("accent" in app.document.documentElement.dataset), "and carries no data-accent");
+  /* An accent with no CSS block silently renders as amber; amber IS the base block. */
+  app.ACCENTS.filter(a => a.key !== "amber").forEach(a => ["dark", "light"].forEach(m =>
+    assert(html.includes(`html[data-theme="a-${m}"][data-accent="${a.key}"]`),
+      `${a.key} has an a-${m} block`)));
+  app.SETTINGS = { ...app.SET_DEFAULTS };
   const fields = new El("div"); app.renderFields(fields);
   is(fields.findAll(n => n.getAttribute("role") === "switch").length, app.FIELD_DEFS.length,
     "and Tracked fields still offers every switch");
@@ -2635,7 +2657,7 @@ console.log("\ntwo settings scopes: what follows the account, and what stays on 
   is(app.ACCOUNT_KEYS.slice().sort(),
     ["bodyweight", "hrvNote", "painLabel", "painOnWaking", "painPerExercise", "readiness", "sleep"],
     "the tracked fields and the pain label follow the account");
-  is(app.DEVICE_KEYS.slice().sort(), ["mode", "palette", "restCue", "sv", "view"],
+  is(app.DEVICE_KEYS.slice().sort(), ["accent", "mode", "palette", "restCue", "sv", "view"],
     "appearance, which view the app opens on, and whether the rest clock beeps stay on the device");
   app.DEVICE_KEYS.forEach(key =>
     assert(!app.accountScoped(key), `${key} is device-scoped`));
