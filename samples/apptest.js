@@ -192,6 +192,7 @@ Object.defineProperties(globalThis, {
   ,ACCOUNT_KEYS:  {get:()=>ACCOUNT_KEYS}
   ,DEVICE_KEYS:   {get:()=>DEVICE_KEYS}
   ,CONSENT_ASKED: {get:()=>CONSENT_ASKED, set:v=>{CONSENT_ASKED=v}}
+  ,ACCENTS:       {get:()=>ACCENTS}
   ,SESSION_INDEX: {get:()=>SESSION_INDEX}
 });`;
 vm.runInContext(blocks[blocks.length - 1] + EPILOGUE, sandbox, { filename: "index.html<script>" });
@@ -1421,6 +1422,52 @@ console.log("\nthere is no drawer, and nothing lacks a home");
   const appearance = new El("div"); app.renderAppearance(appearance);
   assert(appearance.findAll(n => n.classList.contains("pal")).length >= 2,
     "Appearance still offers its palettes");
+  /* Mono offers accents; Mint keeps its own, so it offers none and clears the attribute
+     rather than leaving a Mono accent that no CSS block would match anyway. */
+  const accents = host => host.findAll(n => n.classList.contains("acc"));
+  is(app.SET_DEFAULTS.accent, "amber", "Mono's default accent is amber");
+  /* Spelled out, not read from ACCENTS: dropping one from the list must fail here. */
+  is(app.ACCENTS.map(a => a.key), ["amber", "orange", "blue", "violet", "pink"],
+    "Mono offers amber, orange, blue, violet and pink");
+  app.SETTINGS = { ...app.SET_DEFAULTS, palette: "a", accent: "blue" };
+  app.applyTheme();
+  const mono = new El("div"); app.renderAppearance(mono);
+  is(accents(mono).map(b => b.textContent), ["Amber", "Orange", "Blue", "Violet", "Pink"],
+    "and draws a chip for each");
+  is(accents(mono).filter(b => b.getAttribute("aria-pressed") === "true").map(b => b.textContent),
+    ["Blue"], "with the chosen one — and only it — marked pressed");
+  is(app.document.documentElement.dataset.accent, "blue", "the chosen accent reaches <html>");
+  app.SETTINGS = { ...app.SET_DEFAULTS, palette: "b", accent: "blue" };
+  app.applyTheme();
+  const mint = new El("div"); app.renderAppearance(mint);
+  is(accents(mint).length, 0, "Mint offers no accent picker");
+  assert(!("accent" in app.document.documentElement.dataset), "and carries no data-accent");
+  /* An accent whose block is missing or hollow silently renders as amber (amber IS the
+     base block), so check each block's declarations, and that its text stays readable:
+     the label on an accent fill, and accent-coloured text on the page and on a card. */
+  const block = sel => { const i = html.indexOf(sel + "{");
+    return i < 0 ? null : html.slice(i + sel.length + 1, html.indexOf("}", i)); };
+  const hex = (body, v) => (new RegExp(v + ":(#[0-9a-f]{6})").exec(body || "") || [])[1];
+  const lum = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255)
+    .map(c => c <= .03928 ? c / 12.92 : Math.pow((c + .055) / 1.055, 2.4))
+    .reduce((s, c, i) => s + c * [.2126, .7152, .0722][i], 0);
+  const contrast = (a, b) => { const x = lum(a), y = lum(b);
+    return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
+  ["dark", "light"].forEach(m => {
+    const base = block(`html[data-theme="a-${m}"]`) || block(`html:not([data-theme]),html[data-theme="a-${m}"]`);
+    const pages = [hex(base, "--bg"), hex(base, "--panel")];
+    app.ACCENTS.forEach(a => {
+      const own = a.key === "amber" ? base : block(`html[data-theme="a-${m}"][data-accent="${a.key}"]`);
+      const tok = v => hex(own, v) || hex(base, v);
+      assert(own && ["--accent", "--on-accent", "--accent-soft", "--accent-ink", "--ring"]
+        .every(v => own.includes(v + ":")), `${a.key} ${m} overrides the whole accent family`);
+      const onFill = contrast(tok("--accent"), tok("--on-accent"));
+      const onPage = Math.min(...pages.map(p => contrast(tok("--accent-ink"), p)));
+      assert(onFill >= 4.5 && onPage >= 4.5,
+        `${a.key} ${m} text holds 4.5:1 (label ${onFill.toFixed(2)}, accent text ${onPage.toFixed(2)})`);
+    });
+  });
+  app.SETTINGS = { ...app.SET_DEFAULTS };
   const fields = new El("div"); app.renderFields(fields);
   is(fields.findAll(n => n.getAttribute("role") === "switch").length,
     app.FIELD_DEFS.filter(f => !f.fixed).length,
@@ -2653,7 +2700,7 @@ console.log("\ntwo settings scopes: what follows the account, and what stays on 
   is(app.ACCOUNT_KEYS.slice().sort(),
     ["bodyweight", "hrvNote", "painLabel", "painOnWaking", "painPerExercise", "sleep"],
     "the tracked fields and the pain label follow the account");
-  is(app.DEVICE_KEYS.slice().sort(), ["mode", "palette", "restCue", "sv", "view"],
+  is(app.DEVICE_KEYS.slice().sort(), ["accent", "mode", "palette", "restCue", "sv", "view"],
     "appearance, which view the app opens on, and whether the rest clock beeps stay on the device");
   app.DEVICE_KEYS.forEach(key =>
     assert(!app.accountScoped(key), `${key} is device-scoped`));
