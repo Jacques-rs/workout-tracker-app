@@ -218,6 +218,23 @@ def find_athlete(account, wanted):
 
 # --- Commands ---------------------------------------------------------------
 
+def log_names(rows):
+    """One distinct file per row. A conflict copy keeps its own suffix; two live rows for one
+    date and day (started under one programme version, finished under the next) would share
+    the app's export name, so the newest keeps it and each earlier one is marked -earlier-.
+    Relies on coach_session_logs ordering rows oldest first within a date."""
+    names = []
+    for i, row in enumerate(rows):
+        name = session_filename(row["payload"])
+        if row.get("conflict_of"):
+            name = name[:-5] + f"-conflict-{row['id'][:8]}.json"
+        elif any(not r.get("conflict_of") and session_filename(r["payload"]) == name
+                 for r in rows[i + 1:]):
+            name = name[:-5] + f"-earlier-{row['id'][:8]}.json"
+        names.append(name)
+    return names
+
+
 def cmd_athletes(account, a):
     for link in account.rpc("coach_athletes_linked") or []:
         programs = account.rpc("coach_programs", athlete=link["athlete_id"]) or []
@@ -233,10 +250,12 @@ def cmd_pull(account, a):
     logs = os.path.join(a.root, a.athlete, "logs")
     os.makedirs(logs, exist_ok=True)
     written = 0
-    for row in rows:
-        name = session_filename(row["payload"])
-        if row.get("conflict_of"):
-            name = name[:-5] + f"-conflict-{row['id'][:8]}.json"
+    for row, name in zip(rows, log_names(rows)):
+        kind = "conflict copy" if row.get("conflict_of") else "session"
+        if kind == "session" and name != session_filename(row["payload"]):
+            kind = "earlier copy"
+            print(f"WARNING: {name} shares its date and day with "
+                  f"{session_filename(row['payload'])} under another programme row - read both")
         path = os.path.join(logs, name)
         body = json.dumps(row["payload"], ensure_ascii=False, indent=2) + "\n"
         if os.path.exists(path) and open(path, encoding="utf-8").read() == body:
@@ -244,7 +263,7 @@ def cmd_pull(account, a):
         with open(path, "w", encoding="utf-8") as f:
             f.write(body)
         written += 1
-        print(f"{'conflict copy' if row.get('conflict_of') else 'session'}: {path}")
+        print(f"{kind}: {path}")
     print(f"OK: {len(rows)} session(s) after {since or 'the start'}, {written} written to {logs}")
 
 

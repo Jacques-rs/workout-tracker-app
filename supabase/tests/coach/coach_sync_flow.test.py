@@ -104,6 +104,30 @@ try:
     check(res.returncode == 0
           and logs == ["session-2026-01-19-day-1-mon-clean-skill-front-squat-knee-c.json"],
           "pull writes only sessions after reviewedThrough, under the app's export name")
+
+    # Started under one programme row, finished under another: two live rows, one export name.
+    restarted = copy.deepcopy(fixture)
+    restarted["meta"]["block"] = "SAMPLE BLOCK RESTARTED"
+    other_program = call("POST", "/rest/v1/programs", bearer=athlete["token"],
+                         prefer="return=representation",
+                         body={"title": "Restarted", "schema_version": "tp-program-2",
+                               "payload": restarted})[0]
+    call("POST", "/rest/v1/session_logs", bearer=athlete["token"],
+         body={"program_id": other_program["id"], "session_date": "2026-01-19", "day": DAY1,
+               "week": 3, "schema_version": "tp-session-3", "program_version": 1,
+               "payload": {"schema": "tp-session-3", "date": "2026-01-19", "day": DAY1,
+                           "week": 3, "finished": True}})
+    res = coach_sync("pull", "--athlete", SLUG, root=root)
+    logs = sorted(os.listdir(os.path.join(root, SLUG, "logs")))
+    canonical = os.path.join(root, SLUG, "logs", logs[-1])
+    with open(canonical, encoding="utf-8") as f:
+        newest = json.load(f)
+    check(res.returncode == 0 and len(logs) == 2 and "-earlier-" in logs[0]
+          and newest.get("finished") is True,
+          "a date and day under two programme rows lands as two files, newest canonical")
+    check("WARNING" in res.stdout and logs[0] in res.stdout and "2 written" in res.stdout,
+          "and the pull names the earlier copy and counts both")
+
     res = coach_sync("pull", "--athlete", "stranger-slug", root=root)
     check(res.returncode != 0, "pull refuses a slug that belongs to an unlinked athlete")
 
