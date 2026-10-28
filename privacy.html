@@ -1,11 +1,53 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Privacy · Training Tracker</title><meta name="theme-color" content="#14213d">
-<style>body{margin:0;background:#14213d;color:#fff;font:16px/1.55 system-ui,sans-serif}main{max-width:720px;margin:auto;padding:32px 20px 56px}a{color:#fca311}h1{line-height:1.15}h2{margin-top:2em}p,li{color:#e5e5e5}</style></head>
-<body><main><p><a href="./index.html">← Training Tracker</a></p><h1>Privacy for the private beta</h1>
-<p>This notice applies to the invite-only Training Tracker beta. For questions, contact the administrator who invited you. A dedicated public contact and formal privacy review are required before public onboarding.</p>
-<h2>What we collect and why</h2><p>Your account email, programme details, workout logs, readiness, sleep, bodyweight, pain and other health-related notes, and your tracking preferences — which optional fields you record and what you call them — are used only to operate your private training tracker, synchronize it across your installations, and provide your requested exports. The production app has no advertising, analytics, or AI calls. Personal payloads are never intentionally written to operational logs.</p>
-<h2>Where it is stored</h2><p>The app stores the active programme, session data, your settings and any unsent sync queue on your device so logging works offline. Appearance settings stay on the device; your tracking preferences are stored with your account so they follow you to another installation. When connected, data is stored in Supabase in EU Central with access limited to your account. GitHub Pages serves only the static app shell; it does not receive your programme or workout payloads.</p>
-<h2>Retention and deletion</h2><p>Removed programmes are retained as private tombstones for 30 days, then permanently purged; historical session references become unlinked. Active programmes, session logs and your tracking preferences remain until you delete your account. Account deletion immediately removes live cloud records and clears personal data from the current installation after the server confirms it. It cannot clear offline caches on other installations. Managed backups may retain deleted data until their seven-day roll-off.</p>
-<h2>Your choices</h2><p>While signed in and online, you can download an account export containing cloud records plus this device’s local-only and queued work. You can correct data in the app or delete your account from the profile. The export is for access and portability; restore/import is not available yet.</p>
+<style>body{margin:0;background:#14213d;color:#fff;font:16px/1.55 system-ui,sans-serif}main{max-width:720px;margin:auto;padding:32px 20px 56px}a{color:#fca311}h1{line-height:1.15}h2{margin-top:2em}p,li{color:#e5e5e5}mark{background:#fca311;color:#14213d;padding:0 3px}</style></head>
+<body><main><p><a href="./index.html">← Training Tracker</a></p><h1>Privacy notice</h1>
+<p>Version 2 · effective <mark>[DATE]</mark></p>
+<p>Training Tracker is a private, invite-only app for the coaching clients of the administrator who invited you (“your coach”, “I”). You have an account only because I invited you. I decide how your data is used, and I am responsible for it. Questions, requests or complaints go to the administrator who invited you.</p>
+
+<h2>What I collect</h2>
+<ul>
+<li><strong>Account:</strong> your email address and sign-in details.</li>
+<li><strong>Training:</strong> the programmes I write for you, and what you log against them: sets, loads, reps, effort (RPE), times, distances and notes.</li>
+<li><strong>Health information:</strong> readiness, sleep, bodyweight, pain scores and pain notes, and anything about injuries you choose to write in the app.</li>
+<li><strong>Coaching information you give me directly</strong>, outside the app: training history, goals, injury and medical history relevant to your training.</li>
+<li><strong>Preferences:</strong> which optional fields you track and what you call them, and appearance settings.</li>
+</ul>
+<p>There is no advertising, no analytics and no tracking in the app, and your data is never sold.</p>
+
+<h2>Why, and on what basis</h2>
+<ul>
+<li><strong>To run the app for you</strong> — saving your logs, syncing them between your devices, and producing your exports. This is necessary to provide the service you asked for.</li>
+<li><strong>To coach you</strong> — I review your logged sessions and adjust your programme in response, including following your pain and readiness against the rules we agreed for your training.</li>
+</ul>
+<p>Health information is a special category of personal data, so I process it <strong>only with your explicit consent</strong>, which you give when you join. You can withdraw it at any time by contacting me. Withdrawing stops any further use and means I can no longer coach you through the app; it does not undo use that happened before.</p>
+
+<h2>Who can see your data</h2>
+<p><strong>You, and me as your coach.</strong> No other client can see anything of yours. To review your training I copy your synced sessions out of the app’s database using an administrator tool that only I hold. The following services handle your data on my behalf, and only for the purposes above:</p>
+<ul>
+<li><strong>Supabase</strong> — the app’s database and sign-in, hosted in the EU (EU Central).</li>
+<li><strong>Google</strong> — only if you choose <em>Continue with Google</em>. Google confirms who you are and shares your name, email address and profile picture with the app’s sign-in, and Google knows you signed in to Training Tracker. It never receives your programme or logs.</li>
+<li><strong><mark>[Resend]</mark></strong> — sends account emails such as invitations and password resets. It receives your email address only.</li>
+<li><strong>GitHub Pages</strong> — hosts the app’s files. It receives ordinary web-request information such as your IP address, never your programme or logs.</li>
+<li><strong>Google Drive</strong> — where I keep my coaching records for you: your programmes, copies of your session logs, and the coaching information you gave me.</li>
+<li><strong>Anthropic (Claude)</strong> — an AI assistant I use to help analyse your logs and draft programme changes. I review every change before it reaches you; nothing about your training is decided automatically. The app itself makes no AI calls.</li>
+</ul>
+<p>Some of these providers may process data outside <mark>[the UK / the EU]</mark>. Where they do, they rely on their own legal safeguards for international transfers, such as standard contractual clauses.</p>
+
+<h2>Where it is stored</h2>
+<p>The app keeps the active programme, your session data, your settings and any unsent sync queue on your device, so logging works with no signal. Appearance settings stay on the device; tracking preferences are stored with your account so they follow you to another device. When you are online, your data syncs to Supabase in the EU, where access is limited to your account and to me as described above. Data is encrypted in transit.</p>
+
+<h2>How long it is kept</h2>
+<ul>
+<li><strong>In the app:</strong> removed programmes are kept privately for 30 days, then permanently purged. Active programmes, session logs and preferences remain until you delete your account. Deleting your account immediately removes your cloud records and clears your data from the device you delete from, once the server confirms. It cannot clear copies stored offline on your other devices. Deleted cloud data is not kept in any backup.</li>
+<li><strong>My coaching records:</strong> kept while I coach you and for <mark>[12 months]</mark> afterwards, then deleted. Deleting your app account does not delete these; ask me and I will.</li>
+</ul>
+
+<h2>Your rights</h2>
+<p>You can ask me for a copy of the data I hold about you, ask me to correct it or delete it, ask me to restrict or stop using it, and withdraw your consent. In the app, while signed in and online, you can download an export of your account and this device’s unsent work, correct your logs, and delete your account from your profile. For my coaching records, contact the administrator who invited you. I will reply within one month.</p>
+<p>If you are unhappy with how I handle your data, please tell me first. You also have the right to complain to <mark>[SUPERVISORY AUTHORITY, e.g. the ICO]</mark>.</p>
+
+<h2>Changes</h2>
+<p>I will tell you before this notice changes in a way that matters. If I want to use your data for a new purpose, I will ask for your consent again first.</p>
 </main></body></html>
