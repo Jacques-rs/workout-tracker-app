@@ -82,14 +82,15 @@
   }
   /* Mono's accent choices. Only the accent family changes; no option sits near --good
      green, so "now" can never be mistaken for "logged". Mint has its own accent and
-     ignores data-accent. Amber is the A blocks above, so it needs no block here. */
+     ignores data-accent. Amber is the A blocks above, so it needs no block here.
+     Every --on-accent/--accent and --accent-ink/page pair holds 4.5:1 — apptest checks it. */
   html[data-theme="a-dark"][data-accent="orange"]{
     --accent:#ff6b2c; --on-accent:#161616; --accent-soft:rgba(255,107,44,.16); --accent-ink:#ff8a55;
     --ring:0 0 0 3px rgba(255,107,44,.30); --toast-line:#ff6b2c; --cat-tendon:#ff6b2c;
   }
   html[data-theme="a-light"][data-accent="orange"]{
-    --accent:#f05a1a; --on-accent:#ffffff; --accent-soft:rgba(240,90,26,.12); --accent-ink:#c24a12;
-    --ring:0 0 0 3px rgba(240,90,26,.28); --toast-line:#f05a1a; --cat-tendon:#c24a12;
+    --accent:#f05a1a; --on-accent:#161616; --accent-soft:rgba(240,90,26,.12); --accent-ink:#b8440f;
+    --ring:0 0 0 3px rgba(240,90,26,.28); --toast-line:#f05a1a; --cat-tendon:#b8440f;
   }
   html[data-theme="a-dark"][data-accent="blue"]{
     --accent:#5b8cff; --on-accent:#0b1530; --accent-soft:rgba(91,140,255,.16); --accent-ink:#7ea4ff;
@@ -112,8 +113,8 @@
     --ring:0 0 0 3px rgba(255,95,162,.30); --toast-line:#ff5fa2; --cat-tendon:#ff5fa2;
   }
   html[data-theme="a-light"][data-accent="pink"]{
-    --accent:#d63d80; --on-accent:#ffffff; --accent-soft:rgba(214,61,128,.12); --accent-ink:#b8306b;
-    --ring:0 0 0 3px rgba(214,61,128,.28); --toast-line:#d63d80; --cat-tendon:#b8306b;
+    --accent:#c8336f; --on-accent:#ffffff; --accent-soft:rgba(200,51,111,.12); --accent-ink:#b8306b;
+    --ring:0 0 0 3px rgba(200,51,111,.28); --toast-line:#c8336f; --cat-tendon:#b8306b;
   }
   /* B · dark — "Teal & Mint". Mid-dark teal page, pale mint as the accent, so buttons
      read light-on-dark rather than colour-on-dark. */

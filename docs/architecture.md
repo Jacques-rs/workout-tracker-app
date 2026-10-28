@@ -369,7 +369,7 @@ folder. `copyJSON()` is the fallback path — clipboard, then paste into chat.
 
 ## Styling
 
-Inline `<style>` in the head. Colour comes entirely from CSS custom properties (`--bg`, `--panel`, `--ink`, `--accent`, `--good/--warn/--bad`) declared in the four `html[data-theme]` blocks (see section 2b); a 4px spacing scale (`--s1`..`--s5`) and a type scale (`--t-xs`..`--t-hero`). Mobile-first, single column, `max-width: 720px`, `env(safe-area-inset-*)` respected for notch/home-bar.
+Inline `<style>` in the head. Colour comes entirely from CSS custom properties (`--bg`, `--panel`, `--ink`, `--accent`, `--good/--warn/--bad`) declared in the four `html[data-theme]` blocks, plus Mono's `data-accent` overrides (see **theme** above); a 4px spacing scale (`--s1`..`--s5`) and a type scale (`--t-xs`..`--t-hero`). Mobile-first, single column, `max-width: 720px`, `env(safe-area-inset-*)` respected for notch/home-bar.
 
 Layout rules that are load-bearing on a phone, and easy to undo by accident:
 
@@ -386,7 +386,7 @@ Layout rules that are load-bearing on a phone, and easy to undo by accident:
 - The four-across log/set grids are gated on `min-width: 360px` and fall back to 2×2 below that.
 - **The set editor uses the instrument treatment**: a 2px rule under a big tabular numeral with a tiny uppercase letterspaced label over it, rather than four boxed form fields. The tap target is still the full `--h-field`, which is what a chalked thumb needs, and focus is shown by the rule going amber plus the field lighting up — a 3px ring around a borderless field reads as a box coming back. Load and whatever the exercise measures carry the largest numerals, marked with a `.big` class rather than by grid position so reordering the row cannot silently move the emphasis.
 - **The narrow pain column takes `painLblShort()`**, the site alone. Once the label is uppercase and letterspaced, "Knee pain" does not fit ~70px, and the `/10` beside it already says it is a score. Same reasoning as `Dist` over `Distance`. The `aria-label` keeps the full wording.
-- **Amber is reserved for *now*** and green for *logged*: the primary action, the rest clock while you are still inside the prescribed rest, an interval timer's work phase, the current pip, today's ring on the calendar. Quiet actions (`.quietaction`, `.addnote`) and disclosures are muted and underlined instead — a secondary action that borrows either competes with the one tap that matters.
+- **The accent is reserved for *now*** and green for *logged* — Mono's chosen accent (amber by default) or Mint's mint: the primary action, the rest clock while you are still inside the prescribed rest, an interval timer's work phase, the current pip, today's ring on the calendar. Quiet actions (`.quietaction`, `.addnote`) and disclosures are muted and underlined instead — a secondary action that borrows either competes with the one tap that matters.
 - **The calendar is an eight-column grid**, a `W1`–`Wn` label plus seven days, at `20px repeat(7, minmax(0,1fr))` with 2px gaps: about 37px a cell at 320 and 47px at 390. That budget is exactly why a cell holds a date number and one mark and nothing else.
 
 ## Current client boundary
