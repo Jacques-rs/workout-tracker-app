@@ -26,7 +26,8 @@
       if (!key || key.startsWith(DEMO_PREFIX)) continue;
       /* Named explicitly below rather than swept up by the generic scan. */
       if (key === "tp_program_v1" || key === "tp_settings_v1" ||
-          key === "tp_account_settings_v1" || key === "tp_schedule_v1") continue;
+          key === "tp_account_settings_v1" || key === "tp_schedule_v1" ||
+          key === "tp_health_consent_v1") continue;
       if (key.startsWith("tp_sess_v1::") || key === "tp_session_sync_v1") {
         try {
           const value = JSON.parse(storage.getItem(key) || "null");
@@ -38,10 +39,11 @@
     const read = key => { try { return JSON.parse(storage.getItem(key) || "null"); } catch (_) { return null; } };
     /* `settings` is the DEVICE half (appearance); `accountSettings` is the account half as it
        stands on this device, which may hold a change not yet pushed. `schedule` is the block
-       anchor — without it an exported archive could not reproduce which dates the app suggested. */
+       anchor — without it an exported archive could not reproduce which dates the app suggested.
+       `healthConsent` holds consent decisions this device may not have pushed yet. */
     return { activeProgram: read("tp_program_v1"), settings: read("tp_settings_v1"),
       accountSettings: read("tp_account_settings_v1"), schedule: read("tp_schedule_v1"),
-      sessions, syncQueue: queue };
+      healthConsent: read("tp_health_consent_v1"), sessions, syncQueue: queue };
   }
 
   function clearPersonalDeviceState(storage) {
@@ -83,6 +85,7 @@
         /* Null rather than {} when the account has never stored preferences: the athlete's own
            tracked-field choices must be in the file, and "not set" is different from "all off". */
         settings: copy(cloud.settings == null ? null : cloud.settings),
+        healthConsents: copy(cloud.healthConsents || []),
         programmes: copy(cloud.programmes || []), sessions: copy(cloud.sessions || []),
         device: personalDeviceState(storage) };
       download(deps.document, output);

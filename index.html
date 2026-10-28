@@ -693,6 +693,8 @@
   .sheet-wrap{position:fixed;inset:0;z-index:90;display:none;align-items:flex-end}
   .sheet-wrap.in{display:flex}
   .sheet-bg{position:absolute;inset:0;background:var(--scrim)}
+  /* A link in a sheet (the privacy notice) takes the theme's ink, never the browser's blue. */
+  .sheet a{color:var(--ink);text-underline-offset:3px;font-weight:700}
   .sheet{position:relative;width:100%;max-width:720px;margin:0 auto;background:var(--panel);
     border:1px solid var(--line);border-bottom:0;border-radius:20px 20px 0 0;
     padding:var(--s3) var(--s4) calc(var(--s4) + env(safe-area-inset-bottom));
@@ -870,6 +872,8 @@
   .sw[aria-checked="true"]{background:var(--accent-soft);border-color:var(--accent)}
   .sw[aria-checked="true"]::after{transform:translateX(20px);background:var(--accent)}
   .sw:focus-visible{box-shadow:var(--ring)}
+  /* A health switch while consent is not in force: it keeps the athlete's choice, read-only. */
+  .sw:disabled{opacity:.45;cursor:not-allowed}
 
   /* ---------- appearance controls ---------- */
   .pals{display:flex;gap:var(--s2)}
@@ -1060,6 +1064,7 @@
 <script src="./js/program-store.js"></script>
 <script src="./js/session-store.js"></script>
 <script src="./js/settings-store.js"></script>
+<script src="./js/consent-store.js"></script>
 <script src="./js/account-data.js"></script>
 <script src="./js/profile-ui.js"></script>
 <script>
@@ -1303,14 +1308,16 @@ function rpeButton(value,prescribed,onpick,label="RPE"){
    the only place that split is decided. See docs/design-rationale.md for why it falls
    there. */
 const FIELD_DEFS=[
-  {key:"painPerExercise",name:"Pain per exercise",
+  {key:"painPerExercise",name:"Pain per exercise",health:true,
    desc:"A 0–10 pain box on every set. Knee load varies hugely between movements, so this is what identifies which movement to regress."},
-  {key:"painOnWaking",name:"Pain on waking",
+  {key:"painOnWaking",name:"Pain on waking",health:true,
    desc:"Session-level 0–10, filled at check-in. It reads how the tissue woke up today, which is the response to the LAST session — not this one."},
-  {key:"readiness",name:"Readiness",desc:"Green / Amber / Red — governs whether load progresses, holds or regresses."},
-  {key:"sleep",name:"Sleep score",desc:"Subjective 1–5."},
-  {key:"bodyweight",name:"Bodyweight",desc:"Logged in kg at check-in."},
-  {key:"hrvNote",name:"HRV / notes",desc:"Free text for HRV and anything else about recovery."}
+  /* Always tracked, so it has no switch: it is how a session is steered, and it is
+     training data rather than health data, so consent never hides it. */
+  {key:"readiness",name:"Readiness",fixed:true,desc:"Green / Amber / Red — governs whether load progresses, holds or regresses."},
+  {key:"sleep",name:"Sleep score",health:true,desc:"Subjective 1–5."},
+  {key:"bodyweight",name:"Bodyweight",health:true,desc:"Logged in kg at check-in."},
+  {key:"hrvNote",name:"HRV / notes",health:true,desc:"Free text for HRV and anything else about recovery."}
 ];
 /* palette + accent + mode + view are cosmetic and deliberately NOT part of the session export —
    the `tracking` block is built from FIELD_DEFS and painLabel alone, so nothing here can
@@ -1320,7 +1327,7 @@ FIELD_DEFS.forEach(f=>SET_DEFAULTS[f.key]=true);
 let SETTINGS={...SET_DEFAULTS};
 /* Which store owns a key is decided HERE and nowhere else, so a new setting cannot end
    up in the wrong scope by accident. */
-const ACCOUNT_KEYS=["painLabel"].concat(FIELD_DEFS.map(f=>f.key));
+const ACCOUNT_KEYS=["painLabel"].concat(FIELD_DEFS.filter(f=>!f.fixed).map(f=>f.key));
 const DEVICE_KEYS=["palette","accent","mode","view","sv","restCue"];
 function accountScoped(key){return ACCOUNT_KEYS.indexOf(key)>=0;}
 /* The account half, as {values, at}: the value plus one ISO stamp per field, which is
@@ -1373,10 +1380,19 @@ function readAccountSettings(){
 /* Fold the account record over the defaults into the one read model everything renders
    from, so no caller has to know which scope a key came from. */
 function applyAccountSettings(){
-  ACCOUNT_KEYS.forEach(key=>{
-    SETTINGS[key]=Object.prototype.hasOwnProperty.call(ACCOUNT_SETTINGS.values,key)
-      ?ACCOUNT_SETTINGS.values[key]:SET_DEFAULTS[key];
+  const allowed=healthAllowed();
+  ACCOUNT_KEYS.forEach(key=>{SETTINGS[key]=preference(key);});
+  /* Consent gates a health field over the athlete's own switch without rewriting it, so
+     consenting brings back exactly what they had on. */
+  FIELD_DEFS.forEach(f=>{
+    if(f.fixed)SETTINGS[f.key]=true;
+    else if(f.health&&!allowed)SETTINGS[f.key]=false;
   });
+}
+/* The athlete's own choice for an account key, before consent gates it. */
+function preference(key){
+  return Object.prototype.hasOwnProperty.call(ACCOUNT_SETTINGS.values,key)
+    ?ACCOUNT_SETTINGS.values[key]:SET_DEFAULTS[key];
 }
 /* Device-first: the local record is written synchronously and is authoritative for
    rendering; the store schedules the remote half and a keystroke never waits for it. */
@@ -1388,10 +1404,10 @@ function writeAccountSettings(){
 }
 /* The one way to change a setting. Nothing else may assign into SETTINGS. */
 function setSetting(key,value){
-  SETTINGS[key]=value;
-  if(!accountScoped(key)){saveSettings();return;}
+  if(!accountScoped(key)){SETTINGS[key]=value;saveSettings();return;}
   ACCOUNT_SETTINGS.values[key]=value;
   ACCOUNT_SETTINGS.at[key]=new Date().toISOString();
+  applyAccountSettings();
   writeAccountSettings();
 }
 /* A merged record arriving from another device. Adopted into the read model and
@@ -1399,9 +1415,98 @@ function setSetting(key,value){
 function adoptAccountSettings(record){
   ACCOUNT_SETTINGS={values:(record&&record.values)||{},at:(record&&record.at)||{}};
   applyAccountSettings();
+  repaintTracked();
+}
+function repaintTracked(){
   if(APP.route==="account")renderAccountPage();
   else if(APP.route==="date"){renderCheckin();renderMain();}
   else if(APP.route==="calendar")renderCalendar();
+}
+
+/* ---------- health-data consent ----------
+   Pain, sleep, bodyweight and HRV are health data, so on an account they are recorded
+   only with the athlete's explicit consent. The decision lives in TPConsent: local first,
+   so it holds offline, and append-only on the account. Consent never gates logging — it
+   only decides whether the health fields are shown, through applyAccountSettings(). A
+   signed-out install keeps everything on the phone and is never asked. */
+/* Bump with private.health_consent_version() in a migration, and only when the health-data
+   terms change: every athlete is asked again. */
+const CONSENT_VERSION=1;
+let CONSENT_ASKED=false;
+function consentNow(){return window.TPConsent&&TPConsent.current?TPConsent.current():null;}
+function consentInForce(){
+  const c=consentNow();
+  return !!c&&c.action==="given"&&c.version>=CONSENT_VERSION;
+}
+function healthAllowed(){return !cachedAccess()||consentInForce();}
+/* Re-derive the gated fields, and rebuild a surface only when what it shows changed — an
+   auth tick must not rebuild the date view under a field mid-word. */
+function consentChanged(){
+  const before=FIELD_DEFS.map(f=>SETTINGS[f.key]).join();
+  applyAccountSettings();
+  if(FIELD_DEFS.map(f=>SETTINGS[f.key]).join()!==before)repaintTracked();
+  else if(APP.route==="account")renderAccountPage();
+  maybeAskConsent();
+}
+function decideConsent(action){
+  if(window.TPConsent)TPConsent.decide(action,CONSENT_VERSION);
+  consentChanged();
+  toast(action==="given"?"Thank you · health fields are on":
+    action==="withdrawn"?"Consent withdrawn · health fields are off":"Health fields stay off");
+}
+/* Once per account and consent version, never over the date view, and only once the
+   store has tried the account — a second phone must not ask someone who already answered.
+   Not now is a decision too, so it does not come back. */
+function maybeAskConsent(){
+  if(CONSENT_ASKED||!window.TPConsent||!cachedAccess()||APP.route==="date")return;
+  const c=consentNow();
+  if(c&&c.version>=CONSENT_VERSION)return;
+  const st=TPConsent.getState();
+  if(!st||(st.status!=="ready"&&st.status!=="offline"))return;
+  if($("#sheetWrap").classList.contains("in"))return;
+  openConsentSheet();
+}
+function openConsentSheet(){
+  CONSENT_ASKED=true;
+  const body=el("div");
+  body.append(
+    el("p",{className:"dnote"},"With your consent the app records them, and I use them only to coach you, as the privacy notice describes. Readiness and your training are always logged."),
+    el("p",{className:"dnote"},[el("a",{href:"./privacy.html",target:"_blank",rel:"noopener"},"Read the privacy notice")]),
+    el("p",{className:"dnote"},"Without consent you log training as normal and the health fields stay hidden — keep health details out of your notes too. You can change this at any time in Account."));
+  const row=el("div",{className:"sheet-actions"});
+  const later=el("button",{className:"ghost"},"Not now");
+  later.onclick=()=>{sheetClose();decideConsent("declined");};
+  const yes=el("button",{className:"primary"},"I consent");
+  yes.onclick=()=>{sheetClose();decideConsent("given");};
+  row.append(later,yes);body.append(row);
+  sheetOpen("Your health data","Pain, sleep, bodyweight and HRV are health data.",body);
+}
+function consentDate(iso){
+  const d=new Date(iso);
+  return isNaN(d)?"":d.toLocaleDateString(undefined,{day:"numeric",month:"short",year:"numeric"});
+}
+function renderConsent(host){
+  host.innerHTML="";
+  const c=consentNow(),given=consentInForce();
+  const st=window.TPConsent?TPConsent.getState():null;
+  const queued=st&&st.pending?" Saved on this device · queued for your account.":"";
+  const status=given?`You consented on ${consentDate(c.decidedAt)}. Pain, sleep, bodyweight and HRV are recorded, and your coach sees them.`
+    :c&&c.action==="withdrawn"&&c.version>=CONSENT_VERSION?`You withdrew consent on ${consentDate(c.decidedAt)}. Health fields are off, and your coach no longer sees them, in earlier logs either.`
+    :c&&c.version<CONSENT_VERSION?"The privacy notice has changed how health data is used. Health fields are off until you consent again."
+    :"Not consented. Health fields are off; training and readiness are logged as normal.";
+  host.append(el("p",{className:"dnote"},status+queued));
+  if(given){
+    const out=el("button",{className:"quietaction"},"Withdraw consent");
+    out.onclick=()=>{
+      if(window.confirm&&!window.confirm("Withdraw consent? The app stops recording pain, sleep, bodyweight and HRV, and your coach stops seeing them, in earlier logs too. Readings already logged stay in your logs; to erase them, delete your account or ask your coach."))return;
+      decideConsent("withdrawn");
+    };
+    host.append(out);
+  }else{
+    const give=el("button",{className:"ghost mini"},"Give consent");
+    give.onclick=openConsentSheet;
+    host.append(el("div",{style:"margin-top:8px"},give));
+  }
 }
 
 /* ---------- theme ----------
@@ -1504,12 +1609,17 @@ function restCueRow(){
 function renderFields(host){
   host.innerHTML="";
   host.append(el("p",{className:"dnote"},"Turn off what you don't need — nothing already logged is deleted."));
+  const allowed=healthAllowed();
+  if(!allowed)host.append(el("p",{className:"dnote"},"Health fields stay off until you consent under Health data. Your choices below are kept for then."));
   FIELD_DEFS.forEach(f=>{
-    const sw=el("button",{className:"sw",attrs:{role:"switch","aria-checked":String(!!SETTINGS[f.key]),
-      "aria-label":f.name}});
+    if(f.fixed)return;
+    /* Shows the athlete's own choice, which consent gates without rewriting. */
+    const locked=f.health&&!allowed;
+    const sw=el("button",{className:"sw",disabled:locked,attrs:{role:"switch",
+      "aria-checked":String(!!preference(f.key)),"aria-label":f.name}});
     sw.onclick=()=>{
-      setSetting(f.key,!SETTINGS[f.key]);
-      sw.setAttribute("aria-checked",String(SETTINGS[f.key]));
+      setSetting(f.key,!preference(f.key));
+      sw.setAttribute("aria-checked",String(!!preference(f.key)));
       /* Every surface that renders this field has to follow: the exercise cards, the
          check-in at the top of the date view, and the calendar's own mark and legend —
          nothing may render a tracked field that is switched off. */
@@ -2394,6 +2504,12 @@ async function boot(){
   if(window.TPAccountSettings)TPAccountSettings.init({
     onMerged:record=>{adoptAccountSettings(record);}
   });
+  /* A decision made on another device arrives here, and the first answer from the
+     account is what lets the one-time prompt ask. */
+  if(window.TPConsent){
+    TPConsent.init({onChange:consentChanged});
+    TPConsent.subscribe(()=>maybeAskConsent());
+  }
   if(window.TPSessions)TPSessions.init({
     readLocalSessions:readPersonalSessions,
     buildPayload:(session,program)=>buildSessionPayload(session,program)
@@ -2463,8 +2579,9 @@ async function boot(){
       }
       /* Gaining access on the gate is what turns a cold sign-in into the hub. */
       if(APP.route==="entry"&&cachedAccess()){bootSurface();return;}
-      /* The account screen shows sign-in state, so it follows an auth change. */
-      if(APP.route==="account")renderAccountPage();
+      /* Signing in or out changes whether consent applies at all; the account screen
+         shows sign-in state, so it follows an auth change through here too. */
+      consentChanged();
     });
     TPAuth.init();
   }
@@ -3800,6 +3917,9 @@ function renderAccountPage(){
     :sync.status==="offline"?" Saved on this device · queued for your account."
     :sync.status==="error"?" Saved on this device · "+(sync.error&&sync.error.message||"sync failed")
     :sync.pending?" Saving to your account…":"";
+  host.append(settingsGroup("Health data · follows your account",
+    "Pain, sleep, bodyweight and HRV are health data, recorded only with your consent. Training and readiness are always logged.",
+    renderConsent));
   host.append(settingsGroup("Tracked fields · follows your account",
     "Which optional fields you track, and what you call them, follow you to any device you sign in on. Change one on two devices at once and the most recent change wins, per field."+syncNote,
     renderFields));

@@ -81,6 +81,9 @@ node samples/sessionstoretest.js
 echo "==> Running account-scoped settings tests"
 node samples/settingsstoretest.js
 
+echo "==> Running health-data consent tests"
+node samples/consentstoretest.js
+
 echo "==> Running service-worker boundary tests"
 node samples/swtest.js
 

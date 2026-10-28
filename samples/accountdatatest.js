@@ -9,6 +9,8 @@ const values = new Map(Object.entries({
   tp_account_settings_v1: JSON.stringify({ values: { painLabel: "Achilles" },
     at: { painLabel: "2026-08-15T00:00:00.000Z" } }),
   tp_schedule_v1: JSON.stringify({ programKey: "k", anchorMonday: "2026-08-10" }),
+  tp_health_consent_v1: JSON.stringify({ decisions: [{ id: "unsent", action: "given", version: 1,
+    decidedAt: "2026-08-15T00:00:00.000Z", synced: false }] }),
   "tp_sess_v1::2026-08-16::Day 1": JSON.stringify({ private: "local-only" }),
   tp_session_sync_v1: JSON.stringify({ queued: true }), tp_supabase_auth_v1: "secret-token",
   tp_auth_owner_v1: JSON.stringify({ userId: "owner-marker" }),
@@ -18,6 +20,7 @@ const storage = { get length() { return values.size; }, key(i) { return [...valu
   getItem(k) { return values.has(k) ? values.get(k) : null; }, setItem(k, v) { values.set(k, String(v)); }, removeItem(k) { values.delete(k); } };
 let rpcResult = { data: { account: { id: "user-one", email: "one@example.invalid" },
   settings: { values: { painLabel: "Achilles" }, fieldUpdatedAt: { painLabel: "2026-08-15T00:00:00.000Z" }, revision: 2 },
+  healthConsents: [{ id: "synced", action: "given", consentVersion: 1 }],
   programmes: [{ id: "live" }, { id: "deleted", deletedAt: "2026-01-01" }], sessions: [{ id: "canonical" }, { id: "conflict", conflictOf: "canonical" }] } };
 let reauth = { ok: true }, forgotten = 0;
 const auth = { getState: () => ({ status: "authenticated", online: true }), getSession: () => ({ user: { id: "user-one" } }),
@@ -38,6 +41,11 @@ const api = account.createAccountData({ auth, storage, now: () => "2026-08-16T00
   assert.equal(output.device.accountSettings.values.painLabel, "Achilles",
     "including the copy on this device");
   assert.equal(output.device.settings.palette, "b", "device appearance stays separate");
+  /* What the athlete agreed to, and when, is their data too — including a decision this
+     device has not pushed yet. */
+  assert.equal(output.healthConsents[0].id, "synced", "consent decisions are portable");
+  assert.equal(output.device.healthConsent.decisions[0].id, "unsent",
+    "including one still queued on this device");
   assert.equal(output.device.schedule.anchorMonday, "2026-08-10", "and the block anchor is included");
   assert.equal(JSON.stringify(output).includes("secret-token"), false, "tokens are excluded");
   assert.equal(JSON.stringify(output).includes("owner-marker"), false, "owner marker is excluded");
