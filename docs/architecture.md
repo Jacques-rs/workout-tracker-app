@@ -49,7 +49,7 @@ Import lives on the Programme screen; export is per-session and lives on the dat
 The vendored Supabase SDK loads first, followed by the auth and profile modules. `auth-config.js`
 selects the local stack only for localhost/loopback and the hosted project elsewhere.
 `auth-client.js` owns Supabase Auth calls and exposes state/actions to the rest of the app.
-`auth-ui.js` renders sign-in, recovery and password-setup dialogs. `program-store.js` owns every
+`auth-ui.js` renders sign-in (password or Google), recovery and password-setup dialogs. `program-store.js` owns every
 Data API call to `programs`; `session-store.js` owns every Data API call to `session_logs`.
 `settings-store.js` owns every Data API call to `user_settings`.
 `profile-ui.js` renders the Account and Programme sections from those stores and local callbacks,
@@ -88,7 +88,7 @@ order in the file** — keep additions in the matching section, and if you add o
 26. **the hub** — `renderHome()`/`homeToday()`/`homeRow()`, `recordProgress()` (progress for a session we are *not* standing in, so it cannot call `dayExercises()`), `recentSessions()`, `lastMissed()`, `accountLine()`.
 27. **the calendar** — `renderCalendar()`, `calendarRange()`, `calendarMark()`, `calendarPain()`, `calendarLegend()`.
 28. **the programme screen** — `anchorPanel()` (the block anchor, editable in one tap, with the derived weekdays and the block it follows shown so it can be checked rather than trusted), `offerBlockStart()` (the new-block start sheet), `renderProgrammePage()`.
-29. **the account screen** — `settingsGroup()`, `renderAccountPage()`, which labels the two settings scopes explicitly.
+29. **the account screen** — `settingsGroup()`, `buildLabel()` (also beside the entry screen's Privacy link), `renderAccountPage()`, which labels the two settings scopes explicitly and shows the running build (the service worker's cache name).
 30. **exercise head (shared by Overview and Log)** — `exerciseHead(ex)`, `hintChips()`. The rail colour, name and prescription line. **Change an exercise's identity here only**, so the two views cannot show two different prescriptions for one row.
 31. **overview card (read-only)** — `overviewCard(ex, s, idx)`, `statusLine()`, `summaryText()`, `painLogged()`. Zero inputs.
 32. **the focus logger's instruments** — `parseRestSeconds(ex)`, `restSeconds(s)`, `fmtClock()`, `restReading()`, `restCueDue()`/`primeCue()`/`restCue()`, `restClockNode()`; the interval timer: `parseInterval(ex)`, `intervalSpec(ex, e)`, `intervalAt(spec, sec)`, `timerSeconds(e)`, `holdScreen()`, `intervalNode()`; `startRestTick()`; `heaviestSet()`, `agoWords()`, `lastTimeNode()`, `openPreviousSheet()`; `instrumentRail()`. One interval for the whole app, and it only ever repaints.
@@ -155,7 +155,10 @@ Activation writes the selected payload through the existing `loadProgram()` path
 `tp_program_v1` remains the one offline workout source and existing position/session behavior does
 not branch on cloud state. If the active cloud row has a newer revision than the cached marker, the
 profile labels the update and waits for an explicit **Update device** action; a reconnect must not
-replace the prescription underneath an open workout.
+replace the prescription underneath an open workout. The pending revision's `meta.changeNote` is
+shown beside that action, and an inactive row with a `meta.startDate` shows it as a suggested
+start — the start-date sheet on activation still decides. Rows a coach publishes through
+`coach_sync.py` are ordinary rows of the athlete's own library.
 
 Import is local-first. The parsed contract payload is written to `tp_program_v1` immediately, a
 browser-generated UUID and `pending: true` are written to `tp_active_program_v1`, and the insert is
@@ -416,7 +419,8 @@ omitted the athlete's own tracked-field choices would be incomplete, and the dev
 change not yet pushed. Supabase tokens, the owner marker, credentials and every `tp_demo_*` key are
 excluded. It is an access/portability file only; restoration is deferred.
 
-Deletion first re-authenticates with the current password (no email), then calls
+Deletion first re-authenticates with the current password (no email); an account that only ever
+used Google sets one first through **Set or change password**. It then calls
 `delete_own_account()`. Only after the RPC succeeds are all non-demo `tp_*` keys cleared and the
 installation binding reset. A failed RPC leaves local data untouched. The database retains removed
 programme tombstones for 30 days and a daily Cron job then purges them; session history survives

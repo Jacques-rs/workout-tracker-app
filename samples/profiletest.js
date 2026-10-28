@@ -132,6 +132,8 @@ ok(/2026-08-14/.test(copy) && /Squat/.test(copy) && /Moved well/.test(copy),
   "a copy that is not on this device stays readable");
 button("Download JSON").onclick(); button("Copy JSON").onclick();
 button("Export account data").onclick(); button("Delete account…").onclick();
+opened.length = 0; button("Set or change password").onclick();
+same(opened, ["set-password"], "a signed-in owner can set a password, so a Google-only account can still be deleted");
 button("Start workout").onclick(); button("Import programme JSON…").onclick(); button("Remove").onclick();
 same([workoutOpens, imports], [1, 1], "programme actions enter training or request a library import");
 same([historyDownloads, historyCopies], [1, 1], "history export actions stay behind profile callbacks");
@@ -139,9 +141,11 @@ same([accountExports, accountDeletes], [1, 1], "account portability controls sta
 
 programState = { ...programState, items: [...programState.items,
   { id: "program-two", title: "Cloud conditioning block", athlete: "Sample Athlete", weeks: 4,
-    programVersion: 1, revision: 1, active: false }] };
+    programVersion: 1, revision: 1, active: false, startDate: "2026-02-02" }] };
 ui.render();
 ok(/Cloud conditioning block/.test(profileBody.textContent), "the profile lists another private cloud programme");
+ok(/suggested start Mon 2 Feb/.test(profileBody.textContent),
+  "a coach-published block shows the start it suggests before it is activated");
 button("Use on this device").onclick();
 
 copy = render({ status: "offline-owner", user: null,
@@ -157,11 +161,14 @@ ok(/1 change queued/.test(copy), "offline history reports queued local work");
 ok(/Conflict copy/.test(copy), "recoverable conflicts are clearly labelled");
 
 programState = { ...programState, activeId: "program-one", items: [
-  { ...programState.items[0], active: true, current: false }
+  { ...programState.items[0], active: true, current: false, programVersion: 4,
+    changeNote: "W5 D1: low-bar squat replaces front squat" }
 ] };
 copy = render({ status: "authenticated", user: { email: "one@example.invalid", verified: true },
   owner: { email: "one@example.invalid", signedOut: false }, error: null });
 ok(/Cloud update available/.test(copy), "a newer cloud revision never silently replaces the device prescription");
+ok(/v4: W5 D1: low-bar squat replaces front squat/.test(copy),
+  "the revision's change note is shown where the athlete decides to take it");
 button("Update device").onclick();
 
 console.log("\nlegacy device-only programme can join the library");

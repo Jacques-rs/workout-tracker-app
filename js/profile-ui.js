@@ -244,6 +244,8 @@
         accountActions.push(button("Export account data", "ghost profile-wide", run(async () => {
           if (options.onExportAccount) await options.onExportAccount();
         })));
+        // A Google sign-in may never have set a password, and deletion re-authenticates with one.
+        accountActions.push(button("Set or change password", "ghost profile-wide", () => openAuth("set-password")));
         accountActions.push(button("Delete account…", "ghost danger profile-wide", run(async () => {
           if (options.onDeleteAccount) await options.onDeleteAccount();
         })));
@@ -261,6 +263,16 @@
           textContent: "Export includes this device’s local-only and queued work. Deletion removes cloud data and this device’s personal data; other offline installations and managed backups are not erased immediately." }) : null
       ]));
       offDeviceSection(host, state);
+    }
+
+    // A suggestion only: activating still opens the start-date sheet, where the athlete decides.
+    function startLabel(iso) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || "");
+      if (!m) return "";
+      const date = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+      if (date.getUTCDate() !== +m[3]) return "";
+      return `suggested start ${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][date.getUTCDay()]} ${+m[3]} ${
+        ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][+m[2] - 1]}`;
     }
 
     function programmeSection(host, state) {
@@ -304,15 +316,22 @@
             if (options.onRemoveProgram) await options.onRemoveProgram(activeItem);
           })));
         }
+        // The note is the coach's why, shown at the one moment the athlete decides to take it.
+        const pendingNote = activeItem && !activeItem.current && activeItem.changeNote
+          ? node(document, "p", { className: "profile-programme-note",
+              textContent: `${activeItem.programVersion ? `v${activeItem.programVersion}: ` : ""}${activeItem.changeNote}` })
+          : null;
         programmeChildren.push(node(document, "div", { className: "profile-programme" }, [
           node(document, "div", { className: "profile-programme-title", textContent: summary.title }),
           node(document, "div", { className: "profile-programme-meta", textContent: facts }),
+          pendingNote,
           actionRow(activeActions)
         ]));
       }
 
       items.filter(item => !(summary && activeItem && item.id === activeItem.id)).forEach(item => {
-        const facts = [item.athlete, `${item.weeks}-week block`, item.programVersion ? `v${item.programVersion}` : ""]
+        const facts = [item.athlete, `${item.weeks}-week block`, item.programVersion ? `v${item.programVersion}` : "",
+          startLabel(item.startDate)]
           .filter(Boolean).join(" · ");
         const itemActions = [
           button("Use on this device", "ghost", run(async () => {

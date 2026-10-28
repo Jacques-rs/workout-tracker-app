@@ -32,7 +32,10 @@ REVISIONS
 --version writes meta.version. It is 1 for the initial build and is incremented
 by the review-workout-log skill each time a week is revised mid-block, so a
 program.json, its archived snapshot in revisions/ and its CHANGELOG.md entry can
-be lined up. The app ignores the field.
+be lined up. A revision also takes --change-note (one line the athlete reads on
+the phone's Update device prompt) and --reviewed-through (the last session date
+the review covered, from which the next weekly review starts). --start-date sets
+meta.startDate, the Monday a new block suggests to the athlete.
 
 Usage:
   python3 build_program_json.py --input rows.json --output program.json \
@@ -56,7 +59,8 @@ def slugify(name):
     return re.sub(r"[^a-z0-9]+", "-", (name or "").strip().lower()).strip("-")
 
 
-def build(rows, block, athlete, weeks, allow_partial, version=1):
+def build(rows, block, athlete, weeks, allow_partial, version=1, start_date=None,
+          change_note=None, reviewed_through=None):
     athlete_id = slugify(athlete)
     if not athlete_id:
         die(f"--athlete {athlete!r} does not slugify to anything usable; it names "
@@ -104,7 +108,7 @@ def build(rows, block, athlete, weeks, allow_partial, version=1):
     # main(), over the assembled programme. Duplicating either check here only
     # printed the same warning twice in two different wordings.
 
-    return {
+    prog = {
         "meta": {
             "block": block,
             "athlete": athlete,
@@ -117,6 +121,13 @@ def build(rows, block, athlete, weeks, allow_partial, version=1):
         },
         "exercises": exercises,
     }
+    # Optional keys are omitted, never written empty: validate_program refuses a
+    # blank changeNote, and the app treats a missing startDate as "this week".
+    for key, value in (("startDate", start_date), ("changeNote", change_note),
+                       ("reviewedThrough", reviewed_through)):
+        if value is not None:
+            prog["meta"][key] = value
+    return prog
 
 
 def main():
@@ -131,6 +142,12 @@ def main():
     ap.add_argument("--version", default="1",
                     help="revision number; 1 on the initial build, bumped by "
                          "review-workout-log on each revision")
+    ap.add_argument("--start-date", default=None,
+                    help="YYYY-MM-DD Monday the new block suggests as its start")
+    ap.add_argument("--change-note", default=None,
+                    help="revision only: one line saying what changed and why")
+    ap.add_argument("--reviewed-through", default=None,
+                    help="revision only: YYYY-MM-DD of the last session reviewed")
     ap.add_argument("--allow-partial-weeks", action="store_true",
                     help="emit even if some weeks have no rows (not recommended)")
     a = ap.parse_args()
@@ -141,7 +158,8 @@ def main():
         die(f"--version must be a positive integer, got {a.version!r}")
 
     prog = build(load_rows(a.input), a.block, a.athlete, int(a.weeks),
-                 a.allow_partial_weeks, int(a.version))
+                 a.allow_partial_weeks, int(a.version), a.start_date,
+                 a.change_note, a.reviewed_through)
 
     # Validate the assembled file BEFORE writing it. rows_common already vetted
     # the input, but some breakages only exist once the rows are a programme -

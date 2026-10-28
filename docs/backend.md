@@ -21,8 +21,11 @@ preserves a recoverable conflict copy rather than silently merging individual se
 ## The current boundary
 
 Invite-only private beta on Supabase, using administrator invitations; public and anonymous
-sign-up are disabled. Sign-in is email and password with verification and recovery. Programmes are
-private and user-owned, imported through the existing JSON flow, with one active at a time.
+sign-up are disabled. Sign-in is email and password with verification and recovery, or Google for an
+invited email: Supabase links that Google identity to the existing user, and a Google account whose
+email was never invited is refused as a sign-up. Programmes are private and user-owned, imported
+through the existing JSON flow or published into the library by a linked coach, with one active at
+a time.
 One installation belongs to one account: a first successful sign-in binds it, and a different
 account is rejected without deleting local data.
 
@@ -34,6 +37,12 @@ relational metadata columns:
 | `programs` | A `tp-program-*` payload plus owner, title, version, revision and soft-delete timestamps |
 | `session_logs` | A `tp-session-*` snapshot plus owner, programme/conflict references, session metadata, revision and soft-delete timestamps |
 | `user_settings` | One row per owner: which optional fields are tracked and what the pain field is called, plus a per-field timestamp map. Preferences only — no workout payload, no health readings, nothing that reaches a log file |
+
+One link table, `coach_athletes`: an administrator-created coach → athlete pair, revocable by
+either side. A coach reaches a linked athlete's programmes and logs **only** through the
+link-checked `coach_*` functions; the three tables' policies stay owner-only, because the app
+lists them through RLS alone and a coach policy would put an athlete's rows in the coach's own
+library.
 
 Add a table only when a demonstrated requirement cannot be expressed cleanly here, and do not
 prematurely normalize every exercise and set. Analytics can use Postgres JSON queries or derived
@@ -47,6 +56,20 @@ Features outside this boundary are listed under **Deferred on purpose** in `docs
 - **Hosted Auth-email sends require explicit approval.** See `CLAUDE.md` § Verifying changes —
   it owns this rule. Check the live project's rate-limit/SMTP configuration rather than assuming
   a documented default.
+- **Coach writes stop at the library.** A `coach_*` function may add a programme row or revise
+  one from the revision the coach read; it never deletes, activates, or writes `session_logs`.
+  Widening coach access means a new function with its own link check and two-user test, never
+  a policy on the owner tables.
+- **The security advisor's "signed-in users can execute SECURITY DEFINER" warnings on the
+  `coach_*` functions and `delete_own_account` are by design.** Each checks the link or a fresh
+  password itself; a new one on any other function is a real finding.
+- **Google is the only OAuth provider, and the client keeps `flowType: "implicit"`.** PKCE would
+  reject the administrator's invite links, which carry no code verifier. The Google OAuth client
+  and its secret live in Google Cloud and the hosted dashboard, never in the repo; its one redirect
+  URI is the project's `/auth/v1/callback`. Google is an extra way in, not a replacement: accepting
+  an invite still sets a password, because account deletion re-authenticates with one and it is
+  the fallback whenever Google is unavailable. `supabase/config.toml` leaves Google off locally, so the
+  local stack and CI need no Google credentials.
 - **Device persistence stays in the immediate autosave path.** Remote sync is asynchronous and
   retryable, and the data flow is one-directional: UI → local store → sync queue → remote store.
   Rendering and input handlers must never make a direct network write.
