@@ -4,9 +4,9 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Training Tracker</title>
-<meta name="theme-color" content="#14213d" id="metaTheme" />
+<meta name="theme-color" content="#1f1f21" id="metaTheme" />
 <link rel="manifest" href="./manifest.webmanifest" />
-<link rel="apple-touch-icon" href="./icon-192.png" />
+<link rel="apple-touch-icon" href="./apple-touch-icon.png" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Tracker" />
@@ -28,7 +28,7 @@
      Every colour below is a variable: no rule elsewhere in this file may hardcode a
      hex or rgba, or it will survive a theme switch and look broken in one of the four.
 
-     Palette A "Amber": #000000 #14213d #fca311 #e5e5e5 #ffffff
+     Palette A "Mono":  #1f1f21 #2a2a2d #a1a1a6 #e8e8e8 #ffffff + one chosen accent
      Palette B "Mint":  #c9e4ca #87bba2 #55828b #3b6064 #364958
 
      Surface levels (bg / panel / panel-hi / well / two line weights) are mixes and
@@ -37,46 +37,84 @@
      Readiness Green/Amber/Red can't come from one chroma, so --good/--warn/--bad are
      semantic: in-palette where the palette has that hue, added where it doesn't. */
 
-  /* A · dark — "Navy & Amber". Navy is the page itself, wells are black, and amber is
-     used liberally (accent, disclosures, rails). Also the no-JS fallback. */
+  /* A · dark — "Charcoal". Charcoal, never pure black, so a long session isn't a void.
+     Everything is grey except the accent (amber unless a data-accent block below
+     overrides it) and the semantic --good/--warn/--bad. Also the no-JS fallback. */
   html:not([data-theme]),html[data-theme="a-dark"]{
-    --bg:#14213d; --panel:#1b2b4d; --panel-hi:#24365e; --well:#0b1428;
-    --line:#33477a; --line-soft:#233255;
-    --ink:#ffffff; --ink-dim:#e5e5e5; --muted:#9fadc9; --placeholder:#7182a5;
-    --accent:#fca311; --on-accent:#000000; --accent-soft:rgba(252,163,17,.16);
+    --bg:#1f1f21; --panel:#2a2a2d; --panel-hi:#353538; --well:#18181a;
+    --line:#4a4a4e; --line-soft:#36363a;
+    --ink:#f7f7f7; --ink-dim:#dcdcde; --muted:#a1a1a6; --placeholder:#77777c;
+    --accent:#fca311; --on-accent:#161616; --accent-soft:rgba(252,163,17,.16);
     --accent-ink:#fca311;
-    --accent2:#fca311; --accent2-soft:rgba(252,163,17,.10);
-    --good:#47b48c; --good-soft:rgba(71,180,140,.14); --good-soft-2:rgba(71,180,140,.04);
-    --good-line:rgba(71,180,140,.5);
-    --warn:#fca311; --bad:#e2604d;
-    --ring:0 0 0 3px rgba(252,163,17,.28); --scrim:rgba(0,0,0,.7);
-    --footer-bg:rgba(27,43,77,.93); --bg-fade:rgba(20,33,61,0);
-    --toast-bg:#000000; --toast-ink:#e5e5e5; --toast-line:#fca311;
-    --top-hi-a:rgba(255,255,255,.10); --top-hi-b:rgba(255,255,255,.03);
-    --tab-shadow:rgba(0,0,0,.45);
-    --cat-warm:#8496b8; --cat-tendon:#fca311; --cat-skill:#e5e5e5;
-    --cat-strength:#6d8ecb; --cat-cond:#d0830c; --cat-accessory:#bdb08f;
-    --meta-theme:#14213d;
+    --accent2:#f2f2f2; --accent2-soft:rgba(255,255,255,.07);
+    --good:#5cbf8e; --good-soft:rgba(92,191,142,.14); --good-soft-2:rgba(92,191,142,.04);
+    --good-line:rgba(92,191,142,.5);
+    --warn:#e3a33b; --bad:#e5675a;
+    --ring:0 0 0 3px rgba(252,163,17,.28); --scrim:rgba(0,0,0,.6);
+    --footer-bg:rgba(42,42,45,.94); --bg-fade:rgba(31,31,33,0);
+    --toast-bg:#111112; --toast-ink:#f2f2f2; --toast-line:#fca311;
+    --top-hi-a:rgba(255,255,255,.08); --top-hi-b:rgba(255,255,255,.02);
+    --tab-shadow:rgba(0,0,0,.4);
+    --cat-warm:#5e5e63; --cat-tendon:#fca311; --cat-skill:#d4d4d8;
+    --cat-strength:#adadb2; --cat-cond:#8a8a8f; --cat-accessory:#707075;
+    --meta-theme:#1f1f21;
   }
-  /* A · light — "Paper & Amber" */
+  /* A · light — "Paper". Off-white page under white cards, so cards separate without a
+     border. */
   html[data-theme="a-light"]{
-    --bg:#ffffff; --panel:#ffffff; --panel-hi:#e5e5e5; --well:#f4f5f7;
-    --line:#c6cbd6; --line-soft:#dfe2e8;
-    --ink:#14213d; --ink-dim:#33415f; --muted:#6c7893; --placeholder:#9aa3b5;
-    --accent:#fca311; --on-accent:#14213d; --accent-soft:rgba(252,163,17,.18);
-    --accent-ink:#b8760c;   /* amber as *text* fails on white — darken it, keep the fill amber */
-    --accent2:#14213d; --accent2-soft:rgba(20,33,61,.06);
+    --bg:#f4f4f3; --panel:#ffffff; --panel-hi:#e9e9e8; --well:#efefee;
+    --line:#cfcfce; --line-soft:#e2e2e1;
+    --ink:#151515; --ink-dim:#383838; --muted:#6b6b6b; --placeholder:#a0a0a0;
+    --accent:#fca311; --on-accent:#161616; --accent-soft:rgba(252,163,17,.18);
+    --accent-ink:#9a6208;   /* amber as *text* fails on paper — darken it, keep the fill amber */
+    --accent2:#1c1c1c; --accent2-soft:rgba(0,0,0,.05);
     --good:#1f7a5c; --good-soft:rgba(31,122,92,.10); --good-soft-2:rgba(31,122,92,.02);
     --good-line:rgba(31,122,92,.40);
-    --warn:#b8760c; --bad:#c1402c;
-    --ring:0 0 0 3px rgba(252,163,17,.32); --scrim:rgba(20,33,61,.42);
-    --footer-bg:rgba(255,255,255,.94); --bg-fade:rgba(255,255,255,0);
-    --toast-bg:#14213d; --toast-ink:#ffffff; --toast-line:#fca311;
-    --top-hi-a:rgba(20,33,61,.05); --top-hi-b:rgba(20,33,61,.01);
-    --tab-shadow:rgba(20,33,61,.16);
-    --cat-warm:#8b93a6; --cat-tendon:#c07c14; --cat-skill:#14213d;
-    --cat-strength:#41598f; --cat-cond:#a05f0c; --cat-accessory:#6d6250;
-    --meta-theme:#ffffff;
+    --warn:#a8690a; --bad:#c1402c;
+    --ring:0 0 0 3px rgba(252,163,17,.32); --scrim:rgba(0,0,0,.36);
+    --footer-bg:rgba(255,255,255,.94); --bg-fade:rgba(244,244,243,0);
+    --toast-bg:#1c1c1c; --toast-ink:#ffffff; --toast-line:#fca311;
+    --top-hi-a:rgba(0,0,0,.04); --top-hi-b:rgba(0,0,0,.01);
+    --tab-shadow:rgba(0,0,0,.14);
+    --cat-warm:#c2c2c2; --cat-tendon:#b8760c; --cat-skill:#3d3d3d;
+    --cat-strength:#646464; --cat-cond:#8a8a8a; --cat-accessory:#a6a6a6;
+    --meta-theme:#f4f4f3;
+  }
+  /* Mono's accent choices. Only the accent family changes; no option sits near --good
+     green, so "now" can never be mistaken for "logged". Mint has its own accent and
+     ignores data-accent. Amber is the A blocks above, so it needs no block here.
+     Every --on-accent/--accent and --accent-ink/page pair holds 4.5:1 — apptest checks it. */
+  html[data-theme="a-dark"][data-accent="orange"]{
+    --accent:#ff6b2c; --on-accent:#161616; --accent-soft:rgba(255,107,44,.16); --accent-ink:#ff8a55;
+    --ring:0 0 0 3px rgba(255,107,44,.30); --toast-line:#ff6b2c; --cat-tendon:#ff6b2c;
+  }
+  html[data-theme="a-light"][data-accent="orange"]{
+    --accent:#f05a1a; --on-accent:#161616; --accent-soft:rgba(240,90,26,.12); --accent-ink:#b8440f;
+    --ring:0 0 0 3px rgba(240,90,26,.28); --toast-line:#f05a1a; --cat-tendon:#b8440f;
+  }
+  html[data-theme="a-dark"][data-accent="blue"]{
+    --accent:#5b8cff; --on-accent:#0b1530; --accent-soft:rgba(91,140,255,.16); --accent-ink:#7ea4ff;
+    --ring:0 0 0 3px rgba(91,140,255,.30); --toast-line:#5b8cff; --cat-tendon:#5b8cff;
+  }
+  html[data-theme="a-light"][data-accent="blue"]{
+    --accent:#2f5fe0; --on-accent:#ffffff; --accent-soft:rgba(47,95,224,.12); --accent-ink:#2852c9;
+    --ring:0 0 0 3px rgba(47,95,224,.28); --toast-line:#2f5fe0; --cat-tendon:#2852c9;
+  }
+  html[data-theme="a-dark"][data-accent="violet"]{
+    --accent:#9d8cff; --on-accent:#14102e; --accent-soft:rgba(157,140,255,.16); --accent-ink:#b0a2ff;
+    --ring:0 0 0 3px rgba(157,140,255,.30); --toast-line:#9d8cff; --cat-tendon:#9d8cff;
+  }
+  html[data-theme="a-light"][data-accent="violet"]{
+    --accent:#6a55e8; --on-accent:#ffffff; --accent-soft:rgba(106,85,232,.12); --accent-ink:#5a45d6;
+    --ring:0 0 0 3px rgba(106,85,232,.28); --toast-line:#6a55e8; --cat-tendon:#5a45d6;
+  }
+  html[data-theme="a-dark"][data-accent="pink"]{
+    --accent:#ff5fa2; --on-accent:#1f0a14; --accent-soft:rgba(255,95,162,.16); --accent-ink:#ff80b6;
+    --ring:0 0 0 3px rgba(255,95,162,.30); --toast-line:#ff5fa2; --cat-tendon:#ff5fa2;
+  }
+  html[data-theme="a-light"][data-accent="pink"]{
+    --accent:#c8336f; --on-accent:#ffffff; --accent-soft:rgba(200,51,111,.12); --accent-ink:#b8306b;
+    --ring:0 0 0 3px rgba(200,51,111,.28); --toast-line:#c8336f; --cat-tendon:#b8306b;
   }
   /* B · dark — "Teal & Mint". Mid-dark teal page, pale mint as the accent, so buttons
      read light-on-dark rather than colour-on-dark. */
@@ -138,6 +176,7 @@
     letter-spacing:-.035em}
   .profile-lead{color:var(--muted);font-size:var(--t-md);line-height:1.5;margin:var(--s3) 0 0;
     max-width:36rem}
+  .profile-lead a{color:var(--ink-dim)}
   .profile-body{display:grid;gap:var(--s3)}
   .profile-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
     padding:var(--s4)}
@@ -845,6 +884,14 @@
   .pal .pn{font-size:var(--t-sm);font-weight:700;color:var(--ink)}
   .pal .pd{font-size:var(--t-xs);color:var(--muted);font-weight:400;line-height:1.35;
     margin-top:1px}
+  /* Accent swatches: a dot to see, a name to read, the whole chip to tap. */
+  .accents{display:flex;gap:var(--s1);margin-top:var(--s2)}
+  .acc{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px;
+    background:var(--well);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 2px 6px;
+    font-size:var(--t-xs);font-weight:700;color:var(--muted)}
+  .acc i{width:22px;height:22px;border-radius:50%;display:block}
+  .acc span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .acc[aria-pressed="true"]{border-color:var(--accent);box-shadow:var(--ring);color:var(--ink)}
   .seg{display:flex;gap:var(--s1);padding:3px;background:var(--well);
     border:1px solid var(--line-soft);border-radius:999px;margin-top:var(--s2)}
   .seg button{flex:1 1 0;border:0;background:transparent;color:var(--muted);
@@ -900,6 +947,7 @@
   var p=s.palette==="b"?"b":"a", m=s.mode||"auto";
   var dark=m==="auto"?!matchMedia("(prefers-color-scheme: light)").matches:m!=="light";
   document.documentElement.dataset.theme=p+(dark?"-dark":"-light");
+  if(p==="a"&&s.accent)document.documentElement.dataset.accent=s.accent;
 }catch(e){document.documentElement.dataset.theme="a-dark";}})();
 </script>
 </head>
@@ -1264,16 +1312,16 @@ const FIELD_DEFS=[
   {key:"bodyweight",name:"Bodyweight",desc:"Logged in kg at check-in."},
   {key:"hrvNote",name:"HRV / notes",desc:"Free text for HRV and anything else about recovery."}
 ];
-/* palette + mode + view are cosmetic and deliberately NOT part of the session export —
+/* palette + accent + mode + view are cosmetic and deliberately NOT part of the session export —
    the `tracking` block is built from FIELD_DEFS and painLabel alone, so nothing here can
    leak into a log. `sv` is a one-shot settings-migration marker — see loadSettings(). */
-const SET_DEFAULTS={painLabel:"Knee",palette:"a",mode:"auto",view:"focus",sv:1,restCue:false};
+const SET_DEFAULTS={painLabel:"Knee",palette:"a",accent:"amber",mode:"auto",view:"focus",sv:1,restCue:false};
 FIELD_DEFS.forEach(f=>SET_DEFAULTS[f.key]=true);
 let SETTINGS={...SET_DEFAULTS};
 /* Which store owns a key is decided HERE and nowhere else, so a new setting cannot end
    up in the wrong scope by accident. */
 const ACCOUNT_KEYS=["painLabel"].concat(FIELD_DEFS.map(f=>f.key));
-const DEVICE_KEYS=["palette","mode","view","sv","restCue"];
+const DEVICE_KEYS=["palette","accent","mode","view","sv","restCue"];
 function accountScoped(key){return ACCOUNT_KEYS.indexOf(key)>=0;}
 /* The account half, as {values, at}: the value plus one ISO stamp per field, which is
    what makes the conflict rule last-write-wins PER FIELD. */
@@ -1360,10 +1408,19 @@ function adoptAccountSettings(record){
    Two palettes × light/dark. "Auto" follows the phone's own light/dark setting, so the
    basement session is dark and a daytime check-in isn't blinding, with no tap needed. */
 const PALETTES=[
-  {key:"a",name:"Amber",desc:"Black, navy, amber",
-   swatch:["#000000","#14213d","#fca311","#e5e5e5","#ffffff"]},
+  {key:"a",name:"Mono",desc:"Charcoal + an accent",
+   swatch:["#1f1f21","#2a2a2d","#a1a1a6","#e8e8e8","#fca311"]},
   {key:"b",name:"Mint",desc:"Slate, teal, mint",
    swatch:["#364958","#3b6064","#55828b","#87bba2","#c9e4ca"]}
+];
+/* Mono's accents, each with a matching html[data-accent] block. Nothing green-adjacent:
+   the accent marks *now* and green marks *logged*. */
+const ACCENTS=[
+  {key:"amber", name:"Amber", swatch:"#fca311"},
+  {key:"orange",name:"Orange",swatch:"#ff6b2c"},
+  {key:"blue",  name:"Blue",  swatch:"#5b8cff"},
+  {key:"violet",name:"Violet",swatch:"#9d8cff"},
+  {key:"pink",  name:"Pink",  swatch:"#ff5fa2"}
 ];
 const MODES=[["auto","Auto"],["light","Light"],["dark","Dark"]];
 const prefersLight=matchMedia("(prefers-color-scheme: light)");
@@ -1375,6 +1432,8 @@ function themeId(){
 }
 function applyTheme(){
   document.documentElement.dataset.theme=themeId();
+  if(SETTINGS.palette==="b")delete document.documentElement.dataset.accent;
+  else document.documentElement.dataset.accent=SETTINGS.accent||"amber";
   /* Keeps the phone's own chrome (status bar / task switcher) in step with the app. */
   const c=getComputedStyle(document.documentElement).getPropertyValue("--meta-theme").trim();
   if(c)$("#metaTheme").setAttribute("content",c);
@@ -1406,6 +1465,17 @@ function renderAppearance(host){
     pals.append(b);
   });
   host.append(pals);
+
+  if(SETTINGS.palette!=="b"){
+    const accs=el("div",{className:"accents",attrs:{role:"group","aria-label":"Accent colour"}});
+    ACCENTS.forEach(a=>{
+      const b=el("button",{className:"acc",attrs:{"aria-pressed":String((SETTINGS.accent||"amber")===a.key)}},
+        [el("i",{attrs:{style:"background:"+a.swatch}}),el("span",{},a.name)]);
+      b.onclick=()=>{setSetting("accent",a.key);applyTheme();renderAppearance(host);};
+      accs.append(b);
+    });
+    host.append(accs);
+  }
 
   const seg=el("div",{className:"seg"});
   MODES.forEach(([k,label])=>{
