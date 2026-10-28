@@ -142,7 +142,7 @@ invariants:
 ## Repo layout
 
 ```
-index.html  sw.js  manifest.webmanifest  icon-*.png  privacy.html   the PWA — deploy root
+index.html  sw.js  manifest.webmanifest  *icon*.png  privacy.html   the PWA — deploy root
 program.json          bundled SAMPLE programme
 js/  vendor/          remote-boundary modules; pinned Supabase browser SDK
 supabase/  scripts/   migrations, seed, pgTAP tests; verify.sh

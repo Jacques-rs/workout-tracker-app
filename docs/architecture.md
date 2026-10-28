@@ -14,7 +14,7 @@
 | `vendor/supabase-js-2.111.0.min.js` | Pinned browser SDK; origin and checksum are recorded in `vendor/README.md`. |
 | `sw.js` | Service worker. Caches the app shell and signed-out privacy notice for offline use. |
 | `manifest.webmanifest` | PWA manifest — name, colours, icons, `display: standalone`. |
-| `icon-192.png`, `icon-512.png`, `icon-512-maskable.png` | App icons (barbell glyph on dark background). |
+| `icon-192.png`, `icon-512.png`, `icon-512-maskable.png`, `apple-touch-icon.png` | App icons: amber barbell on Mono charcoal. The two `any` icons have rounded corners; the maskable one is full-bleed with the glyph inside the central safe zone, because Android crops it to its own shape; the iOS one is a full-bleed square, because iOS rounds it itself and fills transparent corners black. |
 | `program.json` | Bundled **sample** programme (`tp-program-2`, 6 weeks × 4 days), opened only through **View sample programme**. |
 | `samples/` | Fixtures for every schema version and the dependency-free tests. `samples/README.md` is the inventory. |
 | `supabase/` | Repo-managed backend config, migrations, fake seed data, pgTAP access-policy tests and a local Auth/Mailpit integration test. |
