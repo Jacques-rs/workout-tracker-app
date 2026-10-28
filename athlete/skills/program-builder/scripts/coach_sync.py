@@ -257,6 +257,13 @@ def cmd_pull(account, a):
             print(f"WARNING: {name} shares its date and day with "
                   f"{session_filename(row['payload'])} under another programme row - read both")
         path = os.path.join(logs, name)
+        # An edit moves a row last, so a former earlier copy can become canonical: its old
+        # file would otherwise stay in the window as uncorrected evidence.
+        stale = os.path.join(logs, session_filename(row["payload"])[:-5]
+                             + f"-earlier-{row['id'][:8]}.json")
+        if stale != path and os.path.exists(stale):
+            os.remove(stale)
+            print(f"removed superseded earlier copy: {stale}")
         body = json.dumps(row["payload"], ensure_ascii=False, indent=2) + "\n"
         if os.path.exists(path) and open(path, encoding="utf-8").read() == body:
             continue

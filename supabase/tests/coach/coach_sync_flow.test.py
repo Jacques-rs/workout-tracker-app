@@ -128,6 +128,21 @@ try:
     check("WARNING" in res.stdout and logs[0] in res.stdout and "2 written" in res.stdout,
           "and the pull names the earlier copy and counts both")
 
+    # Editing the earlier row makes it the newest: it takes the export name, and its old
+    # earlier copy goes rather than lingering as uncorrected evidence.
+    earlier = call("GET", f"/rest/v1/session_logs?program_id=eq.{program['id']}"
+                   "&session_date=eq.2026-01-19&select=id", bearer=athlete["token"])[0]
+    call("PATCH", f"/rest/v1/session_logs?id=eq.{earlier['id']}", bearer=athlete["token"],
+         body={"payload": {"schema": "tp-session-3", "date": "2026-01-19", "day": DAY1,
+                           "week": 3, "corrected": True}})
+    res = coach_sync("pull", "--athlete", SLUG, root=root)
+    logs = sorted(os.listdir(os.path.join(root, SLUG, "logs")))
+    with open(canonical, encoding="utf-8") as f:
+        newest = json.load(f)
+    check(res.returncode == 0 and len(logs) == 2 and newest.get("corrected") is True
+          and earlier["id"][:8] not in "".join(logs),
+          "an edit that changes which row is newest leaves two files, not three")
+
     res = coach_sync("pull", "--athlete", "stranger-slug", root=root)
     check(res.returncode != 0, "pull refuses a slug that belongs to an unlinked athlete")
 
