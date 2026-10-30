@@ -24,6 +24,7 @@ on disk. Test both programme fixtures after any change to import, filtering, or 
 | `programstoretest.js` (node) | Private programme list/import/activate/remove behavior, including local-first offline import retry, session identity matching and soft deletion. |
 | `sessionstoretest.js` (node) | Device-first queue persistence, programme ordering, revision updates, natural-key collision handling, recoverable conflicts, backfill and offline history. |
 | `settingsstoretest.js` (node) | Account-scoped settings: the per-field last-write-wins merge, the offline queue, and no network at all as a guest. |
+| `consentstoretest.js` (node) | Health-data consent: a decision holds offline at once, the latest by decision time is in force, an unsent decision is pushed once and safely retried, and hand-edited storage never reads as consent. The app-side prompt and gating are in `apptest.js`; the table and coach-side stripping in `supabase/tests/database/health_consent.test.sql`. |
 | `accountdatatest.js` (node) | The account portability snapshot: what it includes, and that credentials, the owner marker and demo keys are excluded. |
 | `swtest.js` (node) | App-shell caching and the cross-origin authentication/Data API boundary. |
 | `validatortest.py` (python3) | The builder refuses to emit a **bad** one: every fixture passes `validate_program.py`, and every known single-mutation breakage is rejected. The case count is printed by the test, not recorded here. |

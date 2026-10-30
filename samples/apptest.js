@@ -23,6 +23,8 @@
  *   - moving between sets never focuses a field or summons the keyboard
  *   - an input's oninput never replaces the input node it fires from (the old
  *     focus-loss bug)
+ *   - health fields show only with consent in force, the prompt asks once and never
+ *     over the date view, and readiness is always tracked
  *
  * Run it after any change to filtering, logging or export. Rendering, layout and
  * offline behaviour still need a real phone.
@@ -130,6 +132,20 @@ const sandbox = {
     handleKeydown(){ return false; }
   },
   TPProfileUI: { init(){}, render(){} },
+  /* Consent is given unless a test says otherwise, so the logging tests below see the
+     health fields an athlete who consented sees. */
+  TPConsent: {
+    decision: { action: "given", version: 1, decidedAt: "2026-10-01T06:00:00.000Z" },
+    status: "ready", decided: [],
+    init(){}, subscribe(){ return () => {}; },
+    current(){ return this.decision; },
+    getState(){ return { status: this.status, pending: false, error: null }; },
+    decide(action, version){
+      this.decided.push(action);
+      this.decision = { action, version, decidedAt: "2026-10-28T07:00:00.000Z" };
+      return this.decision;
+    }
+  },
   window: {
     scrollY: 0, pageYOffset: 0,
     addEventListener: listen,
@@ -175,6 +191,8 @@ Object.defineProperties(globalThis, {
   ,ACCOUNT_SETTINGS:{get:()=>ACCOUNT_SETTINGS,set:v=>{ACCOUNT_SETTINGS=v}}
   ,ACCOUNT_KEYS:  {get:()=>ACCOUNT_KEYS}
   ,DEVICE_KEYS:   {get:()=>DEVICE_KEYS}
+  ,CONSENT_ASKED: {get:()=>CONSENT_ASKED, set:v=>{CONSENT_ASKED=v}}
+  ,ACCENTS:       {get:()=>ACCENTS}
   ,SESSION_INDEX: {get:()=>SESSION_INDEX}
 });`;
 vm.runInContext(blocks[blocks.length - 1] + EPILOGUE, sandbox, { filename: "index.html<script>" });
@@ -1404,9 +1422,56 @@ console.log("\nthere is no drawer, and nothing lacks a home");
   const appearance = new El("div"); app.renderAppearance(appearance);
   assert(appearance.findAll(n => n.classList.contains("pal")).length >= 2,
     "Appearance still offers its palettes");
+  /* Mono offers accents; Mint keeps its own, so it offers none and clears the attribute
+     rather than leaving a Mono accent that no CSS block would match anyway. */
+  const accents = host => host.findAll(n => n.classList.contains("acc"));
+  is(app.SET_DEFAULTS.accent, "amber", "Mono's default accent is amber");
+  /* Spelled out, not read from ACCENTS: dropping one from the list must fail here. */
+  is(app.ACCENTS.map(a => a.key), ["amber", "orange", "blue", "violet", "pink"],
+    "Mono offers amber, orange, blue, violet and pink");
+  app.SETTINGS = { ...app.SET_DEFAULTS, palette: "a", accent: "blue" };
+  app.applyTheme();
+  const mono = new El("div"); app.renderAppearance(mono);
+  is(accents(mono).map(b => b.textContent), ["Amber", "Orange", "Blue", "Violet", "Pink"],
+    "and draws a chip for each");
+  is(accents(mono).filter(b => b.getAttribute("aria-pressed") === "true").map(b => b.textContent),
+    ["Blue"], "with the chosen one — and only it — marked pressed");
+  is(app.document.documentElement.dataset.accent, "blue", "the chosen accent reaches <html>");
+  app.SETTINGS = { ...app.SET_DEFAULTS, palette: "b", accent: "blue" };
+  app.applyTheme();
+  const mint = new El("div"); app.renderAppearance(mint);
+  is(accents(mint).length, 0, "Mint offers no accent picker");
+  assert(!("accent" in app.document.documentElement.dataset), "and carries no data-accent");
+  /* An accent whose block is missing or hollow silently renders as amber (amber IS the
+     base block), so check each block's declarations, and that its text stays readable:
+     the label on an accent fill, and accent-coloured text on the page and on a card. */
+  const block = sel => { const i = html.indexOf(sel + "{");
+    return i < 0 ? null : html.slice(i + sel.length + 1, html.indexOf("}", i)); };
+  const hex = (body, v) => (new RegExp(v + ":(#[0-9a-f]{6})").exec(body || "") || [])[1];
+  const lum = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255)
+    .map(c => c <= .03928 ? c / 12.92 : Math.pow((c + .055) / 1.055, 2.4))
+    .reduce((s, c, i) => s + c * [.2126, .7152, .0722][i], 0);
+  const contrast = (a, b) => { const x = lum(a), y = lum(b);
+    return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); };
+  ["dark", "light"].forEach(m => {
+    const base = block(`html[data-theme="a-${m}"]`) || block(`html:not([data-theme]),html[data-theme="a-${m}"]`);
+    const pages = [hex(base, "--bg"), hex(base, "--panel")];
+    app.ACCENTS.forEach(a => {
+      const own = a.key === "amber" ? base : block(`html[data-theme="a-${m}"][data-accent="${a.key}"]`);
+      const tok = v => hex(own, v) || hex(base, v);
+      assert(own && ["--accent", "--on-accent", "--accent-soft", "--accent-ink", "--ring"]
+        .every(v => own.includes(v + ":")), `${a.key} ${m} overrides the whole accent family`);
+      const onFill = contrast(tok("--accent"), tok("--on-accent"));
+      const onPage = Math.min(...pages.map(p => contrast(tok("--accent-ink"), p)));
+      assert(onFill >= 4.5 && onPage >= 4.5,
+        `${a.key} ${m} text holds 4.5:1 (label ${onFill.toFixed(2)}, accent text ${onPage.toFixed(2)})`);
+    });
+  });
+  app.SETTINGS = { ...app.SET_DEFAULTS };
   const fields = new El("div"); app.renderFields(fields);
-  is(fields.findAll(n => n.getAttribute("role") === "switch").length, app.FIELD_DEFS.length,
-    "and Tracked fields still offers every switch");
+  is(fields.findAll(n => n.getAttribute("role") === "switch").length,
+    app.FIELD_DEFS.filter(f => !f.fixed).length,
+    "and Tracked fields still offers every switch but the always-on one");
 }
 
 console.log("\nStateEdit is cleared by every navigation entry point");
@@ -2633,9 +2698,9 @@ console.log("\ntwo settings scopes: what follows the account, and what stays on 
      they follow the account. Appearance is about WHERE YOU ARE STANDING, so it does not.
      Getting a key into the wrong scope is the quiet failure this guards. */
   is(app.ACCOUNT_KEYS.slice().sort(),
-    ["bodyweight", "hrvNote", "painLabel", "painOnWaking", "painPerExercise", "readiness", "sleep"],
+    ["bodyweight", "hrvNote", "painLabel", "painOnWaking", "painPerExercise", "sleep"],
     "the tracked fields and the pain label follow the account");
-  is(app.DEVICE_KEYS.slice().sort(), ["mode", "palette", "restCue", "sv", "view"],
+  is(app.DEVICE_KEYS.slice().sort(), ["accent", "mode", "palette", "restCue", "sv", "view"],
     "appearance, which view the app opens on, and whether the rest clock beeps stay on the device");
   app.DEVICE_KEYS.forEach(key =>
     assert(!app.accountScoped(key), `${key} is device-scoped`));
@@ -2698,6 +2763,116 @@ console.log("\ntwo settings scopes: what follows the account, and what stays on 
   is(app.SETTINGS.painLabel, app.SET_DEFAULTS.painLabel,
     "and a field the account has never set reads as its default");
 
+  store.clear(); app.SETTINGS = { ...app.SET_DEFAULTS };
+  app.ACCOUNT_SETTINGS = { values: {}, at: {} };
+}
+
+console.log("\nhealth fields need consent; readiness never does");
+{
+  const C = sandbox.TPConsent;
+  const today = app.todayISO();
+  const day = `Day 1 (${app.weekdayShort(app.weekdayOf(today))}) - Consent day`;
+  store.clear(); app.SETTINGS = { ...app.SET_DEFAULTS };
+  app.ACCOUNT_SETTINGS = { values: { sleep: false }, at: { sleep: "2026-10-01T06:00:00.000Z" } };
+  app.loadProgram({ meta: { schema: "tp-program-2", block: "Consent", athlete: "Sample",
+    athleteId: "sample", weeks: 1, days: [day] },
+    exercises: [{ id: "w1d1e1", week: 1, day, name: "Back squat", sets: "2", reps: "5",
+      load: "100", rpe: "RPE 7", tempo: "", rest: "2 min", logHint: "Top load",
+      focus: "", progression: "" }] });
+  app.applyClaim(1, day);
+  const health = ["painPerExercise", "painOnWaking", "sleep", "bodyweight", "hrvNote"];
+  const logged = app.getSession(); logged.session.amPainOnWaking = "3"; app.saveSession(logged);
+  app.setView("list");
+
+  C.decision = null;
+  app.applyAccountSettings();
+  is(health.map(k => app.SETTINGS[k]), [false, false, false, false, false],
+    "with no decision, every health field is off");
+  is(app.SETTINGS.readiness, true, "readiness is still tracked");
+  const ci = checkinCard();
+  is(labelsIn(ci).some(l => /pain|sleep|bodyweight|hrv/i.test(l)), false,
+    "and the check-in shows no health input");
+  assert(labelsIn(ci).some(l => /readiness/i.test(l)), "but keeps readiness");
+  is(exCards()[0].findAll(n => n.tagName === "INPUT" && n.getAttribute("placeholder") === "0").length, 0,
+    "and no exercise asks for pain");
+  const tracking = app.buildSessionPayload(app.getSession(), app.dateProgram()).tracking;
+  is([tracking.painPerExercise, tracking.sleep, tracking.readiness], [false, false, true],
+    "an export says the health fields were not tracked, so silence is not read as a clean week");
+  is(app.ACCOUNT_SETTINGS.values.painPerExercise, undefined,
+    "and the athlete's own switches are never rewritten by it");
+
+  /* Signed out, nothing leaves the phone and nobody is asked. */
+  const access = sandbox.TPAuth.canAccessCached;
+  sandbox.TPAuth.canAccessCached = () => false;
+  app.applyAccountSettings();
+  is(app.SETTINGS.painPerExercise, true, "a signed-out install keeps its health fields");
+  sandbox.TPAuth.canAccessCached = access;
+
+  /* The prompt: once, never over the date view, and only once the store has answered. */
+  stubFor("#sheetWrap").classList.remove("in"); stubFor("#sheetTitle").textContent = "";
+  app.CONSENT_ASKED = false; C.status = "loading"; app.APP.route = "home";
+  app.maybeAskConsent();
+  is(stubFor("#sheetTitle").text, "", "it waits for the account, so a second phone does not ask again");
+  C.status = "ready"; app.APP.route = "date";
+  app.maybeAskConsent();
+  is(stubFor("#sheetTitle").text, "", "it never opens over the date view");
+  app.APP.route = "home";
+  app.maybeAskConsent();
+  is(stubFor("#sheetTitle").text, "Your health data", "on the hub, it asks");
+  assert(stubFor("#sheetBody").findAll(n => n.tagName === "A")
+    .some(a => a.href === "./privacy.html"), "linking the privacy notice");
+
+  sheetButton(/Not now/).onclick();
+  is(C.decided.slice(-1)[0], "declined", "Not now is recorded as a decision");
+  stubFor("#sheetTitle").textContent = ""; app.CONSENT_ASKED = false;
+  app.maybeAskConsent();
+  is(stubFor("#sheetTitle").text, "", "so it does not come back");
+  is(app.SETTINGS.sleep, false, "and the health fields stay off");
+
+  /* Account: the switches keep the athlete's choice, read-only, until consent. */
+  app.APP.route = "account";
+  const fields = new El("div");
+  app.renderFields(fields);
+  const sw = name => fields.findAll(n => n.getAttribute && n.getAttribute("aria-label") === name)[0];
+  assert(!sw("Readiness"), "readiness has no switch");
+  is([sw("Sleep score").disabled, sw("Sleep score").getAttribute("aria-checked")], [true, "false"],
+    "a health switch is locked and shows the athlete's own choice");
+  is(sw("Bodyweight").getAttribute("aria-checked"), "true", "including the ones they left on");
+
+  const panel = new El("div");
+  app.renderConsent(panel);
+  assert(/Not consented/.test(panel.text), "Account says consent is not given");
+  buttonOf(panel, /Give consent/).onclick();
+  sheetButton(/I consent/).onclick();
+  is(C.decided.slice(-1)[0], "given", "giving consent from Account is recorded");
+  is(health.map(k => app.SETTINGS[k]), [true, true, false, true, true],
+    "and brings back exactly the fields the athlete had on");
+
+  app.renderConsent(panel);
+  assert(/You consented on/.test(panel.text), "Account says when consent was given");
+  const confirm = sandbox.window.confirm;
+  sandbox.window.confirm = () => false;
+  buttonOf(panel, /Withdraw consent/).onclick();
+  is(C.decided.slice(-1)[0], "given", "withdrawal asks first, and a cancel changes nothing");
+  sandbox.window.confirm = () => true;
+  buttonOf(panel, /Withdraw consent/).onclick();
+  sandbox.window.confirm = confirm;
+  is(C.decided.slice(-1)[0], "withdrawn", "a confirmed withdrawal is recorded");
+  is(app.SETTINGS.painPerExercise, false, "and the health fields go off again");
+  is(JSON.parse(store.get(app.LS.sess(app.STATE.date, app.STATE.day))).session.amPainOnWaking, "3",
+    "while a reading already logged on this device is kept");
+
+  /* A consent version bump asks again. */
+  C.decision = { action: "given", version: 0, decidedAt: "2026-01-01T00:00:00.000Z" };
+  app.applyAccountSettings();
+  is(app.SETTINGS.painPerExercise, false, "consent under older terms is not in force");
+  app.CONSENT_ASKED = false; app.APP.route = "home"; stubFor("#sheetTitle").textContent = "";
+  app.sheetClose(); app.maybeAskConsent();
+  is(stubFor("#sheetTitle").text, "Your health data", "and the athlete is asked again");
+  app.sheetClose();
+
+  C.decision = { action: "given", version: 1, decidedAt: "2026-10-01T06:00:00.000Z" };
+  C.status = "ready"; app.APP.route = "date";
   store.clear(); app.SETTINGS = { ...app.SET_DEFAULTS };
   app.ACCOUNT_SETTINGS = { values: {}, at: {} };
 }

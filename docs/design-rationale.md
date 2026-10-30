@@ -138,6 +138,19 @@ nothing is lost by resolving it and it can be re-set in one tap. Hence last writ
 **A field that is switched off renders nowhere** — no check-in column, no calendar mark, no legend
 entry, not even a greyed one — while a reading already in storage is still exported.
 
+## Why consent hides fields instead of blocking the app
+
+Health-data consent must be freely given, so refusing it cannot cost the athlete their training
+log; and the app is used in a basement with no signal, so the answer has to be on the phone before
+the first set. Consent therefore gates the health fields through the same read model as a switch
+— an athlete without it simply sees fewer fields — and never sits between them and Start.
+
+**Readiness is outside consent and always tracked.** It is how a session is steered (progress,
+hold or regress), a self-rating rather than a body reading, and the one check-in value every
+programme relies on — a switch that could turn it off bought nothing. **Not now is a decision**,
+recorded and not asked again: a prompt that comes back between sets is how people stop reading
+prompts. Only new consent terms ask again.
+
 ## Visual direction
 
 A dark "almanac": near-black ground, hairlines and typographic hierarchy instead of nested cards,

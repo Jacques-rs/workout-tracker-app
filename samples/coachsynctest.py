@@ -17,7 +17,8 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "athlete", "skills", "program-builder", "scripts"))
-from coach_sync import program_key, revision_problems, session_filename, slug  # noqa: E402
+from coach_sync import (log_names, program_key, revision_problems,  # noqa: E402
+                        session_filename, slug)
 
 failures = []
 run = 0
@@ -60,6 +61,25 @@ check("a version bump keeps the programKey", program_key(revised()) == program_k
 check("session filenames match the app's export",
       session_filename({"date": "2026-01-12", "day": DAY1})
       == "session-2026-01-12-day-1-mon-clean-skill-front-squat-knee-c.json")
+
+# --- Pull: one file per row, or a later row silently overwrites an earlier one
+DAY2 = base["meta"]["days"][1]
+canon = session_filename({"date": "2026-01-12", "day": DAY1})
+pulled = log_names([
+    {"id": "aaaaaaaa-1", "payload": {"date": "2026-01-12", "day": DAY1}},
+    {"id": "cccccccc-3", "conflict_of": "aaaaaaaa-1",
+     "payload": {"date": "2026-01-12", "day": DAY1}},
+    {"id": "bbbbbbbb-2", "payload": {"date": "2026-01-12", "day": DAY1}},
+    {"id": "dddddddd-4", "payload": {"date": "2026-01-12", "day": DAY2}},
+])
+check("a pull names every row distinctly", len(set(pulled)) == 4, pulled)
+check("the newest live row of a date and day keeps the export name", pulled[2] == canon)
+check("an earlier live row of the same date and day is marked -earlier-",
+      pulled[0] == canon[:-5] + "-earlier-aaaaaaaa.json", pulled[0])
+check("a conflict copy keeps its own suffix",
+      pulled[1] == canon[:-5] + "-conflict-cccccccc.json", pulled[1])
+check("another day on the same date is untouched",
+      pulled[3] == session_filename({"date": "2026-01-12", "day": DAY2}))
 
 # --- Allowed ----------------------------------------------------------------
 logged = {(1, DAY1)}

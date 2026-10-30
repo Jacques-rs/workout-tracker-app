@@ -142,7 +142,7 @@ invariants:
 ## Repo layout
 
 ```
-index.html  sw.js  manifest.webmanifest  icon-*.png  privacy.html   the PWA — deploy root
+index.html  sw.js  manifest.webmanifest  *icon*.png  privacy.html   the PWA — deploy root
 program.json          bundled SAMPLE programme
 js/  vendor/          remote-boundary modules; pinned Supabase browser SDK
 supabase/  scripts/   migrations, seed, pgTAP tests; verify.sh
@@ -185,8 +185,8 @@ worktrees of this clone exist (`git worktree list`); `athlete/` exists only in t
 - Mobile-first, single 720px-max column. Touch targets ≥26px, reachable one-handed with a chalked-up
   thumb. **320px is the real floor.**
 - **Themed via CSS variables — never hardcode a colour.** Two palettes × light/dark are four
-  `html[data-theme]` blocks at the top of the `<style>`; every colour in a rule below them must be a
-  `var(--…)`, or it survives a theme switch and looks broken in one of the four. Category rail
+  `html[data-theme]` blocks, plus Mono's `data-accent` overrides, at the top of the `<style>`;
+  every colour in a rule below them must be a `var(--…)`, or it looks broken in one theme. Category rail
   colours live in `--cat-*`, so `CATS` holds `var()` references, not hex.
 - `type="number"` only for **integer** fields with no partial-invalid state, such as a pain score.
   For anything that can hold a decimal mid-type (RPE `"7.5"`) or prose (Load `"BW+20"`), use

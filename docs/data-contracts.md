@@ -490,6 +490,11 @@ prescribed per-set array only if that stops being expressive enough.
     switched on or not — the review step never has to probe for missing keys.
   - A value logged *before* a field was switched off is still exported as-is. The app does
     not rewrite history; `tracking` is what tells you it is no longer being collected.
+  - **Health-data consent reads as switched off.** Without the athlete's consent in force,
+    `painPerExercise`, `painOnWaking`, `sleep`, `bodyweight` and `hrvNote` are `false`, and a
+    log reached through `coach_session_logs` has those readings blanked to `""` — every
+    version, earlier logs included (v1/v2's `amPainNextDay` and `painNextMorning` too). See
+    `docs/backend.md`. `readiness` is never gated and is always `true`.
 - `entries[].category` — present only if the programme declared one (see `tp-program-2`; no generator emits it yet).
   Presentational; it is passed through so a session file stays self-contained.
 - `session.readiness` — one of `""`, `"Green"`, `"Amber"`, `"Red"`.
@@ -564,8 +569,10 @@ not here. This document owns the shape of the file; the skill owns the procedure
 ## Account portability file (`tp-account-export-1`)
 
 This is deliberately not a coaching contract and cannot be imported or restored. It is an
-owner-access export with `schema`, `exportedAt`, an `account` identity, cloud `programmes` (including
-30-day tombstones), cloud `sessions` (canonical and conflicts), and `device` state for the current
-installation (`activeProgram`, position, settings, local sessions and dirty sync queue). It must not
+owner-access export with `schema`, `exportedAt`, an `account` identity, the account `settings`,
+every `healthConsents` decision (`id`, `action`, `consentVersion`, `decidedAt`, `recordedAt`), cloud
+`programmes` (including 30-day tombstones), cloud `sessions` (canonical and conflicts), and `device`
+state for the current installation (`activeProgram`, position, settings, `healthConsent` as this
+device holds it, local sessions and dirty sync queue). It must not
 contain Supabase sessions/tokens, the installation owner marker, credentials, or any `tp_demo_*`
 data. Sanitized examples belong in `samples/`; real exports must never be committed.

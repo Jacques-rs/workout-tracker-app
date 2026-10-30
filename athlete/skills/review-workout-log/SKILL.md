@@ -56,7 +56,7 @@ add `--since <date>` only when the athlete asks for a different window. If the p
 no network, or the athlete is not linked to the coach account — ask the athlete to export the
 missing sessions from the app into `logs/`, and say the review was built from files.
 
-- **Every log in the window**, read together — the week's pattern is the evidence, and a single session inside it is one data point. A conflict copy (`-conflict-` in its name) is the same session edited on two devices: read both and say which one you relied on.
+- **Every log in the window**, read together — the week's pattern is the evidence, and a single session inside it is one data point. A conflict copy (`-conflict-` in its name) is the same session edited on two devices: read both and say which one you relied on. An earlier copy (`-earlier-`) is the same date and day started under one programme version and finished under the next; the pull warns about it — read both the same way.
 - **Logs in the window that a previous "no change" review already covered** are trend context: name what they showed in one line and spend the review on what is new.
 - `athlete/<slug>/personal-profile.md` — injuries, pain-monitoring protocol, readiness hard stops, overreaching history. **This is where the rules come from.** They are never hardcoded here.
 - The active `program.json`, for the prescription for that exact week and day.

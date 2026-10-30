@@ -1,5 +1,5 @@
 /* Training Tracker service worker — offline app shell */
-const CACHE = "tp-tracker-v29";
+const CACHE = "tp-tracker-v31";
 const SHELL = [
   "./",
   "./index.html",
@@ -11,13 +11,15 @@ const SHELL = [
   "./js/program-store.js",
   "./js/session-store.js",
   "./js/settings-store.js",
+  "./js/consent-store.js",
   "./js/account-data.js",
   "./js/profile-ui.js",
   "./program.json",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png",
-  "./icon-512-maskable.png"
+  "./icon-512-maskable.png",
+  "./apple-touch-icon.png"
 ];
 
 self.addEventListener("install", (e) => {
