@@ -136,7 +136,7 @@ invariants:
   the one tap that matters, so quiet actions are muted and underlined.
 - **A typed set is never lost and never logged without a tap.** It waits in the autosaved draft
   through paging, view/day/week changes, backgrounding and reload; only Log, End exercise, or the
-  `confirmTypedDrafts()` prompt that Finish and Export raise commits it. Only a *dirty* draft counts
+  `confirmTypedDrafts()` prompt that Finish and Save a copy raise commits it. Only a *dirty* draft counts
   — a seeded copy is not a set that happened. **Anything that commits must re-render.**
 
 ## Repo layout
@@ -239,7 +239,7 @@ which is the whole point of keeping both): import, log a few sets, reload (**the
 claimed `(week, day)` must both come back**), toggle airplane mode, export. Walk every route —
 Start a scheduled date, Resume a claimed one, Review a sealed one, open a rest day, claim a
 different week *and* day and confirm the prescriptions follow the week, then Finish and confirm an
-edit leaves the date sealed but marks the file stale. Do it in at least one **light** theme; a rule
+edit leaves the date sealed. Do it in at least one **light** theme; a rule
 that hardcodes a colour looks fine in the palette you wrote it in.
 
 **Check 320px for horizontal overflow, not just for looks** — the one check `apptest.js` cannot make

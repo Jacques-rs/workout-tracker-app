@@ -53,9 +53,11 @@
       return item;
     }
 
-    function card(title, copy, children, className) {
+    // `info` is the card's why, kept behind an info button in its title rather than on screen.
+    function card(title, copy, children, className, info) {
       const body = node(document, "section", { className: "profile-card" + (className ? " " + className : "") });
-      body.append(node(document, "h2", { className: "profile-card-title", textContent: title }));
+      const button = info && options.infoButton ? options.infoButton(title, info) : null;
+      body.append(node(document, "h2", { className: "profile-card-title" }, button ? [title, " ", button] : title));
       if (copy) body.append(node(document, "p", { className: "profile-copy", textContent: copy }));
       (Array.isArray(children) ? children : [children]).forEach(child => { if (child) body.append(child); });
       return body;
@@ -94,14 +96,13 @@
       const signedOutOwner = state.owner && state.owner.signedOut;
       const copy = signedOutOwner
         ? `Signed out · ${state.owner.email || "known account"}. Personal data is still on this device and will reappear after sign-in.`
-        : "Private beta accounts are created by administrator invitation.";
+        : "";
       host.append(card("Your account", copy, actionRow([
         button("Sign in", "primary", () => openAuth("sign-in")),
         button("Forgot password?", "quietaction", () => openAuth("recovery"))
-      ])));
-      host.append(card("Explore the tracker",
-        "The sample is a separate demo. Anything logged there stays on this device and never mixes with a personal programme.",
-        sampleAction()));
+      ]), "", "Private beta accounts are created by administrator invitation."));
+      host.append(card("Explore the tracker", "", sampleAction(), "",
+        "The sample is a separate demo. Anything logged there stays on this device and never mixes with a personal programme."));
     }
 
     function blockedAccount(host, state) {
@@ -182,16 +183,19 @@
     /* The workout browser is gone: every session on this device is a date on the
        calendar, which is a better index than a flat list ever was. What the calendar
        cannot show is a copy that is NOT on this device — a conflict copy, or a session
-       logged on another install — so those, and only those, stay reachable here.
-       Collapsed, in Account, and never on the home: "far less invasive" is the point. */
-    function offDeviceSection(host, accountState) {
+       logged on another install — so those, and only those, stay reachable, under Your
+       data, and never on the home: "far less invasive" is the point. */
+    function offDeviceItems() {
       const history = historyState();
-      const items = (Array.isArray(history.items) ? history.items : [])
+      return (Array.isArray(history.items) ? history.items : [])
         .filter(item => item.syncState === "conflict" ||
           !(options.hasLocalSession && options.hasLocalSession(item.date, item.day)));
+    }
+    function offDeviceSection(host, accountState) {
+      const history = historyState();
+      const items = offDeviceItems();
       if (!items.length) return;
-      const children = [node(document, "p", { className: "profile-copy",
-        textContent: "These are not on this device, so they do not appear on the calendar. Nothing here is applied to your training — it is kept so it can be read and exported." })];
+      const children = [];
       items.forEach(item => {
         const stateLabel = item.syncState === "conflict" ? "Conflict copy"
           : item.syncState === "queued" ? "Sync queued"
@@ -209,10 +213,10 @@
         const payload = sessions && sessions.getPayload ? sessions.getPayload(item.id) : null;
         details.append(historyDetail(payload));
         if (payload) details.append(actionRow([
-          button("Download JSON", "ghost", run(async () => {
+          button("Save a copy", "ghost", run(async () => {
             if (options.onDownloadHistory) await options.onDownloadHistory(payload);
           })),
-          button("Copy JSON", "ghost", run(async () => {
+          button("Copy", "ghost", run(async () => {
             if (options.onCopyHistory) await options.onCopyHistory(payload);
           }))
         ]));
@@ -222,47 +226,47 @@
         if (sessions && sessions.loadMore) await sessions.loadMore();
       })));
       host.append(card("Copies not on this device", accountState.status === "authenticated"
-        ? "Readable and exportable, never applied" : "Kept until this device is connected", children));
+        ? "Readable and exportable, never applied" : "Kept until this device is connected", children, "",
+        "These are not on this device, so they do not appear on the calendar. Nothing here is applied to your training — it is kept so it can be read and saved."));
     }
 
-    /* Two sections, two screens. The hub's rows are how they are reached now, so each
-       one renders on its own — the combined profile home is what the hub replaces. */
+    /* The head of the Account menu: who, and one line of sync. Everything that used to
+       sit under it is a row now, drawn by the app, which owns the settings. */
     function accountSection(host, state) {
-      const offline = state.status === "offline-owner";
-      const unavailable = state.status === "unavailable";
       const email = state.user && state.user.email || state.owner && state.owner.email || "Known beta account";
-      const status = offline ? "Offline · cached training available"
-        : unavailable ? "Account services unavailable · cached training available"
-        : state.user && state.user.verified ? "Email verified" : "Signed in";
-      const signOut = button("Sign out on this device", "ghost profile-wide", async () => {
-        if (!auth || !auth.signOutLocal) return;
-        await auth.signOutLocal();
-        if (options.onSignedOut) options.onSignedOut();
-      });
-      const accountActions = [signOut];
-      if (state.status === "authenticated") {
-        accountActions.push(button("Export account data", "ghost profile-wide", run(async () => {
-          if (options.onExportAccount) await options.onExportAccount();
-        })));
-        // A Google sign-in may never have set a password, and deletion re-authenticates with one.
-        accountActions.push(button("Set or change password", "ghost profile-wide", () => openAuth("set-password")));
-        accountActions.push(button("Delete account…", "ghost danger profile-wide", run(async () => {
-          if (options.onDeleteAccount) await options.onDeleteAccount();
-        })));
-      }
-      host.append(card("Your account", email, [
-        node(document, "p", { className: "profile-status", textContent: status }),
-        node(document, "p", { className: "profile-sync", textContent: syncLine(historyState()) }),
-        ...accountActions,
-        historyState().status === "error"
-          ? button("Retry sync", "ghost profile-wide", run(async () => {
+      const history = historyState();
+      const line = [state.status === "unavailable" ? "Account services unavailable" : "", syncLine(history)]
+        .filter(Boolean).join(" · ");
+      host.append(node(document, "div", { className: "acct-head" }, [
+        node(document, "div", { className: "acct-email", textContent: email }),
+        node(document, "p", { className: "profile-sync", textContent: line }),
+        history.status === "error"
+          ? button("Retry sync", "quietaction", run(async () => {
               if (sessions && sessions.retry) await sessions.retry();
             }))
-          : null,
-        state.status === "authenticated" ? node(document, "p", { className: "profile-copy",
-          textContent: "Export includes this device’s local-only and queued work. Deletion removes cloud data and this device’s personal data; other offline installations and managed backups are not erased immediately." }) : null
+          : null
       ]));
+    }
+
+    /* Your data: the copy of everything, deletion, and what the calendar cannot show. */
+    function accountDataSection(host, state) {
+      if (state.status === "authenticated") {
+        host.append(node(document, "div", { className: "panel" }, [
+          button("Save a copy of everything", "ghost profile-wide", run(async () => {
+            if (options.onExportAccount) await options.onExportAccount();
+          })),
+          button("Delete account…", "ghost danger profile-wide", run(async () => {
+            if (options.onDeleteAccount) await options.onDeleteAccount();
+          }))
+        ]));
+      }
       offDeviceSection(host, state);
+    }
+
+    async function signOut() {
+      if (!auth || !auth.signOutLocal) return;
+      await auth.signOutLocal();
+      if (options.onSignedOut) options.onSignedOut();
     }
 
     // A suggestion only: activating still opens the start-date sheet, where the athlete decides.
@@ -275,6 +279,8 @@
         ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][+m[2] - 1]}`;
     }
 
+    /* The active programme, then the block start (the app's, passed in as
+       `blockStart`), then the library. Starting a workout is the hub's job, not this one. */
     function programmeSection(host, state) {
       const library = programs && programs.getState ? programs.getState()
         : { status: "offline", items: [], activeId: "", pending: false, error: null };
@@ -282,55 +288,49 @@
       const items = Array.isArray(library.items) ? library.items : [];
       const activeItem = items.find(item => item.id === library.activeId);
       const importAllowed = !!(auth && auth.canImport && auth.canImport());
-      const libraryCopy = library.pending
-        ? "Saved on this device · cloud backup queued"
-        : library.status === "loading"
-          ? "Loading your private cloud library…"
-          : library.status === "offline"
-            ? "Offline · the active programme remains available on this device"
-            : library.status === "error"
-              ? library.error && library.error.message || "The cloud library is unavailable."
-              : "Private programmes · available only to this account";
-      const programmeChildren = [];
+      const libraryCopy = library.status === "loading" ? "Loading your library…"
+        : library.status === "offline" ? "Offline"
+          : library.status === "error" ? library.error && library.error.message || "The library is unavailable."
+            : "";
 
       if (summary) {
-        const facts = [summary.athlete, `${summary.weeks}-week block`, summary.version ? `v${summary.version}` : "",
-          library.pending ? "Backup queued" : activeItem && activeItem.current ? "Cloud backup current"
-            : activeItem ? "Cloud update available" : "On this device"]
-          .filter(Boolean).join(" · ");
-        const activeActions = [
-          button("Start workout", "primary", () => { if (options.onOpenCached) options.onOpenCached(); })
-        ];
-        if (!activeItem && !library.pending && library.status === "ready" && state.status === "authenticated") {
-          activeActions.push(button("Back up to library", "ghost", run(async () => {
-            if (options.onBackUpCached) await options.onBackUpCached();
-          })));
-        }
-        if (activeItem && !activeItem.current) {
-          activeActions.push(button("Update device", "ghost", run(async () => {
-            if (options.onActivateProgram) await options.onActivateProgram(activeItem.id);
-          })));
-        }
-        if (activeItem && state.status === "authenticated") {
-          activeActions.push(button("Remove", "ghost danger", run(async () => {
-            if (options.onRemoveProgram) await options.onRemoveProgram(activeItem);
-          })));
-        }
+        const waiting = !!(activeItem && !activeItem.current);
+        const facts = [summary.version ? `v${summary.version}` : "", `${summary.weeks} weeks`,
+          library.pending ? "Backup queued" : !activeItem ? "On this device" : ""].filter(Boolean).join(" · ");
+        const meta = node(document, "div", { className: "prog-meta" }, facts);
+        if (waiting) meta.append(" · ", node(document, "span", { className: "prog-update", textContent: "Update available" }));
         // The note is the coach's why, shown at the one moment the athlete decides to take it.
-        const pendingNote = activeItem && !activeItem.current && activeItem.changeNote
+        const pendingNote = waiting && activeItem.changeNote
           ? node(document, "p", { className: "profile-programme-note",
               textContent: `${activeItem.programVersion ? `v${activeItem.programVersion}: ` : ""}${activeItem.changeNote}` })
           : null;
-        programmeChildren.push(node(document, "div", { className: "profile-programme" }, [
-          node(document, "div", { className: "profile-programme-title", textContent: summary.title }),
-          node(document, "div", { className: "profile-programme-meta", textContent: facts }),
+        const quiet = [];
+        if (!activeItem && !library.pending && library.status === "ready" && state.status === "authenticated") {
+          quiet.push(button("Back up to library", "quietaction", run(async () => {
+            if (options.onBackUpCached) await options.onBackUpCached();
+          })));
+        }
+        if (activeItem && state.status === "authenticated") {
+          quiet.push(button("Remove this programme", "quietaction", run(async () => {
+            if (options.onRemoveProgram) await options.onRemoveProgram(activeItem);
+          })));
+        }
+        host.append(node(document, "section", { className: "panel prog-active" }, [
+          node(document, "div", { className: "prog-name", textContent: summary.title }),
+          meta,
           pendingNote,
-          actionRow(activeActions)
+          waiting ? button("Update device", "primary profile-wide", run(async () => {
+            if (options.onActivateProgram) await options.onActivateProgram(activeItem.id);
+          })) : null,
+          options.blockStart ? options.blockStart() : null,
+          quiet.length ? node(document, "div", { className: "prog-quiet" }, quiet) : null
         ]));
       }
 
-      items.filter(item => !(summary && activeItem && item.id === activeItem.id)).forEach(item => {
-        const facts = [item.athlete, `${item.weeks}-week block`, item.programVersion ? `v${item.programVersion}` : "",
+      const others = items.filter(item => !(summary && activeItem && item.id === activeItem.id));
+      const libraryChildren = [];
+      others.forEach(item => {
+        const facts = [item.programVersion ? `v${item.programVersion}` : "", `${item.weeks} weeks`,
           startLabel(item.startDate)]
           .filter(Boolean).join(" · ");
         const itemActions = [
@@ -339,11 +339,11 @@
           }))
         ];
         if (state.status === "authenticated") itemActions.push(
-          button("Remove", "ghost danger", run(async () => {
+          button("Remove", "quietaction", run(async () => {
             if (options.onRemoveProgram) await options.onRemoveProgram(item);
           }))
         );
-        programmeChildren.push(node(document, "div", { className: "profile-programme" }, [
+        libraryChildren.push(node(document, "div", { className: "profile-programme" }, [
           node(document, "div", { className: "profile-programme-title", textContent: item.title }),
           node(document, "div", { className: "profile-programme-meta", textContent: facts }),
           actionRow(itemActions)
@@ -351,19 +351,20 @@
       });
 
       if (!summary && !items.length && library.status !== "loading") {
-        programmeChildren.push(node(document, "p", { className: "profile-copy",
-          textContent: importAllowed
-            ? "No personal programme is stored yet. Import the first programme JSON for this account."
-            : "No personal programme is cached, and account services are unavailable for a new import." }));
+        libraryChildren.push(node(document, "p", { className: "page-copy",
+          textContent: importAllowed ? "No programme yet." : "No programme yet · import needs your account." }));
       }
 
-      const importButton = button(importAllowed ? "Import programme JSON…" : "Import unavailable", "primary profile-wide", () => {
+      const importButton = button(importAllowed ? "Import from a file" : "Import unavailable", "quietaction", () => {
         if (importAllowed && options.onImport) options.onImport();
       });
       importButton.disabled = !importAllowed;
-      programmeChildren.push(importButton);
-      host.append(card("Programmes", libraryCopy, programmeChildren,
-        library.status === "error" ? "profile-error" : ""));
+      host.append(node(document, "section", { className: "panel" + (library.status === "error" ? " profile-error" : "") }, [
+        others.length ? node(document, "div", { className: "panel-title", textContent: "Library" }) : null,
+        libraryCopy ? node(document, "p", { className: "page-copy", textContent: libraryCopy }) : null,
+        ...libraryChildren,
+        importButton
+      ]));
     }
 
     function ownerProfile(host, state) {
@@ -410,7 +411,7 @@
       render();
     }
 
-    /* Used by the hub's Programme and Account screens, which own their own host. */
+    /* Used by the Programme and Account screens, which own their own host. */
     function sectionRenderer(paint) {
       return host => {
         if (!host) return;
@@ -431,7 +432,10 @@
       init,
       render,
       renderAccount: sectionRenderer(accountSection),
+      renderAccountData: sectionRenderer(accountDataSection),
       renderProgramme: sectionRenderer(programmeSection),
+      offDeviceCount: () => offDeviceItems().length,
+      signOut,
       programSummary,
       destroy() {
         if (unsubscribe) unsubscribe();

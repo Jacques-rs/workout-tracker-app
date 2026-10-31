@@ -27,24 +27,32 @@
 The heart is a home page and tracking is date-first; `docs/design-rationale.md` holds the reasoning
 and should be read before changing any of this.
 
-`showRoute(route)` knows six routes and toggles four views, one visible at a time.
-**It is the only thing that touches their `hidden` flags** — never toggle a surface from a handler.
+`showRoute(route, sub)` knows six routes and toggles four views, one visible at a time, plus the tab
+bar and the page bar's back arrow. **It is the only thing that touches their `hidden` flags** —
+never toggle a surface from a handler.
+The **tab bar** (`#tabBar`: Today · Calendar · Programme · Account) shows on `home` and the three
+pages, never on `entry` or `date` — the date view owns the bottom edge. It is the way between the
+four, so the pages have no back arrow — except an Account sub-screen (below). `paintTabs()` sets the current tab and the Programme tab's
+dot, which means the active programme has an untaken revision (`programmeUpdateWaiting()`); it sets
+attributes only, because the profile module's refresh calls it on every tick.
 
 - **`entry` → `#profileView`** — the sign-in gate, owned by `profile-ui.js`. Signed-out visitors get sign-in/recovery and the explicit sample action; a conflicting or unavailable account gets its own honest state. **A known owner never sees this**: `bootSurface()` loads the cached programme and routes to the hub.
-- **`home` → `#homeView`** — the hub. Today first and largest, with **one** primary action for its state; the last two or three sessions inline (not a destination — you almost always want "the last one"); then one row each to Calendar, Programme and Account. Sync state is a line inside Account and **never** a badge here, so it cannot compete with today's session for attention.
+- **`home` → `#homeView`** — the hub. Today first and largest, with **one** primary action for its state; then this week as a seven-cell strip using the calendar's own cells and marks, whose title opens the calendar. On a rest day the today line names the next session, and a missed scheduled day (`lastMissed()`) is a dashed cell plus a quiet "Log … late" link. Sync state is a line inside Account and **never** a badge here, so it cannot compete with today's session for attention.
 - **`calendar` → `#pageView`** — a continuous vertical scroll of weeks, eight grid columns (a `W1`–`Wn` label plus seven days). Dates outside the block are present but plain. A cell holds the date number and one state mark and nothing else, because at seven columns it is ~37px at 320 and ~47px at 390. An optional hairline marks a non-zero pain-on-waking reading, and only when the athlete tracks it.
 - **`date` → `#workoutView`** — the date view and the focus logger. Sticky header (two rows), `<main>`, and the action bar.
-- **`programme` / `account` → `#pageView`** — the private library and the block anchor; the account, its one-line sync state, and the two settings scopes.
+- **`programme` → `#pageView`** — the active programme first (name, version, length, and an amber `Update available` with **Update device** when the library holds an untaken revision), the `Block start` row, then the rest of the library and a quiet **Import from a file**. Starting a workout is the hub's job, not this screen's.
+- **`account` → `#pageView`** — a menu: the email and the one-line sync state, then one row per setting showing its current value (Health data, Tracked fields, Appearance, Rest clock, Password, Your data), then a quiet **Sign out** and the build. A row opens a **sub-screen**, `APP.sub` (`health` / `fields` / `appearance` / `rest` / `data`, listed in `ACCOUNT_SUBS`), which is part of the `account` route rather than a route of its own: same chrome, its own title and info button saying whether it follows the account or stays on this phone, and `#pageBack` back to the menu. Any `showRoute()` without a `sub` clears it, so the Account tab always lands on the menu. Password opens the auth module's set-password dialog directly; Your data holds the account copy, deletion, and the copies not on this device.
 
 Inside the date view:
 
 - **Header** (sticky, two rows) — a back arrow and a tappable context line on row 1; a worded Overview/Log toggle and `n/m done` on row 2, with either the progress bar (Overview) or the pip strip (Log) beneath. Nothing here is an input. **The context line reads differently per view**: the block name and `Week n of m` in Overview, where the date view states the date itself directly below, and `Week 3 · Thu 3 Sep` over the day's theme in Log, where there is no date head. Saying the date twice on one screen is duplication. Tapping it opens the claim picker. The progress bar has **two fill layers** (`#pbarDone`, and the dimmer `#pbarPart` behind it) so a session with four exercises half-logged doesn't read as 0% through, and the pips carry **three** states, not two (`data-done`, `data-part`).
-- **`<main>` in Overview — the date view.** In order: `dateHead()` (the date, what is on it, its state, one primary action, and the quiet claim action), any banners, the check-in, the exercise cards, then `dateFoot()` (Finish session, or the seal/export status). **The check-in never gates Start**, which is why the primary action sits above it.
+- **`<main>` in Overview — the date view.** In order: `dateHead()` (the date, what is on it, its state, one primary action, and the quiet claim action), any banners, the check-in (one row until tapped), the exercise cards, then `dateFoot()` (Finish session, or the seal line and a quiet **Save a copy** link). **The check-in never gates Start**, which is why the primary action sits above it.
   - **Overview always renders a status line** (see `statusLine()`), plus a right-aligned `○ / ◐ / ✓` badge. There must always be one: an absent line cannot be told apart from a status that failed to render, and it would leave a typed-but-uncommitted set invisible everywhere outside the editor.
 - **`<main>` in Log — the focus logger.** Exactly one exercise. Order is load-bearing: name → prescription → the `Capture` chips → **the instrument rail** (the rest clock — or, for an EMOM or work/rest interval, the interval timer in its place — and "last time", which opens a read-only popup of that session's sets) → **the set editor** → coach notes / progression rule / Summary & notes. The reference material must stay *below* the editor: three collapsibles above the fields push the primary action off a 320×568 screen.
 
-The action bar swaps by view: export actions in Overview, `‹ Prev / n / N / Next ›` in Log.
-Import lives on the Programme screen; export is per-session and lives on the date view.
+The action bar (`#footerBar`) exists only in Log, as `‹ Prev / n / N / Next ›`; Overview has none,
+because sync carries the session. Import lives on the Programme screen; the per-session file is a
+fallback, offered only on a finished day.
 
 ## Browser JavaScript layout
 
@@ -89,10 +97,10 @@ order in the file** — keep additions in the matching section, and if you add o
 24. **view mode** — `viewMode()`, `setView()`, `syncView()` (toggle state, footer/header visibility, and capture/restore of the runtime-only Overview scroll position), `firstUndone()`, `resetFocus()`, `clampFocus()`, `goFocus(i)`, `stepFocus(d)`, `renderNav()` (rebuilds the pips) and `paintNav()` (repaints their state without touching structure).
 25. **the session check-in** — `sessionCard()`, rendered into `#checkinHost` by `renderCheckin()`, which rebuilds *only* that block because the exercise list below holds a scroll position a full rebuild would throw away.
 26. **the date view** — `dateHead()`, `dateFoot()`, `sessionProgressLine()`, `sealLine()`, `openClaimPicker()` (week and day together, the current selection preselected), `confirmFinish()`, `confirmReopen()`.
-27. **the hub** — `renderHome()`/`homeToday()`/`homeRow()`, `recordProgress()` (progress for a session we are *not* standing in, so it cannot call `dayExercises()`), `recentSessions()`, `lastMissed()`, `accountLine()`.
+27. **the hub** — `renderHome()`/`homeToday()`/`weekStrip()`, `recordProgress()` (progress for a session we are *not* standing in, so it cannot call `dayExercises()`), `lastMissed()`.
 28. **the calendar** — `renderCalendar()`, `calendarRange()`, `calendarMark()`, `calendarPain()`, `calendarLegend()`.
-29. **the programme screen** — `anchorPanel()` (the block anchor, editable in one tap, with the derived weekdays and the block it follows shown so it can be checked rather than trusted), `offerBlockStart()` (the new-block start sheet), `renderProgrammePage()`.
-30. **the account screen** — `settingsGroup()`, `buildLabel()` (also beside the entry screen's Privacy link), `renderAccountPage()`, which labels the two settings scopes explicitly and shows the running build (the service worker's cache name).
+29. **the programme screen** — `blockStartRow()` (the block anchor as a row; tapping the date reveals the input, the derived weekdays and the block it follows, so it can be checked rather than trusted — `profile-ui.js` places it under the active programme through its `blockStart` option), `offerBlockStart()` (the new-block start sheet), `renderProgrammePage()`.
+30. **the account screen** — `menuRow()`, `buildLabel()` (also beside the entry screen's Privacy link), `accountValues()` (each row's value), `renderAccountPage()` (the menu, or `renderAccountSub()` when `APP.sub` is set). The profile module's refresh rebuilds the menu and Your data on every tick, but never a settings sub-screen: none shows what those ticks change, and the pain label is an input a rebuild would take the keyboard from.
 31. **exercise head (shared by Overview and Log)** — `exerciseHead(ex)`, `hintChips()`. The rail colour, name and prescription line. **Change an exercise's identity here only**, so the two views cannot show two different prescriptions for one row.
 32. **overview card (read-only)** — `overviewCard(ex, s, idx)`, `statusLine()`, `summaryText()`, `painLogged()`. Zero inputs.
 33. **the focus logger's instruments** — `parseRestSeconds(ex)`, `restSeconds(s)`, `fmtClock()`, `restReading()`, `restCueDue()`/`primeCue()`/`restCue()`, `restClockNode()`; the interval timer: `parseInterval(ex)`, `intervalSpec(ex, e)`, `intervalAt(spec, sec)`, `timerSeconds(e)`, `holdScreen()`, `intervalNode()`; `startRestTick()`; `heaviestSet()`, `agoWords()`, `lastTimeNode()`, `openPreviousSheet()`; `instrumentRail()`. One interval for the whole app, and it only ever repaints.
@@ -107,6 +115,7 @@ order in the file** — keep additions in the matching section, and if you add o
 ```js
 STATE = { week: 1, day: "Day 1 (Mon) - ...", block: "<programKey>", date: "2026-07-27", focus: 0, setEdit: null }
 APP = { surface: "profile" | "workout", route: "entry" | "home" | "calendar" | "date" | "programme" | "account",
+        sub: null | "health" | "fields" | "appearance" | "rest" | "data",
         source: null | "personal" | "sample", from: "home" | "calendar" }
 SCHEDULE = { anchorMonday: "2026-07-27", weeks: 6, days: [{ label, weekday }] } | null
 ```
@@ -299,11 +308,11 @@ cold start shows only this installation's reconstructable local/queued sessions.
 hides queue and history state without deleting either. `tp_demo_*` sessions never enter this path.
 
 **There is no separate history browser.** Every session on this device is a date on the calendar,
-which is a better index than a flat list ever was, and the last two or three appear inline on the
-hub. Sync state is **one line** inside Account. What the calendar cannot show is a copy that is
+which is a better index than a flat list ever was, and this week's are on the hub's strip. Sync
+state is **one line** inside Account. What the calendar cannot show is a copy that is
 *not* on this device — a conflict copy, or a session logged on another install — so those, and only
-those, stay reachable in Account behind a collapsed "Copies not on this device" section with their
-download/copy actions. `hasLocalSession(date, day)` is the filter; a conflict copy is always listed
+those, stay reachable under Account → Your data (whose row counts them) in a "Copies not on this
+device" section with their save/copy actions. `hasLocalSession(date, day)` is the filter; a conflict copy is always listed
 regardless, which is what "conflict copies should be far less invasive" means in practice.
 
 A stored session looks like:
@@ -355,13 +364,13 @@ Every input has an `oninput`/`onchange` handler that mutates the session object 
 - **Exercises are filtered by `day` and `week` — but only for `tp-program-2`.** A v1 programme is a Week-1 template, so filtering it by week would empty the list; it keeps the day-only filter and the "apply your progression rule" banner. `isV2()` is the only place that decides, and `dayExercises()` is the only filter — rendering, the progress bar and the export all call it. See `docs/data-contracts.md`.
 - **Ordinary work is one set at a time; circuits are format-aware.** Fixed `N rounds` defaults to a one-tap round counter. AMRAP, EMOM, for-time work and ladders default to a tailored final-result form. A quiet mode sheet switches among Quick rounds, Round details and Final result; changing after data exists requires an explicit reset. `tracking.perSetLogging` remains stamped `true` for compatibility, even though a final-result circuit can validly export `sets: []` with populated flat fields.
 - **A new draft always seeds from the set before it**, load/reps/rpe carried forward, pain and the note cleared — the point being that logging N identical sets costs one tap each, and correcting one downward costs one more. **Copied values look copied:** until typed over, each renders muted (`.copied`, `--muted`) and the set label carries a "copied from set N" tag that the first edit removes. Tapping Log with them untouched logs them. The only way to get a genuinely blank draft is for the athlete to clear every field by hand; `commitSet()` refuses to commit one either way, so that can never produce a phantom set.
-- **A typed set cannot be lost, and is never logged without a tap.** The draft autosaves, so paging away, changing date/week/view, backgrounding and reload all return to exactly what was typed; there is no `pagehide`/`visibilitychange` handler. Overview marks the exercise `◐` "set K typed, not logged". It is committed only by Log, by End exercise (`commitDraftIfDirty()`, which its sheet already counts), or by `confirmTypedDrafts()`: Finish session, Export and Copy JSON list every typed set (Round details drafts included) with **Log it** / **Discard** before going on. Quick-round taps and final-result fields already save directly. **Every path that commits must also re-render** because it writes through a session object read fresh from storage.
+- **A typed set cannot be lost, and is never logged without a tap.** The draft autosaves, so paging away, changing date/week/view, backgrounding and reload all return to exactly what was typed; there is no `pagehide`/`visibilitychange` handler. Overview marks the exercise `◐` "set K typed, not logged". It is committed only by Log, by End exercise (`commitDraftIfDirty()`, which its sheet already counts), or by `confirmTypedDrafts()`: Finish session, Save a copy and Copy list every typed set (Round details drafts included) with **Log it** / **Discard** before going on. Quick-round taps and final-result fields already save directly. **Every path that commits must also re-render** because it writes through a session object read fresh from storage.
 - **The reps field is whatever the exercise measures**, decided by `metricOf(ex)` from the prescription string: `Hold (s)`, `Time (min)`, `Dist (m)`, `Work (cal)`, `Reps`, or `Result` for composite prose. It sets the label, the keyboard (`inputmode`), the placeholder and the unit appended by `deriveReps()`. `inputmode="numeric"` is a digits-only keypad on iOS and makes a 45-second hold untypeable, so the fallback for anything unrecognised is a **full keyboard**, never a numeric one. Composite prose is tested first, or `"45 sec hard / 75 sec easy"` reads as a 45-second hold. The unit lives in the *label*, not as an overlay inside the field: `"min"` plus `"8-10"` does not fit a 68px column and clips the value.
 - **Upcoming set chips are inert `<span>`s, and planned-count changes are secondary.** Tapping an upcoming number must do nothing. The quiet **Adjust sets** action opens a bottom sheet whose −/+ controls write `setTarget`, floored at the current set and capped at 12. The primary set path has no steppers. A one-slot exercise renders no chip strip at all.
 - **The programme's `logHint` drives two pieces of UI.** `parseHints()` splits it on semicolons into the `Capture` chip row (four at most), and `painAsked()` accents the pain field's label on any exercise whose hint, coach notes or category say a reading matters, nudging once on Finish if none was logged. It **never hides the field** — `tracking.painPerExercise` means "this device collects per-exercise pain", and an exercise-by-exercise exception would make an empty value unreadable on the coaching side.
 - **The flat summary follows `sets` until it doesn't.** `applyDerivedSummary()` recomputes it on every commit/edit/delete while `summaryAuto` is true; editing a flat field directly in "Summary & notes" sets `summaryAuto` to `false` for that entry and it stops following, permanently, for that exercise. Never partially — there's one flag for the whole group, not one per field.
 - **Deriving the summary must fail safe on empty or partial data**: no fabricated `"0"` RPE from nothing logged, no `"NaN"` from RPE prose that doesn't parse (fall back to the last raw string), no reps string that asserts more sets than were actually committed. See `deriveReps()`/`pickMode()`/`pickMax()` for the exact rules, and `samples/apptest.js`'s "deriving the flat summary" block for the table they're tested against.
-- **The check-in lives near the top of the date view, and never in the focus logger.** It sits above the exercise list and *below* the primary action, so the data is asked for without ever standing between the athlete and a warm-up. Its own status line ("Not filled", or a summary) is how the athlete knows whether it is done. It is still the *same* `sessionCard()`, still autosaves on every input, and still tints itself by readiness — only its host moved. `renderCheckin()` rebuilds *only* that block, because the exercise list below it holds the scroll position a full rebuild would throw away.
+- **The check-in lives near the top of the date view, and never in the focus logger.** It sits above the exercise list and *below* the primary action, so the data is asked for without ever standing between the athlete and a warm-up. It is a `<details>` closed by default, so its row — with its own status ("Not filled" in the accent, or a summary) — is how the athlete knows whether it is done without opening it. Open or closed survives a re-render on the same date and resets on another. It is still the *same* `sessionCard()`, still autosaves on every input, and still tints itself by readiness — only its host moved. `renderCheckin()` rebuilds *only* that block, because the exercise list below it holds the scroll position a full rebuild would throw away.
 - **Committing a set says so, three ways.** A `LOGGED 60×4 · 60×4` recap line above the chips, a toast naming the set, and a one-off pulse on the chip that just landed (plus `navigator.vibrate` where it exists, guarded). All three are needed: the next draft is seeded from the set just logged, so the fields read the same and without them nothing feels recorded. Committing an *empty* draft now toasts why nothing happened instead of being a silent no-op.
 - **The final planned set completes and advances automatically, and the editor never invents a set past the plan.** When every planned set is logged, nothing is typed and the exercise is not done (reopened, Adjust sets, an older stored session), it shows **Finish exercise** (the Log final set path) and **Add another set** (bumps `setTarget`) instead of a draft. Before any work the secondary exit is **Skip exercise**; after partial work it is **End after N of M**. Both require a confirmation that states what will be retained. A toast after automatic completion offers **Add set** as the recovery path. Circuit quick mode opens one compact finish sheet after its final prescribed round.
 - **`renderNav()` and `paintNav()` are split on purpose.** `saveSession()` runs on every keystroke; rebuilding a pip per exercise that often would fight the scroll position of the strip. `renderNav()` rebuilds structure when the exercise list changes, `paintNav()` only repaints attributes — and scrolls the strip into view only when `STATE.focus` actually changed, and never while an input has focus, which is what keeps the screen from jumping while typing.
@@ -385,11 +394,11 @@ Every input has an `oninput`/`onchange` handler that mutates the session object 
 
 ## Export flow
 
-`exportSession()` builds the `tp-session-3` object, serialises it, and triggers a download via a `Blob` + object URL + synthetic `<a download>` click. Both it and `copyJSON()` are wrapped in `try/catch` that toasts the error: a throw here would look like the button doing nothing, at the one moment the session has to leave the phone.
+`exportSession()` builds the `tp-session-3` object, serialises it, and triggers a download via a `Blob` + object URL + synthetic `<a download>` click. It is wrapped in `try/catch` that toasts the error: a throw here would look like the link doing nothing.
 
 Downloads remain available because they are the portable coaching hand-off and the recovery path for
 conflict copies. On iPhone the download goes through the share sheet → *Save to Files* → the Drive
-folder. `copyJSON()` is the fallback path — clipboard, then paste into chat.
+folder. A conflict copy can also go to the clipboard from Account (`copySessionPayload()`).
 
 ## Styling
 
@@ -445,7 +454,7 @@ change not yet pushed. Supabase tokens, the owner marker, credentials and every 
 excluded. It is an access/portability file only; restoration is deferred.
 
 Deletion first re-authenticates with the current password (no email); an account that only ever
-used Google sets one first through **Set or change password**. It then calls
+used Google sets one first through Account → **Password**. It then calls
 `delete_own_account()`. Only after the RPC succeeds are all non-demo `tp_*` keys cleared and the
 installation binding reset. A failed RPC leaves local data untouched. The database retains removed
 programme tombstones for 30 days and a daily Cron job then purges them; session history survives

@@ -27,18 +27,14 @@ only in a block's first week or two, would cover it.
 
 ## Lower value / speculative
 
-Sessions sync to the account, so the exported file is a secondary copy for the coaching side, not
-the backup — which is why the two export items sit here.
+Sessions sync to the account, so a saved file is a secondary copy, not the backup — which is why
+the restore item sits here.
 
-**5. Restore from a backup.** `Export account data` produces a complete `tp-account-export-1`
+**5. Restore from a backup.** Account → Your data → Save a copy of everything produces a complete `tp-account-export-1`
 file, but nothing reads one back. Cheap insurance against evicted storage on a device that never
 synced.
 
-**6. Share instead of download.** Export downloads a file the athlete then files into Drive
-through the share sheet. `navigator.share` with the file would shorten it; a whole-week export
-would too.
-
-**7. Plate calculator.** The athlete does this arithmetic automatically.
+**6. Plate calculator.** The athlete does this arithmetic automatically.
 
 ## Deferred on purpose
 
