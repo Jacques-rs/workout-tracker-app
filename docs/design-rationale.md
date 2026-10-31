@@ -20,15 +20,16 @@ overlay and no single organising idea. The complaints that drove the current sha
 ## The two ideas everything follows from
 
 **The heart is a home page.** Not a feature promoted to the top — a hub you land on that answers
-"what am I doing today" first and links to everything else.
+"what am I doing today" first. A tab bar links to everything else, so the hub carries no rows of
+furniture under the session.
 
 **Tracking is date-first.** Every calendar date carries a workout state, and opening a date
 resolves to exactly one thing. That is the whole navigation model.
 
 **Home always shows today, never "the next thing"** — a home that silently shows tomorrow gets you
-doing the wrong session. On a rest day a quiet second line points at the next one. Recent sessions
-appear **inline**, not as a destination: you almost always want the last one and rarely the
-fourteenth. Sync state is one line inside Account, never a badge on the home, so it cannot compete
+doing the wrong session. On a rest day the same line points at the next one. Earlier sessions are
+reached through a **week strip**, not a list: you almost always want the last one, and seven cells
+with the calendar's marks give that and where you are in the week in one row. Sync state is one line inside Account, never a badge on the home, so it cannot compete
 with today's session for attention.
 
 The calendar is one continuous scroll of weeks rather than a month/block switch, because a training
@@ -65,9 +66,9 @@ Without a status, "complete" has to be inferred from a session's entries, which 
 Sealing is **local and works with the radio off**, deliberately not tied to sync or export: a
 dropped connection must not look like an unfinished workout. **An edit does not un-seal.**
 Un-sealing because a typo was fixed would flip the calendar back to "unfinished", which is a lie
-about that day; the edit marks the file *edited since export* instead — information the coaching
-loop needs and the app previously had no way to record. **Export stays manual** and per-session:
-the export is a file that has to be put somewhere, on your terms.
+about that day; the edit sets `editedAt` past `exportedAt` instead, which the coaching side can
+read. The app no longer says so on screen: **sync carries the session**, so a file is a fallback —
+one quiet "Save a copy" on a finished day — and nagging about it would be clutter.
 
 ## Why the date view is list-first
 
@@ -113,8 +114,8 @@ than printing an empty row.
 never changes what you are looking at, or what counts as logged, behind your back. Committing a
 typed set when the phone locks or you page away looked safe, but it logged sets the athlete had not
 confirmed and could leave the editor on a set nobody planned. A typed set therefore waits, visibly
-marked "typed, not logged", and the two moments it would otherwise go missing — Finish and Export
-— ask about it rather than deciding. For the same reason a value copied from the last set is shown
+marked "typed, not logged", and the two moments it would otherwise go missing — Finish and Save a
+copy — ask about it rather than deciding. For the same reason a value copied from the last set is shown
 muted under a "copied" tag until it is typed over, so a guess never looks like an entry. Pain is
 never copied: tapping Log without looking would record a stale score and hide a rise, while an
 empty one honestly reads as no reading.
@@ -131,6 +132,15 @@ Which optional fields the athlete tracks, and what they are called, are about **
 they follow the athlete to any device: someone who tracks a tendon reading on one phone must not
 silently stop collecting it on another. Appearance and whether the rest clock beeps are about
 **where you are standing** — a basement at 6 a.m. and a kitchen at noon want different things.
+
+**Account is a menu, not a page of settings**, because those settings are touched twice a year and
+their explanations were most of the screen. Each row shows what the setting *is* (`6 on`,
+`Mono · Auto`), and which scope it belongs to is said once, behind its sub-screen's info button —
+the athlete needs the scope when changing a setting, not when passing it. A sub-screen is a state of
+the `account` route rather than a route of its own: it needs a way back the tab bar cannot give, and
+one back arrow that `showRoute()` shows or hides is the whole cost, where a fifth route would have
+needed its own chrome and its own answer to "which tab is this". The consent wording is the
+exception to "less text": consent has to be shown in full when it is given or withdrawn.
 
 A tracked-fields change made offline on two devices is not worth a conflict copy: unlike a workout,
 nothing is lost by resolving it and it can be re-set in one tap. Hence last write wins, per field.
