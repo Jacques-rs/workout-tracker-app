@@ -163,6 +163,8 @@
     font-size:16px;line-height:1.45;overflow-wrap:break-word;-webkit-font-smoothing:antialiased}
   body{padding:0 var(--s3) calc(92px + env(safe-area-inset-bottom));max-width:720px;margin:0 auto}
   body.profile-active{padding-bottom:calc(var(--s5) + env(safe-area-inset-bottom))}
+  body.bar-off{padding-bottom:calc(var(--s5) + env(safe-area-inset-bottom))}
+  body.has-tabs{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
   .tnum{font-variant-numeric:tabular-nums}
 
   /* ---------- the entry gate ----------
@@ -186,6 +188,7 @@
     background:var(--accent-soft);color:var(--accent-ink);font-size:var(--t-xs);font-weight:800}
   .profile-actions{display:flex;gap:var(--s2);align-items:stretch;margin-top:var(--s3);flex-wrap:wrap}
   .profile-actions>button{flex:1 1 150px}
+  .profile-actions>.quietaction{flex:0 0 auto}
   .profile-wide{width:100%;margin-top:var(--s3)}
   .profile-programme{margin-top:var(--s3);padding:var(--s3);border-radius:var(--r-sm);
     border:1px solid var(--line-soft);background:var(--well)}
@@ -226,8 +229,8 @@
   .profile-sync{margin:var(--s2) 0 0;font-size:var(--t-xs);color:var(--muted);line-height:1.5}
 
   /* ---------- the hub ----------
-     Today first and largest, the last few sessions inline, then one row each to
-     everything else. Typographic hierarchy and hairlines carry it, not nested cards. */
+     Today first and largest, then this week as a strip. Typographic hierarchy and
+     hairlines carry it, not nested cards. */
   .home-view{min-height:100vh;padding:calc(var(--s5) + env(safe-area-inset-top)) 0 var(--s5)}
   .home-kicker{font-size:var(--t-xs);font-weight:800;letter-spacing:.11em;
     text-transform:uppercase;color:var(--muted);
@@ -253,34 +256,28 @@
   .ht-quiet{margin-top:var(--s3)}
 
   .homesection{margin-top:var(--s5)}
-  .hs-title{font-size:var(--t-xs);font-weight:800;letter-spacing:.12em;
-    text-transform:uppercase;color:var(--muted);margin-bottom:var(--s1)}
-  /* A row, not a card: the whole line is the target and a hairline between rows is all
-     the structure it needs. */
-  .homerow{display:flex;align-items:center;gap:var(--s3);width:100%;text-align:left;
-    background:transparent;border:0;border-bottom:1px solid var(--line-soft);
-    border-radius:0;padding:var(--s3) 2px;min-height:var(--h-field)}
-  .homerow:active{background:var(--accent2-soft);transform:none}
-  .homerow:focus-visible{box-shadow:var(--ring)}
-  .hr-main{flex:1 1 auto;min-width:0}
-  .hr-title{display:block;font-weight:700;font-size:var(--t-base);line-height:1.25;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .hr-sub{display:block;font-size:var(--t-xs);font-weight:400;color:var(--muted);
-    line-height:1.35;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .hr-chev{flex:0 0 auto;color:var(--muted);font-size:var(--t-md);font-weight:700}
-  .hr-mark{flex:0 0 auto;width:20px;text-align:center;font-size:var(--t-md);
-    font-weight:700;color:var(--muted)}
-  .hr-mark[data-state="part"]{color:var(--accent-ink)}
-  .hr-mark[data-state="done"]{color:var(--good)}
+  /* The strip's title is its way into the calendar, so the whole line is the target. */
+  .hs-link{display:flex;justify-content:space-between;align-items:center;width:100%;
+    min-height:var(--h-tap);padding:0 2px;border:0;background:transparent;border-radius:0;
+    font-size:var(--t-xs);font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--muted);text-align:left}
+  .hs-link:focus-visible{box-shadow:var(--ring)}
+  .wkstrip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px}
+  /* Missed is an outline, never a colour: it is an offer, not an accusation. */
+  .cal-cell[data-missed="true"]{border-style:dashed;border-color:var(--muted)}
 
   /* ---------- one chrome for Calendar / Programme / Account ----------
-     Three screens sharing a back arrow, a title and a body — none gets its own. */
+     Three screens sharing a title and a body — none gets its own. The tab bar is the way
+     back. */
   .page-view{min-height:100vh;padding:0 0 var(--s5)}
   .pagebar{position:sticky;top:0;z-index:20;background:var(--bg);display:flex;
     align-items:center;gap:var(--s3);
     padding:calc(var(--s3) + env(safe-area-inset-top)) 0 var(--s3)}
-  .pagetitle{flex:1 1 auto;min-width:0;font-weight:700;font-size:var(--t-md);
+  /* 38px holds the bar at the height it had with a back arrow beside the title. */
+  .pagetitle{flex:1 1 auto;min-width:0;min-height:38px;display:flex;align-items:center;gap:var(--s2);
+    font-weight:700;font-size:var(--t-md);
     letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pagebar .iconbtn[hidden]{display:none}
   .page-body{display:grid;gap:var(--s4)}
   .page-copy{margin:var(--s2) 0 0;color:var(--muted);font-size:var(--t-sm);line-height:1.5}
   .panel{padding-bottom:var(--s4);border-bottom:1px solid var(--line)}
@@ -296,13 +293,43 @@
   .panel-edit{margin-top:var(--s3)}
   .panel-edit input,.panel-edit button{width:100%;min-height:var(--h-tap)}
 
+  /* ---------- Account menu and Programme rows ----------
+     A row is a label and its current value — never an explanation; that is behind the
+     sub-screen title's info button. */
+  .acct-email{font-size:var(--t-lg);font-weight:800;letter-spacing:-.02em;
+    overflow-wrap:anywhere}
+  .mrows{border-top:1px solid var(--line-soft)}
+  .mrow{display:flex;align-items:center;gap:var(--s2);width:100%;min-height:var(--h-tap);
+    padding:var(--s3) 2px;border:0;border-bottom:1px solid var(--line-soft);border-radius:0;
+    background:transparent;color:var(--ink);text-align:left;font-size:var(--t-base)}
+  .mrow:focus-visible{box-shadow:var(--ring)}
+  .mrow-l{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:var(--s2);
+    font-weight:700;white-space:nowrap}
+  .mrow-v{flex:0 1 auto;min-width:0;color:var(--muted);font-size:var(--t-sm);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mrow-c{flex:0 0 auto;color:var(--muted);font-weight:700}
+  /* Block start: the value is the button, so the info button beside the label is not
+     nested inside another control. */
+  .mrow-val{display:flex;align-items:center;gap:var(--s2);min-height:var(--h-tap);
+    padding:0 2px;border:0;background:transparent;color:var(--muted);font-size:var(--t-sm);
+    font-weight:600;white-space:nowrap}
+  .mrow-val[aria-expanded="true"] .mrow-c{transform:rotate(90deg)}
+  .acct-foot{display:grid;justify-items:start;gap:var(--s2)}
+  .acct-foot .page-copy{margin:0;font-size:var(--t-xs)}
+  .prog-name{font-size:var(--t-lg);font-weight:800;letter-spacing:-.02em;line-height:1.2}
+  .prog-meta{margin-top:3px;color:var(--muted);font-size:var(--t-sm)}
+  /* Amber, because it is the one thing on this screen that wants a tap now. */
+  .prog-update{color:var(--accent-ink);font-weight:700}
+  .prog-active .mrow{margin-top:var(--s3);border-top:1px solid var(--line-soft)}
+  .prog-quiet{display:flex;gap:var(--s4);flex-wrap:wrap;margin-top:var(--s2)}
+
   /* ---------- the calendar ----------
      Eight columns: a week label and seven days, in one continuous scroll with no
      month/block mode switch — it reads as a timeline, which suits a block that does not
      care about month boundaries. A cell is about 37px at 320 and 47px at 390, which is
      exactly why it holds a date number and one state mark and nothing else. */
   .cal{display:grid;grid-template-columns:20px repeat(7,minmax(0,1fr));gap:2px}
-  .cal-corner{min-height:16px}
+  .cal-corner{min-height:16px;display:grid;place-items:center}
   .cal-dow{font-size:var(--t-xs);font-weight:700;color:var(--muted);text-align:center;
     padding-bottom:2px}
   .cal-week{display:grid;place-items:center;font-size:var(--t-xs);font-weight:800;
@@ -721,6 +748,15 @@
   .quietaction,.addnote{border:0;background:transparent;color:var(--muted);padding:6px 2px;
     font-size:var(--t-sm);font-weight:700;text-decoration:underline;
     text-underline-offset:3px}
+  /* The info button: a sentence that is true but rarely needed lives behind it, in the
+     sheet. Always a lowercase "i" in a drawn ring — never a capital, never the ⓘ glyph —
+     and only beside the label it explains. The button is the 28px target; the ring is not. */
+  .infobtn{flex:0 0 auto;display:inline-grid;place-items:center;width:28px;height:28px;
+    margin:-6px -6px -6px 0;padding:0;border:0;background:transparent;vertical-align:middle}
+  .infobtn::before{content:"i";display:grid;place-items:center;width:17px;height:17px;
+    border:1.5px solid var(--muted);border-radius:50%;color:var(--muted);font-size:11px;
+    font-weight:700;font-style:normal;line-height:1;text-transform:lowercase;letter-spacing:0}
+  .infobtn:focus-visible{box-shadow:var(--ring);border-radius:50%}
   .setsecondary{display:flex;justify-content:space-between;gap:var(--s3);align-items:center;
     margin-top:var(--s2)}
   .setsecondary button:last-child{text-align:right}
@@ -799,7 +835,10 @@
   /* The end of the session, at the end of the list. */
   .datefoot{margin-top:var(--s5);padding-top:var(--s4);border-top:1px solid var(--line)}
   .datefoot button{width:100%;min-height:var(--h-primary)}
+  .df-row{display:flex;align-items:center;gap:var(--s3)}
+  .datefoot .infobtn{width:28px;min-height:0}
   .df-line{font-size:var(--t-sm);font-weight:700;color:var(--good)}
+  .datefoot .df-quiet button{width:auto;min-height:var(--h-tap)}
   .df-note{margin:var(--s2) 0 0;font-size:var(--t-xs);color:var(--muted);line-height:1.5}
 
   /* ---------- the check-in ----------
@@ -807,13 +846,21 @@
      asked for without ever standing between the athlete and a warm-up. */
   .checkin{margin:var(--s4) 0 0;padding:var(--s3) 0 var(--s4);
     border-bottom:1px solid var(--line-soft)}
-  .ci-head{display:flex;align-items:baseline;gap:var(--s3)}
+  .ci-head{display:flex;align-items:center;gap:var(--s2)}
   .ci-title{flex:0 0 auto;font-size:var(--t-xs);font-weight:800;text-transform:uppercase;
     letter-spacing:.12em;color:var(--ink-dim)}
   .ci-stat{flex:1 1 auto;min-width:0;text-align:right;font-size:var(--t-xs);
     font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden;
     text-overflow:ellipsis}
-  .ci-note{margin-top:2px;font-size:var(--t-xs);color:var(--muted)}
+  /* Beats the generic details/summary rules: a row with a chevron, not a disclosure triangle. */
+  details.checkin{margin-top:var(--s4);border-top:0;padding-top:var(--s1)}
+  .checkin>summary{min-height:var(--h-tap)}
+  .checkin>summary::before{display:none}
+  .checkin[data-filled="false"] .ci-stat{color:var(--accent-ink);font-weight:700}
+  .ci-chev{flex:0 0 auto;color:var(--muted);font-size:var(--t-md);font-weight:700;
+    transition:transform .15s}
+  .checkin[open] .ci-chev{transform:rotate(90deg)}
+  .checkin[open]>summary{margin-bottom:var(--s3)}
   /* Readiness colours the block's own left edge — the one place a traffic light belongs. */
   .checkin[data-readiness="Green"]{--ci:var(--good)}
   .checkin[data-readiness="Amber"]{--ci:var(--warn)}
@@ -913,8 +960,27 @@
     padding:var(--s2) var(--s3) calc(var(--s2) + env(safe-area-inset-bottom));
     display:flex;gap:var(--s2);align-items:center;max-width:720px;margin:0 auto}
   .footer-bar button{flex:0 0 auto;white-space:nowrap}
-  .footer-bar #exportBtn{flex:1 1 auto}
+  .footer-bar[hidden]{display:none}
   .fgroup{flex:1 1 auto;min-width:0;display:flex;gap:var(--s2);align-items:center}
+  /* ---------- tab bar ----------
+     The same frosted strip as the date view's action bar, so the two read as one place. */
+  .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:30;max-width:720px;margin:0 auto;
+    display:grid;grid-template-columns:repeat(4,1fr);background:var(--footer-bg);
+    backdrop-filter:blur(12px);border-top:1px solid var(--line);
+    padding:var(--s1) var(--s2) calc(var(--s1) + env(safe-area-inset-bottom))}
+  .tabbar[hidden]{display:none}
+  .tabbar button{position:relative;display:grid;justify-items:center;gap:2px;min-height:var(--h-field);
+    padding:6px 0;border:0;background:transparent;border-radius:var(--r-sm);
+    color:var(--muted);font-size:var(--t-xs);font-weight:700}
+  .tabbar svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.7;
+    stroke-linecap:round;stroke-linejoin:round}
+  /* Ink, not amber: amber means *now*, and on the hub that is the Start button. */
+  .tabbar button[aria-current="page"]{color:var(--ink)}
+  .tabbar button:focus-visible{box-shadow:var(--ring)}
+  /* "Your coach published an update" — the one thing the Programme tab ever says. */
+  .tb-dot{position:absolute;top:5px;left:calc(50% + 8px);width:8px;height:8px;border-radius:50%;
+    background:var(--accent);box-shadow:0 0 0 2px var(--bg)}
+  .tb-dot[hidden]{display:none}
   .fgroup[hidden]{display:none}
   /* Beats .footer-bar button{flex:0 0 auto} above, which would otherwise size Prev and
      Next to their labels and leave the pair lopsided. */
@@ -960,7 +1026,7 @@
   <div class="profile-hero">
     <div class="profile-kicker">Training Tracker</div>
     <h1 class="profile-title" id="profileTitle" tabindex="-1">Your training, ready when you are.</h1>
-    <p class="profile-lead">Open a cached programme, import one for this device, or explore the sample. <a href="./privacy.html">Privacy</a><span id="entryBuild"></span></p>
+    <p class="profile-lead"><a href="./privacy.html">Privacy</a><span id="entryBuild"></span></p>
   </div>
   <main class="profile-body" id="profileBody" aria-live="polite"></main>
 </div>
@@ -972,16 +1038,25 @@
   <main class="home-body" id="homeBody" aria-live="polite"></main>
 </div>
 
-<!-- One chrome for Calendar, Programme and Account: a back arrow, a title, a body. -->
+<!-- One chrome for Calendar, Programme and Account: a title and a body. The tab bar is
+     the way back between screens; the arrow is only for an Account sub-screen. -->
 <div class="page-view" id="pageView" hidden>
   <header class="pagebar">
-    <button class="iconbtn" id="pageBack" aria-label="Back to home">
+    <button class="iconbtn" id="pageBack" aria-label="Back to Account" hidden>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
     </button>
     <div class="pagetitle" id="pageTitle"></div>
   </header>
   <main class="page-body" id="pageBody" aria-live="polite"></main>
 </div>
+
+<!-- The four top-level screens. Not on the date view, which owns the bottom edge. -->
+<nav class="tabbar" id="tabBar" aria-label="Main" hidden>
+  <button id="tabHome"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-6.5 8 6.5V20H4z"/></svg>Today</button>
+  <button id="tabCalendar"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Calendar</button>
+  <button id="tabProgramme"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6.5h12M8 12h12M8 17.5h12M4 6.5h.01M4 12h.01M4 17.5h.01"/></svg>Programme<i class="tb-dot" id="tabDot" hidden></i></button>
+  <button id="tabAccount"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.6"/><path d="M5 20c1.2-3.6 4-5.2 7-5.2s5.8 1.6 7 5.2"/></svg>Account</button>
+</nav>
 
 <div id="workoutView" hidden>
 <header>
@@ -1010,12 +1085,10 @@
 
 <main id="main"></main>
 
-<div class="footer-bar">
-  <div class="fgroup" id="fExport">
-    <button class="ghost mini" id="copyBtn">Copy JSON</button>
-    <button class="primary" id="exportBtn">Export session</button>
-  </div>
-  <div class="fgroup" id="fNav" hidden>
+<!-- Log only. Overview has no bar: sync carries the session, and Save a copy is a quiet
+     link on a finished day. -->
+<div class="footer-bar" id="footerBar" hidden>
+  <div class="fgroup" id="fNav">
     <button class="navbtn" id="prevBtn" aria-label="Previous exercise">‹ Prev</button>
     <span class="navcount tnum" id="navCount">—</span>
     <button class="navbtn" id="nextBtn" aria-label="Next exercise">Next ›</button>
@@ -1116,7 +1189,7 @@ let PROGRAM=null, STATE={week:1,day:null,block:"",date:todayISO(),focus:0,setEdi
      account    the account, sync state, and the device/account settings split
    `from` is where a jump to the date view came from, so back returns there rather than
    always to the hub — one level, because there is nothing deeper to remember. */
-const APP={surface:"profile",route:"entry",source:null,from:"home"};
+const APP={surface:"profile",route:"entry",sub:null,source:null,from:"home"};
 let SAMPLE_PROGRAM=null;
 let OVERVIEW_SCROLL=0;
 
@@ -1185,9 +1258,22 @@ function cachedAccess(){return !!window.TPAuth&&!!window.TPAuth.canAccessCached&
    `hidden` flags — five screens toggled from five different handlers is how the old
    layout ended up with no flow. */
 const PAGE_TITLES={calendar:"Calendar",programme:"Programme",account:"Account"};
-function showRoute(route){
+/* Account's sub-screens: a title, and whether what is on it follows the account or stays
+   on this phone — the one thing every sub-screen's info button says. */
+const ACCOUNT_SUBS={
+  health:{title:"Health data",info:"Follows your account. Pain, sleep, bodyweight and HRV are health data, recorded only with your consent. Training and readiness are always logged."},
+  fields:{title:"Tracked fields",info:"Follows your account. Which fields you track, and what you call them, follow you to any device you sign in on. If you change one on two devices, the latest change wins."},
+  appearance:{title:"Appearance",info:"Stays on this phone. Each device keeps its own look."},
+  rest:{title:"Rest clock",info:"Stays on this phone. Each device keeps its own cue, so one can beep while another stays quiet."},
+  data:{title:"Your data",info:"Follows your account. The copy includes this device’s local-only and queued work. Deletion removes cloud data and this device’s personal data; other offline installations and managed backups are not erased immediately."}
+};
+/* `sub` is an Account sub-screen, and part of the route rather than a screen of its own:
+   the same page chrome, with a back arrow, and nothing else to show or hide. A tab tap
+   passes none, so the Account tab always lands on the menu. */
+function showRoute(route,sub){
   const known=["entry","home","calendar","date","programme","account"];
   APP.route=known.indexOf(route)>=0?route:"entry";
+  APP.sub=APP.route==="account"&&ACCOUNT_SUBS[sub]?sub:null;
   /* Derived, not stored: the import and clear paths ask whether we came from a page or
      from the date view, and this is the one place that answer is computed. */
   APP.surface=APP.route==="date"?"workout":"profile";
@@ -1198,7 +1284,18 @@ function showRoute(route){
   $("#workoutView").hidden=APP.route!=="date";
   /* Only the date view carries the sticky action bar, so only it needs the room. */
   document.body.classList.toggle("profile-active",APP.route!=="date");
-  if(page)$("#pageTitle").textContent=PAGE_TITLES[APP.route];
+  /* The four top-level screens share the tab bar; the date view and the gate do not. */
+  const tabs=APP.route==="home"||page;
+  $("#tabBar").hidden=!tabs;
+  document.body.classList.toggle("has-tabs",tabs);
+  paintTabs();
+  $("#pageBack").hidden=!APP.sub;
+  if(page){
+    const t=$("#pageTitle"),sc=ACCOUNT_SUBS[APP.sub];
+    t.textContent="";
+    t.append(sc?sc.title:PAGE_TITLES[APP.route]);
+    if(sc)t.append(infoBtn(sc.title,sc.info));
+  }
   if(APP.route==="entry"){
     if(window.TPProfileUI)TPProfileUI.render();
     setTimeout(()=>{const h=$("#profileTitle");if(h&&h.focus)h.focus();},0);
@@ -1214,10 +1311,28 @@ function showSurface(surface){
   if(surface==="workout"){showRoute("date");return;}
   showRoute(cachedAccess()&&PROGRAM?"home":"entry");
 }
+/* The active programme has a newer revision in the library — the coach published one and
+   the athlete has not taken it yet. Read the way the Programme screen reads it. */
+function programmeUpdateWaiting(){
+  const st=window.TPPrograms&&TPPrograms.getState?TPPrograms.getState():null;
+  if(!st||!Array.isArray(st.items))return false;
+  const active=st.items.find(i=>i.id===st.activeId);
+  return !!(active&&!active.current);
+}
+const TABS={home:"#tabHome",calendar:"#tabCalendar",programme:"#tabProgramme",account:"#tabAccount"};
+/* Attributes only, so it is safe from the profile module's every-tick refresh. */
+function paintTabs(){
+  Object.keys(TABS).forEach(r=>{
+    const b=$(TABS[r]);
+    b.setAttribute("aria-current",r===APP.route?"page":"false");
+  });
+  $("#tabDot").hidden=!programmeUpdateWaiting();
+}
 function openHome(){showRoute("home");scrollTop();}
 function openCalendarPage(){showRoute("calendar");}
 function openProgrammePage(){showRoute("programme");scrollTop();}
 function openAccountPage(){showRoute("account");scrollTop();}
+function openAccountSub(sub){showRoute("account",sub);scrollTop();}
 /* The entry gate. Reached by signing out, and by the sample's own way back. */
 function openProfile(){showRoute("entry");scrollTop();}
 /* Back out of the date view to wherever the jump came from — the calendar if that is
@@ -1269,6 +1384,13 @@ function sheetOpen(title,copy,body,onclose){
   if(body)host.append(body);$("#sheetWrap").classList.add("in");
   $("#sheetWrap").setAttribute("aria-hidden","false");document.body.classList.add("noscroll");
   $("#sheetWrap")._onclose=onclose||null;setTimeout(()=>$("#sheetClose").focus(),0);
+}
+/* The glyph comes from CSS, so the button's own text is empty and its label carries the topic. */
+function infoBtn(title,copy,body){
+  const b=el("button",{className:"infobtn",type:"button",attrs:{"aria-label":"About "+title.toLowerCase()}});
+  /* preventDefault too: inside a <summary> the tap would otherwise also open the disclosure. */
+  b.onclick=e=>{e.preventDefault();e.stopPropagation();sheetOpen(title,copy,body?body():null);};
+  return b;
 }
 function sheetClose(){const w=$("#sheetWrap");if(!w.classList.contains("in"))return;
   w.classList.remove("in");w.setAttribute("aria-hidden","true");document.body.classList.remove("noscroll");
@@ -1490,7 +1612,7 @@ function renderConsent(host){
   const c=consentNow(),given=consentInForce();
   const st=window.TPConsent?TPConsent.getState():null;
   const queued=st&&st.pending?" Saved on this device · queued for your account.":"";
-  const status=given?`You consented on ${consentDate(c.decidedAt)}. Pain, sleep, bodyweight and HRV are recorded, and your coach sees them.`
+  const status=given?`Consented ${consentDate(c.decidedAt)}.`
     :c&&c.action==="withdrawn"&&c.version>=CONSENT_VERSION?`You withdrew consent on ${consentDate(c.decidedAt)}. Health fields are off, and your coach no longer sees them, in earlier logs either.`
     :c&&c.version<CONSENT_VERSION?"The privacy notice has changed how health data is used. Health fields are off until you consent again."
     :"Not consented. Health fields are off; training and readiness are logged as normal.";
@@ -1589,9 +1711,6 @@ function renderAppearance(host){
     seg.append(b);
   });
   host.append(seg);
-  host.append(el("p",{className:"seg-note"},SETTINGS.mode==="auto"
-    ?`Auto follows this phone's light/dark setting — currently ${prefersLight.matches?"light":"dark"}.`
-    :"Fixed, whatever the phone is set to."));
 }
 
 function restCueRow(){
@@ -1602,13 +1721,12 @@ function restCueRow(){
        finds out now, not mid-set, that the media volume is down. */
     primeCue();if(SETTINGS.restCue)restCue();};
   return el("div",{className:"togrow"},[
-    el("div",{className:"tl"},[el("div",{className:"tn"},"Rest-over cue"),
-      el("div",{className:"td"},"A short beep and buzz when the prescribed rest is up, and at each change of an interval timer. Only while the app is open on screen — a locked phone stays silent — and the beep follows the media volume.")]),
+    el("div",{className:"tl"},el("div",{className:"tn"},["Rest-over cue"," ",infoBtn("Rest-over cue",
+      "A short beep and buzz when the prescribed rest is up, and at each change of an interval timer. Only while the app is open on screen — a locked phone stays silent — and the beep follows the media volume.")])),
     sw]);
 }
 function renderFields(host){
   host.innerHTML="";
-  host.append(el("p",{className:"dnote"},"Turn off what you don't need — nothing already logged is deleted."));
   const allowed=healthAllowed();
   if(!allowed)host.append(el("p",{className:"dnote"},"Health fields stay off until you consent under Health data. Your choices below are kept for then."));
   FIELD_DEFS.forEach(f=>{
@@ -1626,7 +1744,7 @@ function renderFields(host){
       renderCheckin();renderMain();
     };
     host.append(el("div",{className:"togrow"},[
-      el("div",{className:"tl"},[el("div",{className:"tn"},f.name),el("div",{className:"td"},f.desc)]),
+      el("div",{className:"tl"},el("div",{className:"tn"},[f.name," ",infoBtn(f.name,f.desc)])),
       sw]));
   });
   /* Pain wording is body-part specific; keep it editable rather than hardcoding "Knee". */
@@ -2423,7 +2541,7 @@ function markExported(){
 }
 
 function loadProgram(obj){
-  if(!obj||!obj.meta||!Array.isArray(obj.exercises))throw new Error("Not a valid program.json (need meta + exercises).");
+  if(!obj||!obj.meta||!Array.isArray(obj.exercises))throw new Error("This file isn't a programme.");
   const key=programKeyOf(obj);
   /* A different block retires the one it replaces; a revision keeps its key and passes
      straight through with its anchor. */
@@ -2516,12 +2634,16 @@ async function boot(){
   });
   if(window.TPProfileUI)TPProfileUI.init({
     getCachedProgram:cachedProgram,
+    infoButton:infoBtn,
     /* profile-ui repaints on every auth/library/sync tick. It has no idea which screen
        is showing, so it asks. */
     isEntryVisible:()=>APP.route==="entry",
     onRefresh:()=>{
+      paintTabs();
       if(APP.route==="programme")renderProgrammePage();
-      else if(APP.route==="account")renderAccountPage();
+      /* A settings sub-screen shows nothing these ticks change, and the pain label is an
+         input that a rebuild would take the keyboard from. */
+      else if(APP.route==="account"&&(!APP.sub||APP.sub==="data"))renderAccountPage();
       else if(APP.route==="home")renderHome();
     },
     /* A cloud session that IS on this device is a date on the calendar, so it does not
@@ -2529,8 +2651,8 @@ async function boot(){
     hasLocalSession:(date,day)=>{
       try{return localStorage.getItem(LS.sess(date,day))!=null;}catch(e){return false;}
     },
-    onOpenCached:openCachedWorkout,
     onImport:requestProgramImport,
+    blockStart:blockStartRow,
     onActivateProgram:id=>{
       const result=window.TPPrograms&&TPPrograms.activate(id);
       if(!result||!result.ok)toast(result&&result.error&&result.error.message||"Programme unavailable");
@@ -2550,16 +2672,16 @@ async function boot(){
     onExportAccount:async()=>{
       if(!window.TPAccountData)throw new Error("Account export is unavailable.");
       await TPAccountData.exportAccountData();
-      toast("Account data downloaded");
+      toast("Saved");
     },
     onDeleteAccount:async()=>{
       if(!window.TPAccountData)throw new Error("Account deletion is unavailable.");
       const approved=window.confirm&&window.confirm(
         "Delete this account permanently? Cloud programmes and workout history will be deleted. " +
-        "This device’s personal data will be cleared after deletion succeeds. Offline data on other devices and managed backups may remain temporarily. Choose Export account data first if you want a copy."
+        "This device’s personal data will be cleared after deletion succeeds. Offline data on other devices and managed backups may remain temporarily. Choose Save a copy of everything first if you want a copy."
       );
       if(!approved)return;
-      const password=window.prompt&&window.prompt("Enter your current password to confirm account deletion. Signed in with Google and never set one? Cancel, then use Set or change password.");
+      const password=window.prompt&&window.prompt("Enter your current password to confirm account deletion. Signed in with Google and never set one? Cancel, then use Password in Account.");
       if(password==null)return;
       await TPAccountData.deleteAccount(password);
       toast("Account deleted on this device");
@@ -3157,8 +3279,8 @@ function syncView(){
   const focus=viewMode()==="focus";
   $("#viewOverview").setAttribute("aria-pressed",String(!focus));
   $("#viewLog").setAttribute("aria-pressed",String(focus));
-  $("#fExport").hidden=focus;
-  $("#fNav").hidden=!focus;
+  $("#footerBar").hidden=!focus;
+  document.body.classList.toggle("bar-off",!focus);
   $("#pbar").hidden=focus;
   $("#pips").hidden=!focus;
 }
@@ -3192,8 +3314,8 @@ function renderMain(){
   const m=$("#main");m.innerHTML="";
   if(!PROGRAM){
     const b=el("div",{className:"banner"},
-      "No program.json loaded. Import the program.json from your Drive folder to begin.");
-    const imp=el("button",{className:"primary"},"Import program…");
+      "No programme yet.");
+    const imp=el("button",{className:"primary"},"Import from a file");
     imp.onclick=()=>$("#fileInp").click();
     b.append(el("div",{},imp));
     m.append(b);renderNav();updateProgress();return;
@@ -3209,7 +3331,7 @@ function renderMain(){
   if(!isV2()){
     const authoredWeeks=dateProgram().exercises.map(e=>Number(e.week)||1);
     if(authoredWeeks.length&&STATE.week>Math.max(...authoredWeeks))
-      m.append(el("div",{className:"banner"},`Week ${STATE.week}: prescriptions below are the Week-1 template — apply each exercise's Progression Rule for this week.`));
+      m.append(el("div",{className:"banner"},`Week ${STATE.week} · Week-1 numbers · apply the progression rule`));
   }
   /* A rest day has no exercises and is not missing any — that is a different sentence
      from a day whose rows failed to resolve, and saying the wrong one reads as a bug. */
@@ -3305,6 +3427,8 @@ function updateProgress(sess){
      only nag it needs. */
   const stat=$("#checkinStat");
   if(stat)stat.textContent=checkinSummary(s);
+  const ci=$("#checkinBox");
+  if(ci)ci.setAttribute("data-filled",String(checkinFilled(s)));
   paintNav(s);
 }
 
@@ -3320,13 +3444,21 @@ function field(labelText,node,unit,labelClass){
    Sits near the top of the date view and NEVER gates Start — the primary action stays
    above it. `amPainOnWaking` describes the response to the PREVIOUS session, not this
    one. See docs/design-rationale.md for why it is never a gate. */
+/* One row until tapped: its status says whether it is filled, so the exercise list is on
+   screen before you start. Open or closed survives a re-render on the same date. */
+let CHECKIN_OPEN={key:"",open:false};
 function sessionCard(s){
-  const c=el("div",{className:"checkin"});
+  const key=STATE.date+"::"+STATE.day;
+  if(CHECKIN_OPEN.key!==key)CHECKIN_OPEN={key,open:false};
+  const c=el("details",{className:"checkin",id:"checkinBox",open:CHECKIN_OPEN.open,attrs:{
+    "data-filled":String(checkinFilled(s))}});
+  c.ontoggle=()=>{CHECKIN_OPEN.open=c.open;};
   c.dataset.readiness=SETTINGS.readiness?(s.session.readiness||""):"";
-  c.append(el("div",{className:"ci-head"},[
+  c.append(el("summary",{className:"ci-head"},[
     el("span",{className:"ci-title"},"Check-in"),
-    el("span",{className:"ci-stat",id:"checkinStat"},checkinSummary(s))]));
-  c.append(el("div",{className:"ci-note"},"How today began, not how it went — the response to your last session."));
+    infoBtn("Check-in","How today began, not how it went. Pain on waking is the response to your last session."),
+    el("span",{className:"ci-stat",id:"checkinStat"},checkinSummary(s)),
+    el("span",{className:"ci-chev",attrs:{"aria-hidden":"true"}},"›")]));
   const wrap=el("div",{className:"log"});
   const mk=(k,label,type="text",attrs={},unit)=>{
     const inp=el("input",{type,value:s.session[k]??"",attrs});
@@ -3372,14 +3504,11 @@ function sessionProgressLine(s){
   const touched=states.filter(x=>x!=="todo").length;
   return `${done} of ${exs.length} done`+(touched>done?` · ${touched-done} in progress`:"");
 }
-/* What a sealed day says about itself. "not exported" is worth saying out loud: the file
-   still has to be put somewhere by hand, and the app is the only thing that knows. */
+/* What a sealed day says about itself. Nothing about files: sync carries the session, and
+   exportedAt stays in the record for the coaching side without being a thing to nag about. */
 function sealLine(s){
   const at=fmtTime(s.sealedAt);
-  const bits=["Finished"+(at?" "+at:"")];
-  if(!txt(s.exportedAt))bits.push("not exported yet");
-  else bits.push(editedSinceExport(s)?"edited since export":"exported");
-  return bits.join(" · ");
+  return "Finished"+(at?" "+at:"");
 }
 /* Week AND day together, with the schedule's guess preselected — day-only
    would quietly serve the wrong week's prescription, which is worse than any navigation
@@ -3441,7 +3570,7 @@ function confirmFinish(){
   body.append(sheetActions("Finish session",finishSession,"Keep logging"));
   sheetOpen("Finish this session?",
     left?`${done} of ${exs.length} exercises are marked done. The other ${left} stay exactly as they are — "I did ${done} and walked out" is a real answer, and the log will say so.`
-        :"Everything is logged. Sealing records that you finished rather than leaving it to be guessed from the entries; the session stays editable afterwards.",
+        :"Everything is logged. You can still edit afterwards.",
     body);
 }
 function confirmReopen(){
@@ -3450,7 +3579,7 @@ function confirmReopen(){
     unsealSession();renderMain();toast("Day reopened");
   },"Leave it sealed"));
   sheetOpen("Reopen this day?",
-    "You can edit a sealed session without reopening it — editing never un-seals it. Reopen only if the session was finished by mistake.",
+    "Only if you finished by mistake. Editing doesn't need it.",
     body);
 }
 function dateHead(s){
@@ -3509,21 +3638,21 @@ function dateFoot(s){
   if(st==="resume"){
     const fin=el("button",{className:"primary"},"Finish session");
     fin.onclick=confirmFinish;
-    box.append(fin);
-    box.append(el("p",{className:"df-note"},
-      "Finishing records that you finished, instead of leaving it to be guessed from what is logged. It works offline and exports nothing."));
+    box.append(el("div",{className:"df-row"},[fin,infoBtn("Finish session",
+      "Finishing records that you finished, instead of leaving it to be guessed from what is logged. It works offline and sends nothing.")]));
   }else{
     box.append(el("div",{className:"df-line"},sealLine(s)));
-    box.append(el("p",{className:"df-note"},editedSinceExport(s)
-      ?"This session changed after its last export. Export it again to send the current version."
-      :"Export the file into athlete/"+(athleteId()||"<you>")+"/logs/ for review."));
+    /* The fallback copy of a finished session — a quiet link, because sync is the real path. */
+    const save=el("button",{className:"quietaction"},"Save a copy");
+    save.onclick=exportSession;
+    box.append(el("div",{className:"df-quiet"},save));
   }
   return box;
 }
 
 /* ---------- the hub ----------
-   The hub answers "what am I doing today" before anything else and links to everything;
-   the calendar below is the timeline its Recent rows are a shortcut into. Neither reads
+   The hub answers "what am I doing today" before anything else; the tab bar links to
+   everything; the calendar below is the timeline its week strip is a slice of. Neither reads
    STATE — they are about dates other than the one open — so everything in both sections
    takes a stored record or an ISO date. */
 /* Progress for a session we are not standing in, so it cannot call dayExercises(). */
@@ -3539,13 +3668,6 @@ function recordProgress(rec){
 function progressWords(p){
   if(!p.total)return "Nothing prescribed for this day";
   return `${p.done} of ${p.total} done`+(p.touched>p.done?` · ${p.touched-p.done} in progress`:"");
-}
-/* The last few stored sessions, newest first, excluding the date the hub already shows. */
-function recentSessions(n,exclude){
-  const out=[];
-  sessionIndex().byDate.forEach(list=>list.forEach(r=>{if(r.date!==exclude)out.push(r);}));
-  out.sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:0);
-  return out.slice(0,Math.max(0,n));
 }
 /* The most recent scheduled date before `from` with nothing stored on it. Returns null
    as soon as the last scheduled day WAS trained, so this is an offer and never a list of
@@ -3563,71 +3685,76 @@ function lastMissed(from){
   }
   return null;
 }
-function homeRow(title,sub,mark,onclick){
-  const b=el("button",{className:"homerow"},[
-    el("span",{className:"hr-main"},[el("span",{className:"hr-title"},title),
-      el("span",{className:"hr-sub"},sub)]),
-    mark]);
-  b.onclick=onclick;
-  return b;
-}
-function chev(){return el("span",{className:"hr-chev",attrs:{"aria-hidden":"true"}},"›");}
 function homeToday(today){
   const d=dateStateOf(today);
   const box=el("div",{className:"hometoday",attrs:{"data-state":d.kind}});
   box.append(el("div",{className:"ht-top"},[
     el("div",{className:"ht-date"},fmtDateLong(today)),
     el("span",{className:"ht-rel"},"Today")]));
-  const open=()=>gotoDate(today,"home");
   if(d.kind==="noprogram"){
     box.append(el("div",{className:"ht-what"},"No programme loaded"));
-    box.append(el("p",{className:"ht-note"},
-      "Import the program.json your coach built and today's session appears here."));
+    box.append(el("p",{className:"ht-note"},"Import the programme your coach sent."));
     const imp=el("button",{className:"primary"},"Import a programme");
     imp.onclick=openProgrammePage;
     box.append(el("div",{className:"ht-action"},imp));
     return box;
   }
   if(d.kind==="rest"){
-    box.append(el("div",{className:"ht-what"},"Rest day"));
-    /* The one state with no action. A hub with no answer at all reads as broken, so a
-       quiet second line points at the next session instead. */
+    /* The one state with no action. A hub with no answer at all reads as broken, so the
+       same line points at the next session. */
     const next=nextScheduled(today);
-    if(next)box.append(el("p",{className:"ht-note"},
-      `Next session · ${fmtDateLong(next.date)} · Week ${next.week} · ${dayParts(next.day).short}`));
-    else box.append(el("p",{className:"ht-note"},"Nothing else scheduled in this block."));
-    /* Scheduled-and-passed: the sixth state. Offered here rather than on its own screen,
-       because a session missed yesterday is the only thing you are likely to want on a
-       rest day. */
-    const missed=lastMissed(today);
-    if(missed){
-      const late=el("button",{className:"ghost"},`Log ${fmtDateLong(missed.date)} late`);
-      late.onclick=()=>gotoDate(missed.date,"home");
-      box.append(el("div",{className:"ht-action"},late));
-    }
-    const rest=el("button",{className:"quietaction"},"Open today anyway");
-    rest.onclick=open;
-    box.append(el("div",{className:"ht-quiet"},rest));
+    box.append(el("div",{className:"ht-what"},
+      next?`Rest day · next is ${fmtDateLong(next.date)}`:"Rest day"));
     return box;
   }
   box.append(el("div",{className:"ht-what"},
     [el("strong",{},"Week "+d.week)," · ",dayParts(d.day).short," · ",dayTheme(d.day)]));
-  if(d.kind==="start")box.append(el("p",{className:"ht-note"},"Not started"));
-  else box.append(el("p",{className:"ht-note"},progressWords(recordProgress(d.claims[0]))));
+  if(d.kind==="resume")box.append(el("p",{className:"ht-note"},progressWords(recordProgress(d.claims[0]))));
+  if(d.kind==="review"){
+    const p=recordProgress(d.claims[0]);
+    box.append(el("p",{className:"ht-note"},"✓ Finished"+(p.total&&p.done<p.total?` · ${p.done} of ${p.total}`:"")));
+  }
   const label=d.kind==="start"?"Start session":d.kind==="resume"?"Resume":"Review";
   const go=el("button",{className:d.kind==="review"?"ghost":"primary"},label);
-  go.onclick=open;
+  go.onclick=()=>gotoDate(today,"home");
   box.append(el("div",{className:"ht-action"},go));
   return box;
 }
-function accountLine(){
-  const state=window.TPAuth&&TPAuth.getState?TPAuth.getState():null;
-  if(!state)return "Account services unavailable";
-  const email=(state.user&&state.user.email)||(state.owner&&state.owner.email)||"";
-  if(state.status==="authenticated")return email||"Signed in";
-  if(state.status==="offline-owner")return (email?email+" · ":"")+"offline";
-  if(state.status==="unavailable")return (email?email+" · ":"")+"services unavailable";
-  return "Sign in";
+/* This week, Monday to Sunday, one cell per day with the calendar's own marks — so the
+   strip and the calendar are learned once. It is the shortcut back into "the last one",
+   and its title is the way into the whole calendar. */
+function weekStrip(today){
+  const box=el("div",{className:"homesection"});
+  const b=blockForDate(today);
+  const title=el("button",{className:"hs-link"},[
+    el("span",{},b?`This week · Week ${suggestedWeek(today)} of ${b.sched.weeks}`:"This week"),
+    el("span",{attrs:{"aria-hidden":"true"}},"›")]);
+  title.onclick=openCalendarPage;
+  box.append(title);
+  const grid=el("div",{className:"wkstrip"});
+  CAL_DOW.forEach(d=>grid.append(el("div",{className:"cal-dow"},d)));
+  /* Scheduled-and-passed, offered only on a rest day: a session missed yesterday is the one
+     thing you are likely to want then. Outlined, never red, and the offer is a quiet link. */
+  const missed=dateStateOf(today).kind==="rest"?lastMissed(today):null;
+  const monday=mondayOf(today);
+  for(let i=0;i<7;i++){
+    const iso=addDays(monday,i),mark=calendarMark(iso);
+    const cell=el("button",{className:"cal-cell",attrs:{
+      "data-state":mark,"data-today":String(iso===today),
+      "data-missed":String(!!missed&&missed.date===iso),
+      "aria-label":`${fmtDate(iso)} — ${CAL_STATE_WORDS[mark]}`}},[
+      el("span",{className:"cc-num tnum"},String(Number(iso.slice(8,10)))),
+      el("span",{className:"cc-mark",attrs:{"aria-hidden":"true"}},CAL_GLYPH[mark]||"")]);
+    cell.onclick=()=>gotoDate(iso,"home");
+    grid.append(cell);
+  }
+  box.append(grid);
+  if(missed){
+    const late=el("button",{className:"quietaction"},`Log ${fmtDateLong(missed.date)} late`);
+    late.onclick=()=>gotoDate(missed.date,"home");
+    box.append(el("div",{className:"ht-quiet"},late));
+  }
+  return box;
 }
 function renderHome(){
   const host=$("#homeBody");if(!host)return;
@@ -3636,40 +3763,7 @@ function renderHome(){
   host.append(el("div",{className:"home-kicker"},
     (PROGRAM&&txt(PROGRAM.meta.block))||"Training Tracker"));
   host.append(homeToday(today));
-  /* Inline, not a destination: you almost always want "the last one" and rarely want
-     "the fourteenth". */
-  const recent=recentSessions(3,today);
-  if(recent.length){
-    const box=el("div",{className:"homesection"});
-    box.append(el("div",{className:"hs-title"},"Recent"));
-    recent.forEach(r=>{
-      const p=recordProgress(r);
-      const bits=["Week "+r.week,dayParts(r.day).short];
-      if(p.total)bits.push(`${p.done}/${p.total}`);
-      bits.push(r.status==="sealed"?"finished":"in progress");
-      box.append(homeRow(fmtDateLong(r.date),bits.join(" · "),
-        el("span",{className:"hr-mark",attrs:{"data-state":r.status==="sealed"?"done":"part",
-          "aria-hidden":"true"}},r.status==="sealed"?"✓":"◐"),
-        ()=>gotoDate(r.date,"home")));
-    });
-    host.append(box);
-  }
-  const rows=el("div",{className:"homesection"});
-  const now=blockForDate(today);
-  rows.append(homeRow("Calendar",
-    now?`Week ${suggestedWeek(today)} of ${now.sched.weeks} · ${txt(now.program.meta.block)||"every date in the block"}`
-      :SCHEDULE&&SCHEDULE.anchorMonday>today?`Next block starts ${fmtDate(SCHEDULE.anchorMonday)}`
-      :SCHEDULE?"Every date in the block":"Every date, once a programme is loaded",
-    chev(),openCalendarPage));
-  const rev=progVersion(PROGRAM);
-  rows.append(homeRow("Programme",PROGRAM
-    ?[txt(PROGRAM.meta.athlete),`${PROGRAM.meta.weeks||"?"}-week block`,rev?"v"+rev:""]
-      .filter(Boolean).join(" · ")
-    :"Import a programme",chev(),openProgrammePage));
-  /* Sync state is a line inside Account and never a badge here, so it cannot compete
-     with today's session for attention. */
-  rows.append(homeRow("Account",accountLine(),chev(),openAccountPage));
-  host.append(rows);
+  if(PROGRAM)host.append(weekStrip(today));
 }
 
 /* ---------- the calendar ----------
@@ -3740,7 +3834,8 @@ function renderCalendar(){
   const today=todayISO();
   const range=calendarRange();
   const grid=el("div",{className:"cal"});
-  grid.append(el("div",{className:"cal-corner",attrs:{"aria-hidden":"true"}},""));
+  /* The key to the marks: learned once, so it waits behind the corner's info button. */
+  grid.append(el("div",{className:"cal-corner"},infoBtn("Calendar marks","",calendarLegend)));
   CAL_DOW.forEach(d=>grid.append(el("div",{className:"cal-dow"},d)));
   let todayCell=null;
   const many=blocks().length>1;
@@ -3768,7 +3863,6 @@ function renderCalendar(){
     }
   }
   host.append(grid);
-  host.append(calendarLegend());
   /* Land on the week the athlete is in, not at the top of a two-month scroll. */
   if(todayCell&&todayCell.scrollIntoView)
     setTimeout(()=>{try{todayCell.scrollIntoView({block:"center"});}catch(e){}},0);
@@ -3779,24 +3873,26 @@ const CAL_STATE_WORDS={sealed:"finished",part:"logged, not finished",claimed:"st
 /* ---------- the programme screen ----------
    The private library, and the one date the whole calendar hangs off. */
 let anchorEditing=false;
-function anchorPanel(){
-  const box=el("div",{className:"panel"});
-  box.append(el("div",{className:"panel-title"},"Block start"));
-  if(!PROGRAM||!SCHEDULE){
-    box.append(el("p",{className:"page-copy"},
-      "Import a programme and its first week is anchored here."));
-    return box;
-  }
-  box.append(el("div",{className:"panel-value tnum"},fmtDate(SCHEDULE.anchorMonday)));
+/* A row on the active programme: the date, an info button for what it means, and the
+   date itself as the way to change it. Editing reveals the input and the derived
+   weekdays, so the anchor can be checked rather than trusted. */
+function blockStartRow(){
+  if(!PROGRAM||!SCHEDULE)return null;
+  const box=el("div");
+  const value=el("button",{className:"mrow-val tnum",attrs:{"aria-label":"Change block start",
+    "aria-expanded":String(anchorEditing)}},[fmtDate(SCHEDULE.anchorMonday),el("span",{className:"mrow-c"},"›")]);
+  value.onclick=()=>{anchorEditing=!anchorEditing;renderProgrammePage();};
+  box.append(el("div",{className:"mrow"},[
+    el("span",{className:"mrow-l"},["Block start",infoBtn("Block start",
+      "Week 1 starts on this Monday, and every date the app suggests is counted from it. Sessions you have already logged keep their own dates — moving this moves the suggestion, never the record.")]),
+    value]));
+  if(!anchorEditing)return box;
   /* The block this one follows, and where it now stops — moving this Monday is what
      decides that, so it is said here rather than discovered on the calendar. */
   const list=blocks(),at=list.findIndex(x=>x.active);
   const before=at>0?list[at-1]:null;
   if(before)box.append(el("p",{className:"page-copy"},
     `Follows “${txt(before.program.meta.block)||"the last block"}”, which ends ${fmtDate(addDays(before.until,-1))}.`));
-  box.append(el("p",{className:"page-copy"},
-    "Week 1 starts on this Monday, and every date the app suggests is counted from it. Sessions you have already logged keep their own dates — moving this moves the suggestion, never the record."));
-  /* The derived weekdays, so the anchor can actually be checked rather than trusted. */
   const days=el("div",{className:"panel-days"});
   SCHEDULE.days.forEach(d=>{
     const p=dayParts(d.label);
@@ -3804,22 +3900,16 @@ function anchorPanel(){
       `${p.num||"·"} ${weekdayShort(d.weekday)||p.short}`));
   });
   box.append(days);
-  if(anchorEditing){
-    const inp=el("input",{type:"date",value:SCHEDULE.anchorMonday,
-      attrs:{"aria-label":"Block start date"}});
-    inp.onchange=()=>{
-      const set=setAnchorMonday(inp.value);
-      anchorEditing=false;
-      /* Normalised to a Monday, so week arithmetic can never drift by a few days. */
-      toast(set?"Block starts "+fmtDate(set):inp.value?"Another block already starts that week":"Pick a valid date");
-      renderProgrammePage();
-    };
-    box.append(el("div",{className:"panel-edit"},inp));
-  }else{
-    const edit=el("button",{className:"ghost"},"Change start date");
-    edit.onclick=()=>{anchorEditing=true;renderProgrammePage();};
-    box.append(el("div",{className:"panel-edit"},edit));
-  }
+  const inp=el("input",{type:"date",value:SCHEDULE.anchorMonday,
+    attrs:{"aria-label":"Block start date"}});
+  inp.onchange=()=>{
+    const set=setAnchorMonday(inp.value);
+    anchorEditing=false;
+    /* Normalised to a Monday, so week arithmetic can never drift by a few days. */
+    toast(set?"Block starts "+fmtDate(set):inp.value?"Another block already starts that week":"Pick a valid date");
+    renderProgrammePage();
+  };
+  box.append(el("div",{className:"panel-edit"},inp));
   return box;
 }
 /* The one question a new block asks: which Monday is week 1. The suggestion is already
@@ -3872,27 +3962,23 @@ function offerBlockStart(fresh){
   row.append(confirm);
   wrap.append(list,el("div",{className:"panel-edit"},other),row);
   sheetOpen(`Week 1 of “${txt(PROGRAM.meta.block)||"this block"}” starts on…`,
-    "Every date the calendar suggests is counted from this Monday. Sessions already logged keep their own dates, and you can change this later on the Programme screen.",
+    "You can change this later on Programme.",
     wrap);
 }
 function renderProgrammePage(){
   const host=$("#pageBody");if(!host)return;
   host.innerHTML="";
-  host.append(anchorPanel());
   if(window.TPProfileUI&&TPProfileUI.renderProgramme)TPProfileUI.renderProgramme(host);
 }
 /* ---------- the account screen ----------
-   The account itself, then the settings — shown as two explicitly labelled scopes rather
-   than one undifferentiated list, because the difference matters: tracked fields follow
-   you to any device you sign in on, and appearance does not. */
-function settingsGroup(title,note,build){
-  const box=el("div",{className:"panel"});
-  box.append(el("div",{className:"panel-title"},title));
-  if(note)box.append(el("p",{className:"page-copy"},note));
-  const body=el("div",{className:"panel-body"});
-  build(body);
-  box.append(body);
-  return box;
+   A menu: who you are and the sync line, then one row per setting showing its current
+   value, each opening a sub-screen (APP.sub). Whether a setting follows the account or
+   stays on this phone is said once, behind the sub-screen title's info button. */
+function menuRow(label,value,onclick){
+  const b=el("button",{className:"mrow"},[el("span",{className:"mrow-l"},label),
+    el("span",{className:"mrow-v"},value||""),el("span",{className:"mrow-c",attrs:{"aria-hidden":"true"}},"›")]);
+  b.onclick=onclick;
+  return b;
 }
 /* The build is the service worker's cache name (`CACHE` in sw.js), read back from the cache
    it actually filled, so the label names what this phone is running, not what the server has. */
@@ -3904,28 +3990,65 @@ function buildLabel(prefix,node){
   }).catch(()=>{});
   return node;
 }
+/* Each row's value: what the setting IS, in a word or two. */
+function accountValues(){
+  const pal=PALETTES.find(p=>p.key===SETTINGS.palette)||PALETTES[0];
+  const mode=(MODES.find(m=>m[0]===SETTINGS.mode)||MODES[0])[1];
+  return {
+    health:consentInForce()?"Consented":"Not consented",
+    fields:FIELD_DEFS.filter(f=>SETTINGS[f.key]).length+" on",
+    appearance:pal.name+" · "+mode,
+    rest:SETTINGS.restCue?"Beep on":"Off"
+  };
+}
 function renderAccountPage(){
   const host=$("#pageBody");if(!host)return;
   host.innerHTML="";
-  if(window.TPProfileUI&&TPProfileUI.renderAccount)TPProfileUI.renderAccount(host);
-  host.append(buildLabel("App build "));
   /* Only an owner has an account for these to follow. */
-  if(!cachedAccess())return;
-  const sync=window.TPAccountSettings&&TPAccountSettings.getState
-    ?TPAccountSettings.getState():null;
-  const syncNote=!sync?""
-    :sync.status==="offline"?" Saved on this device · queued for your account."
-    :sync.status==="error"?" Saved on this device · "+(sync.error&&sync.error.message||"sync failed")
-    :sync.pending?" Saving to your account…":"";
-  host.append(settingsGroup("Health data · follows your account",
-    "Pain, sleep, bodyweight and HRV are health data, recorded only with your consent. Training and readiness are always logged.",
-    renderConsent));
-  host.append(settingsGroup("Tracked fields · follows your account",
-    "Which optional fields you track, and what you call them, follow you to any device you sign in on. Change one on two devices at once and the most recent change wins, per field."+syncNote,
-    renderFields));
-  host.append(settingsGroup("This device",
-    "Appearance is about where you are standing — a basement at 6 a.m. and a kitchen at noon want different things — so it stays on this phone. So does the rest clock, which is always on and hides itself once you have left the gym, and whether it beeps.",
-    host=>{const a=el("div");renderAppearance(a);host.append(a,restCueRow());}));
+  if(!cachedAccess()){
+    if(window.TPProfileUI&&TPProfileUI.renderAccount)TPProfileUI.renderAccount(host);
+    host.append(buildLabel("Build "));
+    return;
+  }
+  if(APP.sub){renderAccountSub(host,APP.sub);return;}
+  if(window.TPProfileUI&&TPProfileUI.renderAccount)TPProfileUI.renderAccount(host);
+  const v=accountValues();
+  const authed=!!(window.TPAuth&&TPAuth.getState&&TPAuth.getState().status==="authenticated");
+  const copies=window.TPProfileUI&&TPProfileUI.offDeviceCount?TPProfileUI.offDeviceCount():0;
+  const rows=el("div",{className:"mrows"});
+  rows.append(
+    menuRow("Health data",v.health,()=>openAccountSub("health")),
+    menuRow("Tracked fields",v.fields,()=>openAccountSub("fields")),
+    menuRow("Appearance",v.appearance,()=>openAccountSub("appearance")),
+    menuRow("Rest clock",v.rest,()=>openAccountSub("rest")));
+  /* A Google sign-in may never have set a password, and deletion re-authenticates with one. */
+  if(authed)rows.append(menuRow("Password","",()=>{if(window.TPAuthUI)TPAuthUI.open("set-password");}));
+  if(authed||copies)rows.append(menuRow("Your data",copies?copies+(copies===1?" copy":" copies"):"",
+    ()=>openAccountSub("data")));
+  host.append(rows);
+  const out=el("button",{className:"quietaction"},"Sign out");
+  out.onclick=()=>{if(window.TPProfileUI&&TPProfileUI.signOut)TPProfileUI.signOut();};
+  host.append(el("div",{className:"acct-foot"},[out,buildLabel("Build ")]));
+}
+function renderAccountSub(host,sub){
+  if(sub==="data"){
+    if(window.TPProfileUI&&TPProfileUI.renderAccountData)TPProfileUI.renderAccountData(host);
+    return;
+  }
+  const body=el("div");
+  if(sub==="health")renderConsent(body);
+  else if(sub==="fields"){
+    const sync=window.TPAccountSettings&&TPAccountSettings.getState?TPAccountSettings.getState():null;
+    const note=!sync?""
+      :sync.status==="offline"?"Saved on this device · queued for your account."
+      :sync.status==="error"?"Saved on this device · "+(sync.error&&sync.error.message||"sync failed")
+      :sync.pending?"Saving to your account…":"";
+    if(note)host.append(el("p",{className:"page-copy"},note));
+    renderFields(body);
+  }
+  else if(sub==="appearance")renderAppearance(body);
+  else if(sub==="rest")body.append(restCueRow());
+  host.append(body);
 }
 
 /* ---------- exercise head (shared by Overview and Log) ----------
@@ -4081,7 +4204,7 @@ function openAdjustSets(ex,e,s,onchange){
   plus.onclick=()=>{e.setTarget=Math.min(12,targetSets(ex,e)+1);saveSession(s);paint();};
   box.append(minus,value,plus);paint();wrap.append(box,
     el("div",{className:"sheet-copy",style:"margin-top:12px"},
-      "This changes today's plan only. The original prescription stays in the exported log."));
+      "This changes today's plan only. The original prescription stays in the log."));
   sheetOpen("Adjust planned sets",`Set ${e.sets.length+1} is next.`,wrap,()=>onchange(""));
 }
 
@@ -4089,8 +4212,7 @@ function confirmEndExercise(ex,e,s,idx,onchange,metric){
   const spec=circuitOf(ex);
   const before=e.sets.length+(draftDirty(e)?1:0),target=targetSets(ex,e);
   const none=spec?!circuitHasData(e):before===0,title=none?"Skip this exercise?":spec?"End this circuit?":"End this exercise?";
-  const copy=none?"No work will be recorded. The exercise will remain visible as skipped in the session.":spec?
-    "Everything logged so far will be kept. The original workout remains unchanged.":
+  const copy=none?"It will show as skipped.":spec?"":
     `${before} of ${target} planned sets will be recorded. Your original prescription is not changed.`;
   const primary=none?"Skip exercise":spec?"End circuit":`End after ${before} set${before===1?"":"s"}`;
   const body=el("div");body.append(sheetActions(primary,()=>{
@@ -5068,55 +5190,44 @@ function downloadSessionPayload(data){
   const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
   const url=URL.createObjectURL(blob);
   const a=el("a",{href:url,download:name});document.body.append(a);a.click();a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),1500);toast("Exported "+name);
+  setTimeout(()=>URL.revokeObjectURL(url),1500);toast("Saved a copy");
 }
 async function copySessionPayload(data){
   if(!data||!data.schema)throw new Error("Workout details are unavailable on this device.");
   const json=JSON.stringify(data,null,2);
-  try{await navigator.clipboard.writeText(json);toast("Session JSON copied");}
+  try{await navigator.clipboard.writeText(json);toast("Copied");}
   catch(e){const ta=el("textarea",{value:json});document.body.append(ta);ta.select();
-    document.execCommand("copy");ta.remove();toast("Session JSON copied");}
+    document.execCommand("copy");ta.remove();toast("Copied");}
 }
 /* Both export paths are wrapped: a throw here would look like the button doing
    nothing, at the one moment the session has to leave the phone. Better to say so —
-   the data is still in localStorage and Copy JSON is the fallback. */
+   the data is still in localStorage and synced, and saying so is better than silence. */
 function exportSession(){
   if(!PROGRAM){toast("Load a program first");return;}
   /* A rest day holds notes, not a workout — there is no (week, day) to export against. */
   if(!txt(STATE.day)){toast("No session on this date — pick a day first");return;}
   const run=()=>{try{
     const data=buildSessionExport();
-    const name=sessionFilename(data);
     downloadSessionPayload(data);
     /* Recorded only after the file has actually been produced — claiming a session left
        the phone when it didn't is worse than not knowing. The re-render is what puts
        "exported" (or "edited since export") on the date view. */
     markExported();
     renderMain();
-    const who=athleteId();
-    toast("Exported "+name+" — save into athlete/"+(who||"<you>")+"/logs/");
-  }catch(err){toast("Export failed: "+err.message+" — try Copy JSON");}};
-  confirmTypedDrafts(run,"Only logged sets go in the file. Choose, then it exports.");
+    toast("Saved a copy");
+  }catch(err){toast("Couldn't save a copy: "+err.message);}};
+  confirmTypedDrafts(run,"");
 }
-/* Deliberately does NOT mark the session exported: copying is the fallback when the
-   download fails, and also how the JSON gets looked at. Neither is a file on disk. */
-async function copyJSON(){
-  if(!PROGRAM){toast("Load a program first");return;}
-  if(!txt(STATE.day)){toast("No session on this date — pick a day first");return;}
-  confirmTypedDrafts(async()=>{
-    try{await copySessionPayload(buildSessionExport());}
-    catch(err){toast("Copy failed: "+err.message);}
-  },"Only logged sets are copied. Choose, then it copies.");
-}
-
 /* ---------- events ----------
    Everything wired here is markup present for the whole life of the page. Week, day and
    date are not standing widgets — they are the claim picker and the calendar, built on
    demand — so nothing below wires them. */
-$("#exportBtn").onclick=exportSession;
-$("#copyBtn").onclick=copyJSON;
 $("#backBtn").onclick=backFromDate;
-$("#pageBack").onclick=openHome;
+$("#tabHome").onclick=openHome;
+$("#tabCalendar").onclick=openCalendarPage;
+$("#tabProgramme").onclick=openProgrammePage;
+$("#tabAccount").onclick=openAccountPage;
+$("#pageBack").onclick=openAccountPage;
 $("#ctxBtn").onclick=openClaimPicker;
 $("#sheetClose").onclick=sheetClose;
 $("#sheetBg").onclick=sheetClose;

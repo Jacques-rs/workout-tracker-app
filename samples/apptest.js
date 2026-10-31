@@ -193,6 +193,7 @@ Object.defineProperties(globalThis, {
   ,DEVICE_KEYS:   {get:()=>DEVICE_KEYS}
   ,CONSENT_ASKED: {get:()=>CONSENT_ASKED, set:v=>{CONSENT_ASKED=v}}
   ,ACCENTS:       {get:()=>ACCENTS}
+  ,anchorEditing: {get:()=>anchorEditing, set:v=>{anchorEditing=v}}
   ,SESSION_INDEX: {get:()=>SESSION_INDEX}
 });`;
 vm.runInContext(blocks[blocks.length - 1] + EPILOGUE, sandbox, { filename: "index.html<script>" });
@@ -378,12 +379,12 @@ console.log("\ntp-program-2 — week-aware filtering");
   app.PROGRAM.meta.weeks = 6;                       // selector can reach past the rows
   app.STATE.week = 6;
   const v2banners = cards().filter(c => c.classList.contains("banner")).map(b => b.text);
-  assert(!v2banners.some(t => /Week-1 template/.test(t)), "no progression banner on a v2 programme");
+  assert(!v2banners.some(t => /Week-1 numbers/.test(t)), "no progression banner on a v2 programme");
   assert(v2banners.some(t => /No exercises for week 6/.test(t)), "v2 says the week is empty instead");
 
   app.PROGRAM.meta.schema = "tp-program-1";         // same rows, v1 semantics
   const v1banners = cards().filter(c => c.classList.contains("banner")).map(b => b.text);
-  assert(v1banners.some(t => /Week-1 template/.test(t)),
+  assert(v1banners.some(t => /Week-1 numbers/.test(t)),
          "the same data read as v1 DOES show the progression banner — the test can fail");
   app.PROGRAM.meta.schema = "tp-program-2";
 
@@ -410,7 +411,7 @@ console.log("\ntp-program-1 — unchanged day-only behaviour");
   app.STATE.week = 4;
   is(app.dayExercises().length, byDay.length, "week 4 still shows them — week is ignored in v1");
   const banner = cards().find(c => c.classList.contains("banner"));
-  assert(!!banner && /Week-1 template/.test(banner.text), "progression banner shown past the authored week");
+  assert(!!banner && /Week-1 numbers/.test(banner.text), "progression banner shown past the authored week");
 }
 
 console.log("\nprescribedSets — plain integers, ranges, and prose");
@@ -2020,7 +2021,9 @@ console.log("\nthe date view: one date, one action, and a claim picker");
   sheetButton(/^Finish session$/).onclick();
   is(head().getAttribute("data-state"), "review", "the date is now a sealed session");
   assert(/Finished/.test(headText()), "which it says out loud");
-  assert(/not exported yet/.test(headText()), "including that the file has not been made");
+  assert(!/export/i.test(headText()), "and says nothing about files — sync carries it");
+  const save = buttonOf(foot(), /^Save a copy$/);
+  assert(!!save && save.className === "quietaction", "a copy is one quiet link at the foot, not a bar");
   assert(!buttonOf(head(), /Start|Resume/), "with no Start or Resume left to offer");
   assert(!!buttonOf(head(), /^Log more$/), "but editing is still one tap away");
 
@@ -2102,16 +2105,13 @@ console.log("\nexport records that the session left the phone");
   app.saveSession(s);
   assert(app.editedSinceExport(app.getSession()), "a later edit marks the file stale");
   app.setView("list");
-  assert(/edited since export/.test(cards().find(c => c.classList.contains("datehead")).text) ||
-         app.openState() !== "review",
-    "which the date view says while the session is sealed");
   app.sealSession();
   app.renderMain();
-  assert(/edited since export/.test(cards().find(c => c.classList.contains("datehead")).text),
-    "…and does say, once it is");
+  assert(!/export/i.test(cards().map(c => c.text).join(" ")),
+    "the date view keeps the stale mark to itself — it is data for the coaching side");
 }
 
-console.log("\nthe hub: today first, the last few sessions, rows to everything else");
+console.log("\nthe hub: today first, this week as a strip, a tab bar to everything else");
 {
   const today = app.todayISO();
   const wd = app.weekdayOf(today);
@@ -2130,14 +2130,15 @@ console.log("\nthe hub: today first, the last few sessions, rows to everything e
   const home = () => { app.renderHome(); return stubFor("#homeBody"); };
   const homeText = () => home().text;
   const homeBtn = re => home().findAll(n => n.tagName === "BUTTON").find(b => re.test(b.text));
-  const rowTitles = () => home().findAll(n => n.classList.contains("hr-title")).map(n => n.text);
+  const strip = () => home().findAll(n => n.classList.contains("cal-cell"));
 
   assert(/Hub block/.test(homeText()), "the hub names the block it is for");
   assert(/Today/.test(homeText()), "and always shows today, never the next thing");
   assert(/Week 1/.test(homeText()), "with what is on today");
   assert(!!homeBtn(/^Start session$/), "one primary action: Start");
-  is(rowTitles().slice(-3), ["Calendar", "Programme", "Account"],
-    "and one row each to the calendar, the programme and the account");
+  is(strip().length, 7, "this week is a strip of seven days");
+  is(strip().filter(c => c.getAttribute("data-today") === "true").length, 1, "with today marked once");
+  assert(!/^Calendar$|^Account$/m.test(homeText()), "and no rows to the other screens — the tab bar has them");
   /* Sync state is a line inside Account, never a badge here. */
   assert(!/queued|conflict|Syncing/.test(homeText()),
     "no sync badge competes with today's session for attention");
@@ -2157,29 +2158,26 @@ console.log("\nthe hub: today first, the last few sessions, rows to everything e
   app.sealSession();
   assert(!!homeBtn(/^Review$/), "a sealed session turns it into Review");
 
-  /* Recent sessions appear inline, newest first, and never include today. */
-  const s1 = "tp_sess_v1::" + app.addDays(today, -7) + "::" + d1;
-  const s2 = "tp_sess_v1::" + app.addDays(today, -14) + "::" + d2;
-  const s3 = "tp_sess_v1::" + app.addDays(today, -21) + "::" + d1;
+  /* An earlier day this week carries its own mark in the strip, and opens at its claim. */
+  const monday = app.mondayOf(today);
+  const earlier = today === monday ? null : monday;
+  const s1 = "tp_sess_v1::" + (earlier || app.addDays(today, -7)) + "::" + d1;
   const body = (date, day, week, status) => JSON.stringify({ block: "Hub block",
     athlete: "Sample", week, day, date, status,
     session: {}, entries: { [`w${week}${day === d1 ? "d1" : "d2"}e1`]:
       { done: true, sets: [{ set: 1, load: "100", reps: "5", rpe: "7", painDuring: "", note: "" }] } } });
-  store.set(s1, body(app.addDays(today, -7), d1, 3, "sealed"));
-  store.set(s2, body(app.addDays(today, -14), d2, 2, "open"));
-  store.set(s3, body(app.addDays(today, -21), d1, 1, "sealed"));
-  app.invalidateSessionIndex();
-  const recent = app.recentSessions(3, today).map(r => r.date);
-  is(recent, [app.addDays(today, -7), app.addDays(today, -14), app.addDays(today, -21)],
-    "the last three sessions are newest first");
-  assert(!recent.includes(today), "and never repeat the date the hub already shows");
-  assert(/Recent/.test(homeText()), "they are inline on the hub, not a destination");
-  const recentRow = home().findAll(n => n.classList.contains("homerow"))
-    .find(b => new RegExp(app.fmtDateLong(app.addDays(today, -7)).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).test(b.text));
-  assert(!!recentRow, "each is a row you can open");
-  recentRow.onclick();
-  is(app.STATE.date, app.addDays(today, -7), "which opens that date");
-  is(app.STATE.week, 3, "at the week it was claimed for");
+  if(earlier){
+    store.set(s1, body(earlier, d1, 3, "sealed"));
+    app.invalidateSessionIndex();
+    const cell = strip().find(c => c.getAttribute("aria-label").startsWith(app.fmtDate(earlier)));
+    is(cell.getAttribute("data-state"), "sealed", "a finished day this week shows the calendar's own mark");
+    cell.onclick();
+    is(app.STATE.date, earlier, "tapping it opens that date");
+    is(app.STATE.week, 3, "at the week it was claimed for");
+  }
+  const calLink = home().findAll(n => n.classList.contains("hs-link"))[0];
+  calLink.onclick();
+  is(app.APP.route, "calendar", "the strip's title opens the whole calendar");
 
   /* A rest day: no action, but the next session and the missed one behind. */
   const restProgram = { meta: { schema: "tp-program-2", block: "Rest block",
@@ -2191,10 +2189,15 @@ console.log("\nthe hub: today first, the last few sessions, rows to everything e
   is(app.dateStateOf(today).kind, "rest", "today is a rest day for this programme");
   assert(/Rest day/.test(homeText()), "the hub says so");
   assert(!homeBtn(/^Start session$|^Resume$|^Review$/), "with no session action");
-  assert(/Next session/.test(homeText()), "but points at the next one");
+  assert(/Rest day · next is/.test(homeText()), "but points at the next one, on the same line");
+  assert(!homeBtn(/Open today anyway/), "with no separate way into today — the strip has it");
   const missed = app.lastMissed(today);
   assert(!!missed, "and finds the scheduled day just behind, unlogged");
   assert(!!homeBtn(/^Log .* late$/), "offering to log it late");
+  is(homeBtn(/^Log .* late$/).className, "quietaction", "as a quiet link, never a button that competes");
+  if(missed.date >= app.mondayOf(today))
+    is(strip().filter(c => c.getAttribute("data-missed") === "true").length, 1,
+      "and outlines the missed day in the strip");
   homeBtn(/^Log .* late$/).onclick();
   is(app.STATE.date, missed.date, "which opens that date");
 
@@ -2304,7 +2307,22 @@ console.log("\nrouting: one place decides which surface is visible");
       entry: !stubFor("#profileView").hidden, home: !stubFor("#homeView").hidden,
       page: !stubFor("#pageView").hidden, date: !stubFor("#workoutView").hidden
     };
+    seen[route + "Tabs"] = !stubFor("#tabBar").hidden;
   });
+  is(["entry", "home", "calendar", "date", "programme", "account"].map(r => seen[r + "Tabs"]),
+    [false, true, true, false, true, true], "the tab bar is on the four top-level screens, never the gate or a date");
+  app.showRoute("calendar");
+  is(stubFor("#tabCalendar").getAttribute("aria-current"), "page", "and marks the one you are on");
+  is(stubFor("#tabHome").getAttribute("aria-current"), "false", "and only that one");
+  /* The coach published a revision the athlete has not taken: the Programme tab says so. */
+  const library = current => ({ getState: () => ({ items: [{ id: "p1", current }], activeId: "p1" }) });
+  sandbox.TPPrograms = sandbox.window.TPPrograms = library(false);
+  app.showRoute("home");
+  is(stubFor("#tabDot").hidden, false, "an update waiting puts a dot on the Programme tab");
+  sandbox.TPPrograms = sandbox.window.TPPrograms = library(true);
+  app.showRoute("home");
+  is(stubFor("#tabDot").hidden, true, "and taking it clears the dot");
+  delete sandbox.TPPrograms; delete sandbox.window.TPPrograms;
   is(seen.entry, { entry: true, home: false, page: false, date: false }, "the gate stands alone");
   is(seen.home, { entry: false, home: true, page: false, date: false }, "so does the hub");
   is(seen.calendar, { entry: false, home: false, page: true, date: false },
@@ -2849,7 +2867,7 @@ console.log("\nhealth fields need consent; readiness never does");
     "and brings back exactly the fields the athlete had on");
 
   app.renderConsent(panel);
-  assert(/You consented on/.test(panel.text), "Account says when consent was given");
+  assert(/Consented /.test(panel.text), "Account says when consent was given");
   const confirm = sandbox.window.confirm;
   sandbox.window.confirm = () => false;
   buttonOf(panel, /Withdraw consent/).onclick();
@@ -3025,6 +3043,141 @@ console.log("\na new block: earlier blocks keep their dates and their own progra
     "anchored where its sessions say week 1 began");
   is(app.recoverBlocks(), 0, "and recovering again finds nothing new");
   delete sandbox.TPPrograms; delete sandbox.window.TPPrograms;
+}
+
+console.log("\nthe date view: the check-in is one row, and Overview has no bar");
+{
+  const prog = loadFixture("program.v2.sample.json");
+  app.setView("list");
+  let ci = checkinCard();
+  is(ci.tagName, "DETAILS", "the check-in is a disclosure");
+  is(ci.open, false, "closed until tapped, so the exercise list is on screen before Start");
+  is(ci.getAttribute("data-filled"), "false", "and its row says it is not filled");
+  assert(/Not filled/.test(ci.text), "in words");
+  ci.open = true; ci.ontoggle();
+  is(checkinCard().open, true, "opened, it stays open through a re-render of the same date");
+  const s = app.getSession();
+  s.session.readiness = "Green";
+  app.saveSession(s);
+  is(stubFor("#checkinBox").getAttribute("data-filled"), "true", "a typed value repaints the row as filled");
+  app.openDate(app.addDays(app.STATE.date, 7));
+  app.applyClaim(1, prog.meta.days[1]);
+  is(checkinCard().open, false, "and another date starts closed again");
+  is(stubFor("#footerBar").hidden, true, "Overview has no bottom bar");
+  app.setView("focus");
+  is(stubFor("#footerBar").hidden, false, "Log keeps Prev / Next");
+  app.setView("list");
+}
+
+console.log("\nAccount is a menu of values, and its sub-screens have a way back");
+{
+  loadFixture("program.v2.sample.json");
+  app.SETTINGS = { ...app.SET_DEFAULTS };
+  const opened = [];
+  const authUI = sandbox.TPAuthUI.open;
+  sandbox.TPAuthUI.open = mode => opened.push(mode);
+  sandbox.TPProfileUI = sandbox.window.TPProfileUI = {
+    init(){}, render(){}, offDeviceCount: () => 0,
+    renderAccount(host){ host.append(textNode("test@example.invalid")); },
+    renderAccountData(host){ host.append(textNode("Save a copy of everything")); },
+    signOut(){ opened.push("signed-out"); }
+  };
+  app.showRoute("account");
+  const page = stubFor("#pageBody");
+  const rows = () => page.findAll(n => n.classList.contains("mrow"));
+  const row = label => rows().find(r => r.find(n => n.classList.contains("mrow-l")).text === label);
+  const value = label => row(label).find(n => n.classList.contains("mrow-v")).text;
+  is(rows().map(r => r.find(n => n.classList.contains("mrow-l")).text),
+    ["Health data", "Tracked fields", "Appearance", "Rest clock", "Password", "Your data"],
+    "one row per setting, in the agreed order");
+  is([value("Health data"), value("Tracked fields"), value("Appearance"), value("Rest clock")],
+    ["Consented", "6 on", "Mono · Auto", "Off"], "each showing its current value");
+  assert(!page.findAll(n => n.classList.contains("page-copy") || n.classList.contains("dnote"))
+    .some(n => n.text.length > 40), "and no explanation on the menu itself");
+  is(stubFor("#pageBack").hidden, true, "the menu has no back arrow — the tab bar is the way back");
+  const foot = page.find(n => n.classList.contains("acct-foot"));
+  assert(page.children.indexOf(foot) > page.children.indexOf(page.find(n => n.classList.contains("mrows"))) &&
+    foot.find(n => n.classList.contains("quietaction")).text === "Sign out",
+    "a quiet Sign out and the build sit below the rows");
+  buttonOf(page, /^Sign out$/).onclick();
+  row("Password").onclick();
+  is(opened, ["signed-out", "set-password"], "Password opens the set-password flow, Sign out signs out");
+
+  const subs = { "Health data": "health", "Tracked fields": "fields", "Appearance": "appearance",
+    "Rest clock": "rest", "Your data": "data" };
+  Object.keys(subs).forEach(label => {
+    app.showRoute("account");
+    row(label).onclick();
+    is([app.APP.route, app.APP.sub], ["account", subs[label]], `${label} opens its sub-screen`);
+    is(stubFor("#pageBack").hidden, false, "…with a back arrow");
+    const title = stubFor("#pageTitle");
+    assert(title.text.startsWith(label), "…titled for itself");
+    const info = title.find(n => n.classList.contains("infobtn"));
+    info.onclick({ preventDefault(){}, stopPropagation(){} });
+    assert(/^(Follows your account|Stays on this phone)/.test(stubFor("#sheetCopy").text),
+      "…whose info button says whether it follows the account or stays on this phone");
+    app.sheetClose();
+  });
+  assert(/Save a copy of everything/.test(page.text), "Your data holds the account copy");
+  stubFor("#pageBack").onclick();
+  is([app.APP.route, app.APP.sub, stubFor("#pageBack").hidden], ["account", null, true],
+    "back returns to the menu");
+  app.showRoute("account", "fields");
+  stubFor("#tabAccount").onclick();
+  is(app.APP.sub, null, "and so does the Account tab, from any sub-screen");
+  app.showRoute("calendar", "fields");
+  is([app.APP.sub, stubFor("#pageBack").hidden], [null, true], "a sub-screen belongs to Account alone");
+  app.showRoute("account", "health");
+  assert(/Consented /.test(page.text) && buttonOf(page, /Withdraw consent/),
+    "the consent screen keeps its full wording and the withdraw action");
+  app.showRoute("account", "rest");
+  page.findAll(n => n.getAttribute("role") === "switch")[0].onclick();
+  app.showRoute("account");
+  is(value("Rest clock"), "Beep on", "a changed setting shows on the menu");
+  app.SETTINGS = { ...app.SET_DEFAULTS };
+  sandbox.TPAuthUI.open = authUI;
+  sandbox.TPProfileUI = sandbox.window.TPProfileUI = { init(){}, render(){} };
+  app.showRoute("home");
+}
+
+console.log("\nProgramme: block start is a row, and editing it is one tap");
+{
+  loadFixture("program.v2.sample.json");
+  const row = app.blockStartRow();
+  const label = row.find(n => n.classList.contains("mrow-l"));
+  assert(/^Block start/.test(label.text) && label.find(n => n.classList.contains("infobtn")),
+    "labelled, with its paragraph behind an info button");
+  const edit = row.find(n => n.classList.contains("mrow-val"));
+  is(edit.text.replace("›", ""), app.fmtDate(app.SCHEDULE.anchorMonday), "the value is the date");
+  assert(!row.find(n => n.tagName === "INPUT"), "no input until it is asked for");
+  edit.onclick();
+  assert(app.blockStartRow().find(n => n.tagName === "INPUT" && n.type === "date"), "a tap reveals the date input");
+  app.anchorEditing = false;
+}
+
+console.log("\nno file-format or folder wording on screen");
+{
+  /* Sync carries the files now, so JSON and athlete/ paths are words for the coaching
+     side, not for the athlete. */
+  const WORDS = /json|athlete\//i;
+  const markup = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<!--[\s\S]*?-->/g, " ")
+    .replace(/<[^>]+>/g, " ");
+  assert(!WORDS.test(markup), "the static markup never says JSON or names a folder");
+  loadFixture("program.v2.sample.json");
+  app.setView("list");
+  assert(!WORDS.test(cards().map(n => n.text).join(" ")), "nor does the date view");
+  app.renderHome();
+  assert(!WORDS.test(stubFor("#homeBody").text), "nor the hub");
+  app.renderProgrammePage();
+  assert(!WORDS.test(stubFor("#pageBody").text), "nor the programme screen");
+  ["", "health", "fields", "appearance", "rest"].forEach(sub => {
+    app.showRoute("account", sub);
+    assert(!WORDS.test(stubFor("#pageBody").text), `nor Account${sub ? " · " + sub : ""}`);
+  });
+  app.sealSession();
+  assert(!WORDS.test(cards().map(n => n.text).join(" ")), "nor a finished day");
+  app.exportSession();
+  assert(!WORDS.test(stubFor("#toast").text), "nor the toast after saving a copy");
 }
 
 console.log(failures ? `\n${failures} FAILED\n` : "\nall passed\n");

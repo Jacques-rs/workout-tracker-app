@@ -263,7 +263,7 @@
     }
 
     function beginLocal(program, shouldActivate) {
-      if (!validProgram(program)) throw new Error("Not a valid program.json (need meta + exercises).");
+      if (!validProgram(program)) throw new Error("This file isn't a programme.");
       const id = uuid();
       if (shouldActivate && options.onActivate) options.onActivate(program);
       writeActive({ id, revision: 0, pending: true });

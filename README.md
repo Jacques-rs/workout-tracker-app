@@ -63,13 +63,13 @@ Launch from the home-screen icon — it runs full-screen and works with no signa
 ## Using it
 
 1. Sign in from the account home, or choose **View sample programme** for the isolated demo. A known owner can also open cached training while offline.
-2. Import a personal programme JSON from the **Programme** screen, or activate one from your private library. Signing out preserves local data but hides it until that owner signs in again.
-3. **Home** answers "what am I doing today": today's date, what is on it, and one action. Recent sessions sit below, then rows to **Calendar**, **Programme** and **Account**.
+2. Import a programme with **Import from a file** on the **Programme** screen, or activate one from your private library. When your coach publishes a revision, Programme shows **Update available** and a dot on its tab; **Update device** takes it. Signing out preserves local data but hides it until that owner signs in again.
+3. **Today** answers "what am I doing today": today's date, what is on it, one action, and this week as a strip of days. The tab bar at the bottom leads to **Calendar**, **Programme** and **Account**.
 4. **Calendar** shows the whole block, every date carrying its own state. Tap any date to open it. Training a different day than planned needs no special feature — open the date and tap **Doing a different day?** to pick the week *and* day.
-5. Fill the **session check-in** at the top of the date, then train. Each date has two views, switched with the header toggle: **Overview** (every exercise, read-only, each with its status) and **Log** (one exercise and one set at a time, with the rest clock and what you lifted last time).
+5. Open the **check-in** row at the top of the date and fill it, then train. Each date has two views, switched with the header toggle: **Overview** (every exercise, read-only, each with its status) and **Log** (one exercise and one set at a time, with the rest clock and what you lifted last time).
 6. **Finish session** at the end records that you finished. It works offline.
-7. **Export session** gives the coaching file, or **Copy JSON** pastes it into chat. Export is per-session and reachable from any past date.
-8. **Account** holds sign-in, one line of sync state, the tracked fields that follow your account to any device, the appearance settings that stay on this phone, and account export/deletion.
+7. Sessions reach your coach through sync. A finished day offers **Save a copy** as a fallback file.
+8. **Account** is a menu: your email and one line of sync state, then a row per setting showing its value — Health data, Tracked fields and Your data (a copy of everything, or deleting the account) follow your account; Appearance and the Rest clock stay on this phone. The **i** beside each sub-screen's title says which.
 
 Everything autosaves on the device as you go.
 

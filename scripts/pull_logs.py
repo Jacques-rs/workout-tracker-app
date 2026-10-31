@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Pull your own session_logs rows out of Supabase and write each one to
-athlete/jacques/logs/ in exactly the shape the app's "Export session" button
+athlete/jacques/logs/ in exactly the shape the app's "Save a copy" button
 produces (schema tp-session-3) — so the review-workout-log skill, and Claude
 reading the connected folder, can't tell the difference between a manual
 export and this pull.

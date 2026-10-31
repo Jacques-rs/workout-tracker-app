@@ -84,7 +84,7 @@ const sessions = {
   subscribe(next) { next(sessionState); return () => {}; },
   async loadMore() {}, async retry() {}
 };
-let cachedReads = 0, sampleOpens = 0, workoutOpens = 0, imports = 0, signedOutCallbacks = 0;
+let cachedReads = 0, sampleOpens = 0, imports = 0, signedOutCallbacks = 0;
 let activations = 0, backups = 0, removals = 0;
 let historyDownloads = 0, historyCopies = 0;
 let accountExports = 0, accountDeletes = 0;
@@ -93,7 +93,6 @@ const ui = profileModule.createProfileUI(document, auth, authUI, programs, sessi
 ui.init({
   getCachedProgram() { cachedReads++; return personal; },
   onOpenSample() { sampleOpens++; },
-  onOpenCached() { workoutOpens++; },
   onImport() { imports++; },
   onActivateProgram() { activations++; },
   onBackUpCached() { backups++; },
@@ -102,12 +101,17 @@ ui.init({
   onCopyHistory() { historyCopies++; },
   onExportAccount() { accountExports++; },
   onDeleteAccount() { accountDeletes++; },
-  onSignedOut() { signedOutCallbacks++; }
+  onSignedOut() { signedOutCallbacks++; },
+  infoButton(title, copy) {
+    const item = document.createElement("button");
+    item.className = "infobtn"; item.setAttribute("data-info", copy);
+    return item;
+  }
 });
 
 function render(next) { state = next; ui.render(); return profileBody.textContent; }
-function button(label) {
-  return profileBody.findAll(item => item.tagName === "BUTTON").find(item => item.textContent === label);
+function button(label, host = profileBody) {
+  return host.findAll(item => item.tagName === "BUTTON").find(item => item.textContent === label);
 }
 
 console.log("\nprofile loading and signed-out entry");
@@ -116,7 +120,10 @@ ok(!/Private strength block/.test(profileBody.textContent), "loading never expos
 same(cachedReads, 0, "loading does not read the personal cache for rendering");
 
 let copy = render({ status: "guest", user: null, owner: null, error: null });
-ok(/administrator invitation/.test(copy), "a new visitor sees private-beta sign-in context");
+ok(!/administrator invitation/.test(copy), "the invitation note is not on screen");
+ok(profileBody.findAll(item => item.tagName === "BUTTON")
+  .some(item => /administrator invitation/.test(item.attributes["data-info"] || "")),
+  "a new visitor can still read the private-beta sign-in context behind an info button");
 button("Sign in").onclick(); button("Forgot password?").onclick(); button("View sample programme").onclick();
 same(opened, ["sign-in", "recovery"], "profile actions open the existing auth flows");
 same(sampleOpens, 1, "the signed-out profile opens the sample deliberately");
@@ -126,16 +133,22 @@ console.log("\nauthenticated and offline-owner profile");
 copy = render({ status: "authenticated", user: { email: "one@example.invalid", verified: true },
   owner: { email: "one@example.invalid", signedOut: false }, error: null });
 ok(/Private strength block/.test(copy), "the authenticated owner sees the cached active programme");
-ok(/Cloud backup current/.test(copy), "the active programme is identified as backed up");
+ok(/v3 · 6 weeks/.test(copy), "named with its version and length");
+ok(!/On this device|Update available|Sample Athlete/.test(copy),
+  "and nothing else while it is backed up and current — a row shows values, not states it is in");
 ok(/Cloud history ready/.test(copy), "sync state is one explicit line, not a browser");
-ok(/2026-08-14/.test(copy) && /Squat/.test(copy) && /Moved well/.test(copy),
-  "a copy that is not on this device stays readable");
-button("Download JSON").onclick(); button("Copy JSON").onclick();
-button("Export account data").onclick(); button("Delete account…").onclick();
-opened.length = 0; button("Set or change password").onclick();
-same(opened, ["set-password"], "a signed-in owner can set a password, so a Google-only account can still be deleted");
-button("Start workout").onclick(); button("Import programme JSON…").onclick(); button("Remove").onclick();
-same([workoutOpens, imports], [1, 1], "programme actions enter training or request a library import");
+ok(!/2026-08-14/.test(copy), "a copy not on this device is not on the menu itself");
+ok(ui.offDeviceCount() === 1, "but it is counted, so the menu can say it is there");
+const dataHost = new Element("div");
+ui.renderAccountData(dataHost);
+ok(/2026-08-14/.test(dataHost.textContent) && /Squat/.test(dataHost.textContent) &&
+  /Moved well/.test(dataHost.textContent), "and stays readable under Your data");
+button("Save a copy", dataHost).onclick(); button("Copy", dataHost).onclick();
+button("Save a copy of everything", dataHost).onclick(); button("Delete account…", dataHost).onclick();
+ok(!button("Start workout"), "Programme has no Start workout — the hub does that");
+ok(button("Import from a file").classList.contains("quietaction"), "import is a quiet link, not a primary");
+button("Import from a file").onclick(); button("Remove this programme").onclick();
+same(imports, 1, "import requests a library import");
 same([historyDownloads, historyCopies], [1, 1], "history export actions stay behind profile callbacks");
 same([accountExports, accountDeletes], [1, 1], "account portability controls stay behind profile callbacks");
 
@@ -150,7 +163,7 @@ button("Use on this device").onclick();
 
 copy = render({ status: "offline-owner", user: null,
   owner: { email: "one@example.invalid", signedOut: false }, error: null });
-ok(/Offline · cached training available/.test(copy), "a known owner gets a clear offline state");
+ok(/^one@example\.invalid/.test(copy), "a known owner offline still sees whose account it is");
 ok(/Private strength block/.test(copy), "offline ownership retains cached programme access");
 
 sessionState = { ...sessionState, status: "offline", pending: 1, conflicts: 1,
@@ -158,7 +171,10 @@ sessionState = { ...sessionState, status: "offline", pending: 1, conflicts: 1,
 copy = render({ status: "offline-owner", user: null,
   owner: { email: "one@example.invalid", signedOut: false }, error: null });
 ok(/1 change queued/.test(copy), "offline history reports queued local work");
-ok(/Conflict copy/.test(copy), "recoverable conflicts are clearly labelled");
+const offlineData = new Element("div");
+ui.renderAccountData(offlineData);
+ok(/Conflict copy/.test(offlineData.textContent), "recoverable conflicts are clearly labelled");
+ok(!button("Save a copy of everything", offlineData), "the account copy waits for a connection");
 
 programState = { ...programState, activeId: "program-one", items: [
   { ...programState.items[0], active: true, current: false, programVersion: 4,
@@ -166,7 +182,8 @@ programState = { ...programState, activeId: "program-one", items: [
 ] };
 copy = render({ status: "authenticated", user: { email: "one@example.invalid", verified: true },
   owner: { email: "one@example.invalid", signedOut: false }, error: null });
-ok(/Cloud update available/.test(copy), "a newer cloud revision never silently replaces the device prescription");
+ok(/Update available/.test(copy), "a newer cloud revision never silently replaces the device prescription");
+ok(button("Update device").classList.contains("primary"), "and taking it is the screen's one primary action");
 ok(/v4: W5 D1: low-bar squat replaces front squat/.test(copy),
   "the revision's change note is shown where the athlete decides to take it");
 button("Update device").onclick();
@@ -192,10 +209,10 @@ ok(!/Private strength block/.test(copy), "a conflicting account cannot inspect t
 console.log("\nknown owner with unavailable account services");
 copy = render({ status: "unavailable", user: null,
   owner: { email: "one@example.invalid", signedOut: false }, error: { message: "Unavailable" } });
-ok(/cached training available/.test(copy), "known ownership retains cached access during service failure");
+ok(/Account services unavailable/.test(copy), "known ownership retains cached access during service failure");
 ok(/Private strength block/.test(copy), "the cached programme remains usable during service failure");
 
-button("Sign out on this device").onclick();
+ui.signOut();
 setTimeout(() => {
   same([signedOut, signedOutCallbacks], [1, 1], "profile sign-out uses the local auth boundary and returns home");
   same([activations, backups, removals], [2, 1, 1], "library actions are routed through callbacks");
@@ -217,27 +234,38 @@ setTimeout(() => {
   const accountHost = new Element("div"), programmeHost = new Element("div");
   ui.renderAccount(accountHost);
   ui.renderProgramme(programmeHost);
-  ok(/Your account/.test(accountHost.textContent), "Account renders the account section alone");
-  ok(!/Programmes/.test(accountHost.textContent), "…without the programme library");
+  same(accountHost.children.length, 1, "Account's head is one block: the menu rows are the app's");
+  ok(/^one@example\.invalid/.test(accountHost.textContent), "the email first");
   ok(/Cloud history ready/.test(accountHost.textContent), "carrying sync state as one line");
-  ok(/Programmes/.test(programmeHost.textContent), "Programme renders the library alone");
-  ok(!/Your account/.test(programmeHost.textContent), "…without the account controls");
+  ok(!/Private strength block/.test(accountHost.textContent), "…without the programme library");
+  ok(/Private strength block/.test(programmeHost.textContent), "Programme renders the library alone");
+  ok(!/one@example/.test(programmeHost.textContent), "…without the account controls");
+  let blockStarts = 0;
+  ui.init({ blockStart() { blockStarts++; const row = new Element("div"); row.textContent = "Block start row"; return row; } });
+  const ordered = new Element("div");
+  blockStarts = 0;
+  ui.renderProgramme(ordered);
+  same(blockStarts, 1, "the app's block-start row is asked for once");
+  ok(/Private strength block[\s\S]*Block start row[\s\S]*Import from a file/.test(ordered.textContent),
+    "and sits under the active programme, before the library");
 
   /* The workout browser is gone: a session that IS on this device is a date on the
      calendar, which is a better index than a flat list ever was. Only what the calendar
      cannot show stays reachable in Account. */
   ui.init({ hasLocalSession: (date, day) => date === "2026-08-14" && day === "Day 1 - Strength" });
   const filtered = new Element("div");
-  ui.renderAccount(filtered);
+  ui.renderAccountData(filtered);
   ok(!/2026-08-14/.test(filtered.textContent),
     "a cloud session already on this device is not listed a second time");
   sessionState = { ...sessionState, conflicts: 1,
     items: [{ ...sessionState.items[0], syncState: "conflict", conflictOf: "canonical-one" }] };
   const conflicted = new Element("div");
-  ui.renderAccount(conflicted);
+  ui.renderAccountData(conflicted);
   ok(/Conflict copy/.test(conflicted.textContent),
     "but a conflict copy is always listed, however local the date looks");
-  ok(/1 conflict copy kept/.test(conflicted.textContent), "and counted in the sync line");
+  const head = new Element("div");
+  ui.renderAccount(head);
+  ok(/1 conflict copy kept/.test(head.textContent), "and counted in the sync line");
 
   console.log(failures ? `\n${failures} FAILED\n` : "\nall passed\n");
   process.exit(failures ? 1 : 0);
