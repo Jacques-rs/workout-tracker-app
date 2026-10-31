@@ -102,6 +102,13 @@ not an EMOM — but Restart starts it fresh. It never logs a round: a round that
 athlete's tap, and the Log action does not change at a round boundary, because it is already the
 one amber thing to press.
 
+**The hold stopwatch measures rather than guesses.** A plain timed hold ("45 sec", "8-10 min") has
+no work/rest or EMOM structure for the interval timer to read, and inventing a countdown from a
+range like "20-30 sec" would be a guess dressed up as a fact. So the `Hold (s)`/`Time (min)` field
+gets a stopwatch instead: it measures what actually happened and writes the result into the field
+only on the tap that stops it, never live, so a number never appears there without the athlete
+confirming it — the same rule that keeps a copied value muted until it is typed over.
+
 **"Last time" is never coloured as a target, and never copied.** It is a fact about the past, and
 making it green — or putting it into a field — would quietly turn it into a prescription or a set
 that did not happen. Its popup shows every set read-only. It prefers **the same programme day of the
