@@ -2716,8 +2716,8 @@ console.log("\ntwo settings scopes: what follows the account, and what stays on 
      they follow the account. Appearance is about WHERE YOU ARE STANDING, so it does not.
      Getting a key into the wrong scope is the quiet failure this guards. */
   is(app.ACCOUNT_KEYS.slice().sort(),
-    ["bodyweight", "hrvNote", "painLabel", "painOnWaking", "painPerExercise", "sleep"],
-    "the tracked fields and the pain label follow the account");
+    ["bodyweight", "hrvNote", "painLabel", "painOnWaking", "painPerExercise", "plateConfig", "sleep"],
+    "the tracked fields, the pain label and the plate calculator's equipment follow the account");
   is(app.DEVICE_KEYS.slice().sort(), ["accent", "mode", "palette", "restCue", "sv", "view"],
     "appearance, which view the app opens on, and whether the rest clock beeps stay on the device");
   app.DEVICE_KEYS.forEach(key =>
@@ -2780,6 +2780,82 @@ console.log("\ntwo settings scopes: what follows the account, and what stays on 
   app.adoptAccountSettings({ values: {}, at: {} });
   is(app.SETTINGS.painLabel, app.SET_DEFAULTS.painLabel,
     "and a field the account has never set reads as its default");
+
+  store.clear(); app.SETTINGS = { ...app.SET_DEFAULTS };
+  app.ACCOUNT_SETTINGS = { values: {}, at: {} };
+}
+
+console.log("\nthe plate calculator");
+{
+  /* Pure arithmetic first: largest plate first, and a shortfall is shown rather than
+     rounded away or fabricated as a plate that isn't there. */
+  const olympic = [25, 20, 15, 10, 5, 2.5, 1.25];
+  is(app.greedyPlateBreakdown(40, olympic), { used: [25, 15], shortfall: 0 },
+    "40kg a side comes off two plates exactly");
+  const short = app.greedyPlateBreakdown(41, olympic);
+  is(short.used, [25, 15], "the greedy pass still prefers the largest plates it can use");
+  is(short.shortfall, 1,
+    "and the 1kg that can't be made from 1.25kg-and-up plates is shown, not rounded away");
+  is(app.greedyPlateBreakdown(0, olympic), { used: [], shortfall: 0 }, "zero a side needs no plates");
+
+  /* The button beside the Load field: hidden entirely, never disabled, whenever the load
+     does not parse — the same fail-safe stance metricOf() takes elsewhere — and it must
+     never rebuild the field it lives beside (the old focus-loss bug). */
+  loadFixture("program.v2.sample.json");
+  app.STATE.week = 1; app.STATE.focus = 0; app.STATE.setEdit = null;
+  const C = logCardNode();
+  const plateBtn = buttonOf(C, /Plate breakdown/);
+  assert(!!plateBtn, "the button exists beside the Load field");
+  is(plateBtn.hidden, true, "hidden before any load is typed");
+  const loadInp = setInputs(C)[0];
+  type(loadInp, "100");
+  assert(buttonOf(C, /Plate breakdown/) === plateBtn, "typing a load does not replace the button");
+  is(plateBtn.hidden, false, "shown once the load parses as a plain number");
+  type(loadInp, "heavy");
+  is(plateBtn.hidden, true, "hidden again the moment it stops parsing");
+  type(loadInp, "100");
+  is(plateBtn.hidden, false, "and back once more");
+
+  plateBtn.onclick();
+  assert(/Plate breakdown/.test(stubFor("#sheetTitle").text), "tapping it opens the breakdown sheet");
+  const sheetText = stubFor("#sheetBody").text;
+  assert(/100kg on a 20kg bar/.test(sheetText) && /40kg per side/.test(sheetText),
+    "the sheet states the load, the bar and the per-side weight");
+  assert(/25kg/.test(sheetText) && /15kg/.test(sheetText), "and the plates it allocated");
+  app.sheetClose();
+
+  /* Below the bar: no arithmetic on a negative number, a plain explanation instead. */
+  app.openPlateSheet(null, 10);
+  assert(/Below the bar/.test(stubFor("#sheetBody").text), "a load under the bar weight says so, not a breakdown");
+  app.sheetClose();
+
+  /* The setting itself: account-scoped, like painLabel, and never exported. */
+  assert(app.accountScoped("plateConfig"), "plateConfig follows the account, like painLabel");
+  app.setSetting("plateConfig", { barKg: 15, plates: [20, 10, 1] });
+  is(JSON.parse(store.get("tp_account_settings_v1")).values.plateConfig, { barKg: 15, plates: [20, 10, 1] },
+    "a changed bar/plates set is stored in the account record");
+  is(app.SETTINGS.plateConfig, { barKg: 15, plates: [20, 10, 1] }, "and reflected in the read model");
+  const out = app.buildSessionExport();
+  assert(!("plateConfig" in out.tracking), "the equipment never reaches the session export");
+  assert(!out.entries.some(x => "plateConfig" in x || "setTarget" in x),
+    "nor does it ride along on any logged entry");
+
+  /* The Account sub-screen: edit the bar weight, add a plate, remove one. */
+  const body = new El("div");
+  app.renderPlates(body);
+  const barInput = body.findAll(n => n.getAttribute && n.getAttribute("aria-label") === "Bar weight, kg")[0];
+  is(barInput.value, "15", "shows the current bar weight");
+  type(barInput, "20");
+  is(app.SETTINGS.plateConfig.barKg, 20, "editing the bar weight updates the setting");
+  const addInput = body.findAll(n => n.getAttribute && n.getAttribute("aria-label") === "Add a plate weight, kg")[0];
+  addInput.value = "1.25";
+  buttonOf(body, /Add plate/).onclick();
+  assert(app.SETTINGS.plateConfig.plates.includes(1.25), "adding a plate weight stores it");
+  const findChip = w => body.findAll(n => n.classList.contains("platechip"))
+    .find(n => n.getAttribute("aria-label") === `Remove ${w}kg plate`);
+  assert(!!findChip(1.25), "the added plate shows as a removable chip");
+  findChip(1.25).onclick();
+  assert(!app.SETTINGS.plateConfig.plates.includes(1.25), "tapping a plate removes it");
 
   store.clear(); app.SETTINGS = { ...app.SET_DEFAULTS };
   app.ACCOUNT_SETTINGS = { values: {}, at: {} };
@@ -3088,10 +3164,10 @@ console.log("\nAccount is a menu of values, and its sub-screens have a way back"
   const row = label => rows().find(r => r.find(n => n.classList.contains("mrow-l")).text === label);
   const value = label => row(label).find(n => n.classList.contains("mrow-v")).text;
   is(rows().map(r => r.find(n => n.classList.contains("mrow-l")).text),
-    ["Health data", "Tracked fields", "Appearance", "Rest clock", "Password", "Your data"],
+    ["Health data", "Tracked fields", "Appearance", "Rest clock", "Plate calculator", "Password", "Your data"],
     "one row per setting, in the agreed order");
-  is([value("Health data"), value("Tracked fields"), value("Appearance"), value("Rest clock")],
-    ["Consented", "6 on", "Mono · Auto", "Off"], "each showing its current value");
+  is([value("Health data"), value("Tracked fields"), value("Appearance"), value("Rest clock"), value("Plate calculator")],
+    ["Consented", "6 on", "Mono · Auto", "Off", "20kg bar · 7 plates"], "each showing its current value");
   assert(!page.findAll(n => n.classList.contains("page-copy") || n.classList.contains("dnote"))
     .some(n => n.text.length > 40), "and no explanation on the menu itself");
   is(stubFor("#pageBack").hidden, true, "the menu has no back arrow — the tab bar is the way back");
@@ -3104,7 +3180,7 @@ console.log("\nAccount is a menu of values, and its sub-screens have a way back"
   is(opened, ["signed-out", "set-password"], "Password opens the set-password flow, Sign out signs out");
 
   const subs = { "Health data": "health", "Tracked fields": "fields", "Appearance": "appearance",
-    "Rest clock": "rest", "Your data": "data" };
+    "Rest clock": "rest", "Plate calculator": "plates", "Your data": "data" };
   Object.keys(subs).forEach(label => {
     app.showRoute("account");
     row(label).onclick();
@@ -3170,7 +3246,7 @@ console.log("\nno file-format or folder wording on screen");
   assert(!WORDS.test(stubFor("#homeBody").text), "nor the hub");
   app.renderProgrammePage();
   assert(!WORDS.test(stubFor("#pageBody").text), "nor the programme screen");
-  ["", "health", "fields", "appearance", "rest"].forEach(sub => {
+  ["", "health", "fields", "appearance", "rest", "plates"].forEach(sub => {
     app.showRoute("account", sub);
     assert(!WORDS.test(stubFor("#pageBody").text), `nor Account${sub ? " · " + sub : ""}`);
   });

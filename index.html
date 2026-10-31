@@ -951,6 +951,18 @@
     box-shadow:0 1px 3px var(--tab-shadow)}
   .seg-note{font-size:var(--t-xs);color:var(--muted);margin:var(--s2) 0 0;line-height:1.4}
 
+  /* ---------- plate calculator ---------- */
+  .platelist{display:flex;flex-wrap:wrap;gap:var(--s2)}
+  .platechip{padding:8px 12px;border-radius:999px;background:var(--well);
+    color:var(--ink-dim);border:1px solid var(--line-soft);font-weight:700;
+    font-variant-numeric:tabular-nums}
+  .platechip.empty{color:var(--muted);font-weight:600}
+  .platelist-add{display:flex;gap:var(--s2);margin-top:var(--s3)}
+  .platelist-add input{flex:1 1 auto;min-width:0;min-height:var(--h-tap)}
+  .platelist-add button{flex:0 0 auto;white-space:nowrap}
+  .platerow{display:flex;flex-wrap:wrap;gap:var(--s2);margin:var(--s3) 0}
+  .dnote.warn{color:var(--accent-ink)}
+
   /* ---------- footer / misc ----------
      One bar, two contents: the export actions in Overview, and prev/next in Log, where
      the thumb needs them far more than it needs Export. Export also sits on the date view
@@ -1265,6 +1277,7 @@ const ACCOUNT_SUBS={
   fields:{title:"Tracked fields",info:"Follows your account. Which fields you track, and what you call them, follow you to any device you sign in on. If you change one on two devices, the latest change wins."},
   appearance:{title:"Appearance",info:"Stays on this phone. Each device keeps its own look."},
   rest:{title:"Rest clock",info:"Stays on this phone. Each device keeps its own cue, so one can beep while another stays quiet."},
+  plates:{title:"Plate calculator",info:"Follows your account. Your bar weight and the plates you own, used to work out what goes on per side."},
   data:{title:"Your data",info:"Follows your account. The copy includes this device’s local-only and queued work. Deletion removes cloud data and this device’s personal data; other offline installations and managed backups are not erased immediately."}
 };
 /* `sub` is an Account sub-screen, and part of the route rather than a screen of its own:
@@ -1444,12 +1457,16 @@ const FIELD_DEFS=[
 /* palette + accent + mode + view are cosmetic and deliberately NOT part of the session export —
    the `tracking` block is built from FIELD_DEFS and painLabel alone, so nothing here can
    leak into a log. `sv` is a one-shot settings-migration marker — see loadSettings(). */
-const SET_DEFAULTS={painLabel:"Knee",palette:"a",accent:"amber",mode:"auto",view:"focus",sv:1,restCue:false};
+/* The athlete's bar and the plates they own, for the plate calculator beside the Load
+   field (see the set editor section). An Olympic default so the screen isn't empty on
+   day one; equipment, not a tracked field, so it is not in FIELD_DEFS. */
+const SET_DEFAULTS={painLabel:"Knee",palette:"a",accent:"amber",mode:"auto",view:"focus",sv:1,restCue:false,
+  plateConfig:{barKg:20,plates:[25,20,15,10,5,2.5,1.25]}};
 FIELD_DEFS.forEach(f=>SET_DEFAULTS[f.key]=true);
 let SETTINGS={...SET_DEFAULTS};
 /* Which store owns a key is decided HERE and nowhere else, so a new setting cannot end
    up in the wrong scope by accident. */
-const ACCOUNT_KEYS=["painLabel"].concat(FIELD_DEFS.filter(f=>!f.fixed).map(f=>f.key));
+const ACCOUNT_KEYS=["painLabel","plateConfig"].concat(FIELD_DEFS.filter(f=>!f.fixed).map(f=>f.key));
 const DEVICE_KEYS=["palette","accent","mode","view","sv","restCue"];
 function accountScoped(key){return ACCOUNT_KEYS.indexOf(key)>=0;}
 /* The account half, as {values, at}: the value plus one ISO stamp per field, which is
@@ -1771,6 +1788,69 @@ function renderFields(host){
       [`This program mostly monitors ${site}. `,use]));
   }
   host.append(el("div",{className:"togrow"},[el("div",{className:"tl"},kids)]));
+}
+
+/* The athlete's own bar weight and plates, filled in against the defaults so a reader
+   never has to handle a missing or malformed field. */
+function plateConfigOf(){
+  const cfg=SETTINGS.plateConfig;
+  const barKg=cfg&&Number(cfg.barKg)>0?Number(cfg.barKg):SET_DEFAULTS.plateConfig.barKg;
+  const plates=cfg&&Array.isArray(cfg.plates)&&cfg.plates.length?
+    cfg.plates.slice():SET_DEFAULTS.plateConfig.plates.slice();
+  return {barKg,plates};
+}
+function renderPlates(host){
+  host.innerHTML="";
+  const cfg=plateConfigOf();
+  const barInp=el("input",{type:"text",value:String(cfg.barKg),
+    attrs:{inputmode:"decimal",placeholder:"20","aria-label":"Bar weight, kg"}});
+  barInp.oninput=()=>{
+    const n=parseNum(barInp.value);
+    setSetting("plateConfig",{barKg:n!=null&&n>0?n:cfg.barKg,plates:plateConfigOf().plates});
+  };
+  const barFld=el("div",{className:"fld has-unit",style:"width:88px"},
+    [barInp,el("span",{className:"unit"},"kg")]);
+  host.append(el("div",{className:"togrow"},[
+    el("div",{className:"tl"},[el("div",{className:"tn"},"Bar weight"),
+      el("div",{className:"td"},"The empty barbell, before any plates go on.")]),
+    barFld]));
+
+  const list=el("div",{className:"platelist"});
+  const repaint=()=>{
+    list.innerHTML="";
+    const plates=plateConfigOf().plates.slice().sort((a,b)=>b-a);
+    if(!plates.length)list.append(el("span",{className:"td"},"No plates added yet."));
+    plates.forEach(p=>{
+      const chip=el("button",{className:"platechip removable",type:"button",
+        attrs:{"aria-label":"Remove "+fmtKg(p)+"kg plate"}},fmtKg(p)+"kg ×");
+      chip.onclick=()=>{
+        const next=plateConfigOf();
+        next.plates=next.plates.filter(x=>x!==p);
+        setSetting("plateConfig",next);
+        repaint();
+      };
+      list.append(chip);
+    });
+  };
+  repaint();
+
+  const addInp=el("input",{type:"text",
+    attrs:{inputmode:"decimal",placeholder:"e.g. 1.25","aria-label":"Add a plate weight, kg"}});
+  const addBtn=el("button",{className:"ghost mini"},"Add plate");
+  addBtn.onclick=()=>{
+    const n=parseNum(addInp.value);
+    if(n==null||n<=0){toast("Enter a plate weight in kg");return;}
+    const rounded=Math.round(n*100)/100;
+    const next=plateConfigOf();
+    if(!next.plates.includes(rounded))next.plates.push(rounded);
+    setSetting("plateConfig",next);
+    addInp.value="";repaint();
+  };
+  host.append(el("div",{className:"togrow"},[el("div",{className:"tl"},[
+    el("div",{className:"tn"},"Plates available"),
+    el("div",{className:"td"},"Per plate, in kg. Tap a plate to remove it."),
+    el("div",{style:"margin-top:8px"},list),
+    el("div",{className:"platelist-add"},[addInp,addBtn])])]));
 }
 
 /* ---------- what a session says about itself ----------
@@ -3994,11 +4074,13 @@ function buildLabel(prefix,node){
 function accountValues(){
   const pal=PALETTES.find(p=>p.key===SETTINGS.palette)||PALETTES[0];
   const mode=(MODES.find(m=>m[0]===SETTINGS.mode)||MODES[0])[1];
+  const plate=plateConfigOf();
   return {
     health:consentInForce()?"Consented":"Not consented",
     fields:FIELD_DEFS.filter(f=>SETTINGS[f.key]).length+" on",
     appearance:pal.name+" · "+mode,
-    rest:SETTINGS.restCue?"Beep on":"Off"
+    rest:SETTINGS.restCue?"Beep on":"Off",
+    plates:fmtKg(plate.barKg)+"kg bar · "+plate.plates.length+" plate"+(plate.plates.length===1?"":"s")
   };
 }
 function renderAccountPage(){
@@ -4020,7 +4102,8 @@ function renderAccountPage(){
     menuRow("Health data",v.health,()=>openAccountSub("health")),
     menuRow("Tracked fields",v.fields,()=>openAccountSub("fields")),
     menuRow("Appearance",v.appearance,()=>openAccountSub("appearance")),
-    menuRow("Rest clock",v.rest,()=>openAccountSub("rest")));
+    menuRow("Rest clock",v.rest,()=>openAccountSub("rest")),
+    menuRow("Plate calculator",v.plates,()=>openAccountSub("plates")));
   /* A Google sign-in may never have set a password, and deletion re-authenticates with one. */
   if(authed)rows.append(menuRow("Password","",()=>{if(window.TPAuthUI)TPAuthUI.open("set-password");}));
   if(authed||copies)rows.append(menuRow("Your data",copies?copies+(copies===1?" copy":" copies"):"",
@@ -4048,6 +4131,7 @@ function renderAccountSub(host,sub){
   }
   else if(sub==="appearance")renderAppearance(body);
   else if(sub==="rest")body.append(restCueRow());
+  else if(sub==="plates")renderPlates(body);
   host.append(body);
 }
 
@@ -4709,9 +4793,13 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
     else applyDerivedSummary(e,metric.unit);
     saveSession(s);
   };
+  /* Set once the plate-calculator button below exists, so its one keystroke handler can
+     toggle it without rebuilding anything else in the row. */
+  let plateBtn=null;
   const loadInp=el("input",{type:"text",value:data.load??"",className:copied("load")?"copied":"",
     attrs:{placeholder:"kg",inputmode:"decimal","aria-label":"Load",...commonAttrs}});
-  loadInp.oninput=()=>{data.load=loadInp.value;onFieldInput("load",loadInp);};
+  loadInp.oninput=()=>{data.load=loadInp.value;onFieldInput("load",loadInp);
+    if(plateBtn)plateBtn.hidden=parseNum(loadInp.value)===null;};
   /* The two values the athlete is actually aiming at get the instrument treatment: big
      tabular numerals on a rule. Marked here rather than by grid position, so reordering
      the row cannot silently move the emphasis. */
@@ -4747,6 +4835,15 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
     grid.append(field(painLblShort(),painInp,"/10",asked?"asked":""));
   }
   host.append(grid);
+  /* A quiet button beside the Load field, same tier as "last time" and "Adjust sets" —
+     never a primary action — opening the per-side plate breakdown for what was just
+     typed. Hidden entirely, never disabled, whenever the load does not parse as a plain
+     number: the same fail-safe stance metricOf() takes elsewhere. Pure UI tool; it is
+     never part of the session export. */
+  plateBtn=el("button",{className:"quietaction",type:"button"},"Plate breakdown");
+  plateBtn.onclick=()=>openPlateSheet(ex,parseNum(loadInp.value));
+  plateBtn.hidden=parseNum(data.load)===null;
+  host.append(el("div",{className:"setnoteinp"},plateBtn));
   if(metric.unit==="s"||metric.unit==="min")
     host.append(el("div",{className:"setnoteinp"},
       holdStopwatchNode(data,metric,repsInp,s,()=>onFieldInput("reps",repsInp))));
@@ -4815,6 +4912,50 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
     end.onclick=()=>confirmEndExercise(ex,e,s,idx,onchange,metric);
     secondary.append(adjust,end);host.append(secondary);}
 
+}
+
+/* ---------- the plate calculator ----------
+   (load − barKg) / 2 per side, greedily allocated from the athlete's own plates,
+   largest first. A pure arithmetic function so apptest can check both the exact-match
+   and the shortfall case without any DOM. */
+function greedyPlateBreakdown(perSide,plates){
+  const EPS=1e-6;
+  const avail=(Array.isArray(plates)?plates:[]).map(Number).filter(p=>Number.isFinite(p)&&p>0).sort((a,b)=>b-a);
+  let remaining=Math.max(0,Number(perSide)||0);
+  const used=[];
+  avail.forEach(p=>{
+    while(remaining>=p-EPS){used.push(p);remaining=Math.max(0,remaining-p);}
+  });
+  /* What is left is never fabricated into a plate that doesn't exist — it is shown as a
+     shortfall instead, rounded clear of float noise. */
+  return {used,shortfall:remaining<EPS?0:Math.round(remaining*1e6)/1e6};
+}
+/* Trims float noise (40.00000000000001) without hardcoding a decimal count the plates
+   themselves don't need. */
+function fmtKg(n){return String(Math.round(Number(n)*100)/100);}
+function openPlateSheet(ex,load){
+  const cfg=plateConfigOf();
+  const body=el("div",{className:"platesheet"});
+  if(load==null){
+    body.append(el("p",{className:"dnote"},"Type a load to see the breakdown."));
+  }else if(load<cfg.barKg){
+    body.append(el("p",{className:"dnote"},`Below the bar (${fmtKg(cfg.barKg)}kg) — no plates needed.`));
+  }else{
+    const perSide=(load-cfg.barKg)/2;
+    const{used,shortfall}=greedyPlateBreakdown(perSide,cfg.plates);
+    body.append(el("p",{className:"dnote"},
+      `${fmtKg(load)}kg on a ${fmtKg(cfg.barKg)}kg bar · ${fmtKg(perSide)}kg per side`));
+    const row=el("div",{className:"platerow"});
+    if(used.length)used.forEach(p=>row.append(el("span",{className:"platechip"},fmtKg(p)+"kg")));
+    else row.append(el("span",{className:"platechip empty"},"Bar only"));
+    body.append(row);
+    /* Never silently rounded away: a plate set that can't make the exact number says so. */
+    if(shortfall>0)body.append(el("p",{className:"dnote warn"},
+      `+${fmtKg(shortfall)}kg not available from your plates.`));
+  }
+  const close=el("button",{className:"ghost"},"Close");close.onclick=sheetClose;
+  body.append(el("div",{className:"sheet-actions"},close));
+  sheetOpen("Plate breakdown",(ex&&ex.name)||"",body);
 }
 
 /* ---------- summary & notes (collapsed, inside Log view) ----------
