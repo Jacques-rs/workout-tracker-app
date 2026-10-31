@@ -65,6 +65,16 @@ console.log("\nlast write wins, per field");
   is(store.recordOf({ values: [], at: 7 }), { values: {}, at: {} },
     "…as does one whose halves are the wrong type");
 
+  /* The merge treats a field's value opaquely, so a compound value (the plate
+     calculator's { barKg, plates }) is swapped whole by whichever side is newer, same
+     as a plain string or boolean — never merged property-by-property. */
+  const equipmentA = { values: { plateConfig: { barKg: 20, plates: [25, 20, 15] } },
+    at: { plateConfig: "2026-09-01T06:00:00.000Z" } };
+  const equipmentB = { values: { plateConfig: { barKg: 15, plates: [10, 5] } },
+    at: { plateConfig: "2026-09-02T06:00:00.000Z" } };
+  is(store.mergeRecords(equipmentA, equipmentB).values.plateConfig, { barKg: 15, plates: [10, 5] },
+    "a newer compound value replaces the older one whole, not field-by-field inside it");
+
   assert(store.hasNewer(mine, theirs), "a locally newer field is something to push");
   assert(!store.hasNewer(theirs, store.mergeRecords(mine, theirs)),
     "and a fully merged record has nothing left to push back");

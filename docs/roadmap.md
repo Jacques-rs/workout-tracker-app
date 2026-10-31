@@ -32,8 +32,6 @@ the restore item sits here.
 file, but nothing reads one back. Cheap insurance against evicted storage on a device that never
 synced.
 
-**6. Plate calculator.** The athlete does this arithmetic automatically.
-
 ## Deferred on purpose
 
 Each of these is a real feature with a cost worth naming, not an oversight.
