@@ -13,9 +13,7 @@ the calendar already are that.
 
 **2. A timer for what the parser cannot read.** The interval timer appears only when the
 prescription states an EMOM period or a work/rest pair, which covers every interval row today. A
-"Set up timer" sheet (work, rest, rounds) would cover a hand-written or unusual format. It pairs
-with a **hold stopwatch** on `Hold (s)`/`Time (min)` fields that writes the elapsed time into the
-field only on a tap.
+"Set up timer" sheet (work, rest, rounds) would cover a hand-written or unusual format.
 
 **3. `localStorage` housekeeping.** `tp_sess_v1::*` keys accumulate forever. Harmless at this
 volume, but a "clear sessions older than N months" action — after a backup — keeps it tidy.

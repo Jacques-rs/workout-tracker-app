@@ -4563,6 +4563,46 @@ function instrumentRail(ex,e,s,onchange){
   return rail;
 }
 
+/* A stopwatch for the one shape the interval timer deliberately leaves alone: a plain
+   timed hold ("45 sec", "8-10 min") with no stated work/rest or EMOM structure to time
+   automatically — see docs/roadmap.md. Rather than guess a duration from the free-text
+   prescription, it measures the actual hold and writes the result into the Hold(s)/
+   Time(min) field only on the tap that stops it — never live, so a value never appears
+   in the field without the athlete confirming it. The only state is a start timestamp
+   on the row/draft itself, so it survives a lock or reload the same way the rest clock
+   and interval timer do. */
+function holdStopwatchNode(data,metric,repsInp,s,onCommit){
+  const btn=el("button",{className:"ghost mini holdwatch"});
+  let tick=null;
+  const stopTicking=()=>{if(tick){clearInterval(tick);tick=null;}};
+  const elapsedSec=()=>{
+    const at=txt(data.holdStart);const t=at?new Date(at).getTime():NaN;
+    return isNaN(t)?0:Math.max(0,Math.floor((Date.now()-t)/1000));
+  };
+  const paint=()=>{
+    if(!txt(data.holdStart)){btn.textContent="Time it";return;}
+    btn.textContent="Stop · "+fmtClock(elapsedSec());
+  };
+  btn.onclick=()=>{
+    if(!txt(data.holdStart)){
+      data.holdStart=new Date().toISOString();saveSession(s);
+      if(!tick)tick=setInterval(()=>{
+        if(!btn.isConnected){stopTicking();return;}
+        paint();
+      },1000);
+      paint();return;
+    }
+    const sec=elapsedSec();stopTicking();data.holdStart="";
+    if(sec>0){
+      repsInp.value=String(metric.unit==="min"?Math.round(sec/6)/10:sec);
+      onCommit();
+    }
+    saveSession(s);paint();
+  };
+  paint();
+  return btn;
+}
+
 /* ---------- the set editor (Log view) ----------
    Always exactly one set's fields on screen: the draft (the next new set) or, while
    STATE.setEdit names a committed row, that row instead. Every oninput here writes
@@ -4707,6 +4747,9 @@ function buildSetEditor(host,ex,e,s,idx,onchange,focusOn){
     grid.append(field(painLblShort(),painInp,"/10",asked?"asked":""));
   }
   host.append(grid);
+  if(metric.unit==="s"||metric.unit==="min")
+    host.append(el("div",{className:"setnoteinp"},
+      holdStopwatchNode(data,metric,repsInp,s,()=>onFieldInput("reps",repsInp))));
 
   const noteOpen=!!txt(data.note)||
     !!(NOTE_OPEN&&NOTE_OPEN.id===ex.id&&NOTE_OPEN.n===curNum&&NOTE_OPEN.edit===!draftMode);
