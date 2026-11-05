@@ -1726,7 +1726,10 @@ console.log("\na rest day, and no programme at all");
   is(store.size, before, "a save with no day claimed writes nothing at all");
   const next = app.nextScheduled(today);
   is(next && next.date, app.addDays(today, 1), "and the next session is one day out");
-  is(next && next.week, 1, "in week 1 of the block");
+  /* A fresh import anchors week 1 to this calendar week's Monday, so "one day out" is
+     only still week 1 unless today IS the week's last day — tomorrow being a Monday
+     always starts week 2, no matter which anchor the block picks. */
+  is(next && next.week, wd === 7 ? 2 : 1, "in the week that date falls in");
 
   /* Claiming from a rest day is the documented way to train something today. */
   app.applyClaim(1, other);
