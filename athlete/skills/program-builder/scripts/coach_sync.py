@@ -16,6 +16,9 @@ programme on a phone. The athlete still taps Activate or Update device.
                                    the email is needed only for a first block
   revise  --athlete <slug> --program <program.json>
                                    publish a revision onto the existing block
+  login                            sign in once (in YOUR terminal) and keep a
+                                   coach session so later runs need no password
+  logout                           revoke that session and delete its file
 
 `revise` refuses, before anything is sent, any revision that
   - is not exactly the next meta.version, or lacks changeNote/reviewedThrough;
@@ -27,10 +30,18 @@ programme on a phone. The athlete still taps Activate or Update device.
 Substituting an exercise in place, and editing loads, reps or notes in weeks
 not yet trained, are fine.
 
-Connection: TP_SUPABASE_URL and TP_SUPABASE_PUBLISHABLE_KEY (the browser-safe
-key the app ships; never a secret or service-role key), or --local for the
-`supabase start` stack. Sign-in: --email or TP_COACH_EMAIL, and the password is
-prompted for and held in memory only - no token is ever written to disk.
+Connection: TP_SUPABASE_URL and TP_SUPABASE_PUBLISHABLE_KEY if set, otherwise
+the HOSTED endpoint in js/auth-config.js (the browser-safe key the app already
+ships; never a secret or service-role key), or --local for the `supabase start`
+stack.
+
+Sign-in, hosted only: if `login` has been run, the stored coach session is
+refreshed silently (Supabase rotates the refresh token on every use, and the
+new one is written back). The session file is SESSION_FILE at the repo root,
+gitignored, mode 600, and is read and written ONLY by this script - an agent
+running the script never opens it. `logout` revokes it server-side. Without a
+session: --email or TP_COACH_EMAIL, and the password is prompted for and held
+in memory only.
 """
 import argparse
 import datetime
@@ -48,6 +59,9 @@ from validate_program import validate  # noqa: E402
 
 ATHLETE_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))))
+REPO_ROOT = os.path.dirname(ATHLETE_ROOT)
+SESSION_FILE = os.path.join(REPO_ROOT, ".coach-session.json")
+SELF = "self"  # athlete id meaning "the signed-in account's own rows"
 IDENTITY = ("block", "athleteId", "athlete", "weeks", "days", "schema")
 
 
@@ -147,11 +161,12 @@ class Account:
     def __init__(self, url, key):
         self.url, self.key, self.token = url.rstrip("/"), key, None
 
-    def _post(self, path, body):
+    def _post(self, path, body, method="POST", headers=None):
         req = urllib.request.Request(
-            self.url + path, data=json.dumps(body).encode(), method="POST",
+            self.url + path, data=None if body is None else json.dumps(body).encode(),
+            method=method,
             headers={"apikey": self.key, "Content-Type": "application/json",
-                     "Authorization": f"Bearer {self.token or self.key}"})
+                     "Authorization": f"Bearer {self.token or self.key}", **(headers or {})})
         try:
             with urllib.request.urlopen(req, timeout=20) as res:
                 raw = res.read()
@@ -170,8 +185,90 @@ class Account:
                          {"email": email, "password": password})
         self.token = res["access_token"]
 
+    def refresh(self, refresh_token):
+        res = self._post("/auth/v1/token?grant_type=refresh_token",
+                         {"refresh_token": refresh_token})
+        self.token = res["access_token"]
+        return res
+
+    def sign_out(self):
+        self._post("/auth/v1/logout?scope=local", {})
+
     def rpc(self, name, **args):
+        if args.get("athlete") == SELF:
+            return self._own(name, args)
         return self._post(f"/rest/v1/rpc/{name}", args)
+
+    # The coach link refuses a self-link (coach_athletes_not_self), so a coach who also
+    # trains from this account reaches their OWN rows through the owner tables and RLS,
+    # with the same row shapes and the same revision guard as the coach_* functions.
+    def _own(self, name, args):
+        rep = {"Prefer": "return=representation"}
+        if name == "coach_programs":
+            return self._post("/rest/v1/programs?select=id,title,schema_version,"
+                              "program_version,payload,revision,updated_at"
+                              "&deleted_at=is.null&order=updated_at.desc,id.asc",
+                              None, "GET")
+        if name == "coach_session_logs":
+            since = args.get("since")
+            return self._post("/rest/v1/session_logs?select=id,program_id,conflict_of,"
+                              "session_date,day,week,schema_version,program_version,"
+                              "payload,revision,updated_at&deleted_at=is.null"
+                              + (f"&session_date=gt.{since}" if since else "")
+                              + "&order=session_date.asc,updated_at.asc,id.asc", None, "GET")
+        if name == "coach_publish_program":
+            payload = args["payload"]
+            return self._post("/rest/v1/programs?select=id,revision", {
+                "title": args["title"], "schema_version": payload["meta"]["schema"],
+                "program_version": int(payload["meta"].get("version") or 0),
+                "payload": payload}, "POST", rep)
+        if name == "coach_revise_program":
+            payload = args["payload"]
+            res = self._post(f"/rest/v1/programs?id=eq.{args['program']}"
+                             f"&revision=eq.{args['expected_revision']}&deleted_at=is.null"
+                             "&select=id,revision", {
+                                 "schema_version": payload["meta"]["schema"],
+                                 "program_version": int(payload["meta"].get("version") or 0),
+                                 "payload": payload}, "PATCH", rep)
+            if not res:
+                raise RuntimeError("programme changed or was removed since it was read")
+            return res
+        raise RuntimeError(f"{name} has no own-account equivalent")
+
+
+def hosted_endpoint():
+    """URL and publishable key: env vars first, else HOSTED in js/auth-config.js."""
+    url = os.environ.get("TP_SUPABASE_URL")
+    key = os.environ.get("TP_SUPABASE_PUBLISHABLE_KEY")
+    if url and key:
+        return url, key
+    cfg = os.path.join(REPO_ROOT, "js", "auth-config.js")
+    try:
+        src = open(cfg, encoding="utf-8").read()
+    except OSError:
+        die(f"no TP_SUPABASE_URL/TP_SUPABASE_PUBLISHABLE_KEY and cannot read {cfg}")
+    m = re.search(r'HOSTED\s*=\s*Object\.freeze\(\{\s*url:\s*"([^"]+)",\s*'
+                  r'publishableKey:\s*"([^"]+)"', src)
+    if not m:
+        die(f"could not find the HOSTED endpoint in {cfg}")
+    return m.group(1), m.group(2)
+
+
+def _save_session(url, email, res):
+    data = {"url": url, "email": email, "refresh_token": res["refresh_token"]}
+    tmp = SESSION_FILE + ".tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        json.dump(data, fh)
+    os.replace(tmp, SESSION_FILE)
+
+
+def _load_session(url):
+    try:
+        data = json.load(open(SESSION_FILE))
+    except (OSError, ValueError):
+        return None
+    return data if data.get("url") == url and data.get("refresh_token") else None
 
 
 def connect(a):
@@ -181,15 +278,55 @@ def connect(a):
         status = json.loads(out)
         url, key = status["API_URL"], status["PUBLISHABLE_KEY"]
     else:
-        url = os.environ.get("TP_SUPABASE_URL")
-        key = os.environ.get("TP_SUPABASE_PUBLISHABLE_KEY")
-        if not url or not key:
-            die("set TP_SUPABASE_URL and TP_SUPABASE_PUBLISHABLE_KEY, or pass --local")
+        url, key = hosted_endpoint()
+        session = _load_session(url)
+        if session:
+            account = Account(url, key)
+            try:
+                _save_session(url, session.get("email"), account.refresh(session["refresh_token"]))
+            except RuntimeError as err:
+                die(f"stored coach session no longer works ({err}). Run "
+                    "`python3 athlete/skills/program-builder/scripts/coach_sync.py login` "
+                    "in your own terminal, then retry.")
+            return account
+        if not sys.stdin.isatty():
+            die("no coach session and no terminal to ask for a password. Run "
+                "`python3 athlete/skills/program-builder/scripts/coach_sync.py login` "
+                "in your own terminal once, then retry.")
     email = a.email or os.environ.get("TP_COACH_EMAIL") or input("Coach email: ")
     password = os.environ.get("TP_COACH_PASSWORD") if a.local else None
     account = Account(url, key)
     account.sign_in(email, password or getpass.getpass(f"Password for {email}: "))
     return account
+
+
+def cmd_login(a):
+    if a.local:
+        die("login stores a hosted session; --local signs in per run")
+    url, key = hosted_endpoint()
+    email = a.email or os.environ.get("TP_COACH_EMAIL") or input("Coach email: ")
+    account = Account(url, key)
+    res = account._post("/auth/v1/token?grant_type=password",
+                        {"email": email, "password": getpass.getpass(f"Password for {email}: ")})
+    _save_session(url, email, res)
+    print(f"OK: coach session stored for {email}; `logout` revokes it")
+
+
+def cmd_logout(a):
+    url, key = hosted_endpoint()
+    session = _load_session(url)
+    if session:
+        account = Account(url, key)
+        try:
+            account.refresh(session["refresh_token"])
+            account.sign_out()
+        except RuntimeError as err:
+            print(f"note: server-side revoke failed ({err}); deleting the file anyway")
+    try:
+        os.remove(SESSION_FILE)
+        print("OK: coach session removed")
+    except FileNotFoundError:
+        print("OK: no stored coach session")
 
 
 def _linked_by_email(account, email):
@@ -204,6 +341,9 @@ def find_athlete(account, wanted):
     """The linked athlete whose programmes name athlete/<wanted>/. The slug comes from
     the programmes, never from an email or a display name."""
     hits = []
+    own = account.rpc("coach_programs", athlete=SELF) or []
+    if any(athlete_slug(p["payload"]) == wanted for p in own):
+        hits.append((SELF, own))
     for link in account.rpc("coach_athletes_linked") or []:
         programs = account.rpc("coach_programs", athlete=link["athlete_id"]) or []
         if any(athlete_slug(p["payload"]) == wanted for p in programs):
@@ -236,6 +376,10 @@ def log_names(rows):
 
 
 def cmd_athletes(account, a):
+    own = account.rpc("coach_programs", athlete=SELF) or []
+    if own:
+        print(f"(your own account)  ->  "
+              f"{', '.join(sorted({athlete_slug(p['payload']) for p in own}))}")
     for link in account.rpc("coach_athletes_linked") or []:
         programs = account.rpc("coach_programs", athlete=link["athlete_id"]) or []
         slugs = sorted({athlete_slug(p["payload"]) for p in programs}) or ["(no programmes)"]
@@ -309,12 +453,22 @@ def cmd_revise(account, a):
     matches = [p for p in programs if program_key(p["payload"]) == program_key(payload)]
     if not matches:
         raise Refused("no block in the athlete's library matches this one; use `publish`")
+    all_logs = account.rpc("coach_session_logs", athlete=athlete_id) or []
     if len(matches) > 1:
-        raise Refused("more than one library row matches this block; refusing to guess "
-                      "which the athlete trains from")
+        # A manual re-import adds a second row for the same block. The one the athlete
+        # trains from is the row holding the most recent session; anything else is a guess.
+        latest = {m["id"]: max((r["session_date"] for r in all_logs
+                                if r.get("program_id") == m["id"]), default="")
+                  for m in matches}
+        ranked = sorted(matches, key=lambda m: latest[m["id"]], reverse=True)
+        if not latest[ranked[0]["id"]] or latest[ranked[0]["id"]] == latest[ranked[1]["id"]]:
+            raise Refused("more than one library row matches this block and the logs do not "
+                          "say which the athlete trains from; refusing to guess")
+        print(f"note: {len(matches)} library rows match this block; revising "
+              f"{ranked[0]['id']} (latest session {latest[ranked[0]['id']]})")
+        matches = ranked[:1]
     current = matches[0]
-    logged = {(r["week"], r["day"]) for r in
-              account.rpc("coach_session_logs", athlete=athlete_id) or []
+    logged = {(r["week"], r["day"]) for r in all_logs
               if r.get("program_id") == current["id"]}
     problems = revision_problems(current["payload"], payload, logged)
     if problems:
@@ -336,6 +490,8 @@ def main():
     ap.add_argument("--root", default=ATHLETE_ROOT, help=argparse.SUPPRESS)
     sub = ap.add_subparsers(dest="command", required=True)
     sub.add_parser("athletes")
+    sub.add_parser("login")
+    sub.add_parser("logout")
     p = sub.add_parser("pull")
     p.add_argument("--athlete", required=True)
     p.add_argument("--since", help="YYYY-MM-DD; default: the latest reviewedThrough")
@@ -355,6 +511,8 @@ def main():
             die(f"--since must be YYYY-MM-DD, got {a.since!r}")
 
     try:
+        if a.command in ("login", "logout"):
+            return {"login": cmd_login, "logout": cmd_logout}[a.command](a)
         account = connect(a)
         {"athletes": cmd_athletes, "pull": cmd_pull, "publish": cmd_publish,
          "revise": cmd_revise}[a.command](account, a)
