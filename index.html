@@ -356,6 +356,21 @@
   .cc-pain{position:absolute;left:34%;right:34%;bottom:4px;height:2px;border-radius:2px;
     background:var(--warn);opacity:.75}
   .cc-pain[data-level="high"]{background:var(--bad)}
+  /* A neutral dot, not amber or green: those mean "now" and "logged", and an activity is
+     neither a session nor a plan. */
+  .cc-act{position:absolute;top:4px;right:4px;width:6px;height:6px;border-radius:50%;
+    background:var(--ink-dim)}
+  .cl-act{display:inline-block;width:6px;height:6px;margin:0 5px;flex:0 0 auto;
+    border-radius:50%;background:var(--ink-dim)}
+  .actlist{display:flex;flex-direction:column;gap:var(--s2);margin-top:var(--s3)}
+  .actrow{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;
+    text-align:left;padding:var(--s3);background:transparent;border:1px solid var(--line);
+    border-radius:var(--r-sm);color:var(--muted);font-size:var(--t-sm);min-height:var(--h-tap)}
+  .actrow strong{color:var(--ink-dim);font-weight:700}
+  .act-note{font-size:var(--t-xs);color:var(--muted);font-weight:400;max-width:100%;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .actlbl{display:block;margin-top:var(--s4)}
+  .actdel{margin-top:var(--s3);text-align:center}
   .cal-legend{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s4);margin-top:var(--s4)}
   .cl-item{display:inline-flex;align-items:center;gap:6px;font-size:var(--t-xs);
     color:var(--muted)}
@@ -3404,7 +3419,11 @@ function renderMain(){
   const exs=dayExercises();
   const list=viewMode()!=="focus";
   /* The date, what is on it, and one action — first, before anything that qualifies it. */
-  if(list)m.append(dateHead(s));
+  if(list){
+    m.append(dateHead(s));
+    const acts=activityList(STATE.date);
+    if(acts)m.append(acts);
+  }
   /* v1 only: the rows on screen are the Week-1 template, so past week 1 the athlete
      has to apply the progression rule themselves. v2 authors every week, so the
      prescription shown IS this week's and the banner would be a lie. */
@@ -3571,6 +3590,114 @@ function sessionCard(s){
   return c;
 }
 
+/* ---------- other activity ----------
+   Unprescribed training — golf, a hike — kept per date in its own key, never in a session:
+   a session is a claim against the programme and has a prescription to be compared with, an
+   activity has neither. It therefore never marks a day done, never moves the schedule and is
+   not part of the session export. A date may hold any number, alongside a session or alone. */
+const ACT_TYPES=["Golf","Hike","Walk","Run","Ride","Swim","Sport","Other"];
+const ACT_EFFORT=[["easy","Easy"],["moderate","Moderate"],["hard","Hard"]];
+const ACT_PREFIX={personal:"tp_act_v1::",sample:"tp_demo_act_v1::"};
+function actPrefix(){return APP.source==="sample"?ACT_PREFIX.sample:ACT_PREFIX.personal;}
+function activitiesOn(date){
+  try{
+    const v=JSON.parse(localStorage.getItem(actPrefix()+date)||"null");
+    return Array.isArray(v)?v.filter(a=>a&&typeof a==="object"&&txt(a.type)):[];
+  }catch(e){return [];}
+}
+function saveActivities(date,list){
+  if(list.length)localStorage.setItem(actPrefix()+date,JSON.stringify(list));
+  else localStorage.removeItem(actPrefix()+date);
+}
+/* Every date that holds one, so the calendar can reach a date outside the block. */
+function activityDates(){
+  const p=actPrefix(),out=[];
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(k&&k.startsWith(p)&&activitiesOn(k.slice(p.length)).length)out.push(k.slice(p.length));
+  }
+  return out;
+}
+function upsertActivity(date,rec){
+  const list=activitiesOn(date);
+  const at=list.findIndex(a=>a.id===rec.id);
+  if(at>=0)list[at]=rec;else list.push(rec);
+  saveActivities(date,list);
+}
+function removeActivity(date,id){saveActivities(date,activitiesOn(date).filter(a=>a.id!==id));}
+function activityWords(a){
+  const bits=[];
+  if(txt(a.mins))bits.push(`${a.mins} min`);
+  if(txt(a.effort))bits.push(txt(a.effort));
+  return bits.join(" · ");
+}
+/* Chips and the effort control repaint attributes only; nothing in the sheet is rebuilt
+   while a field has focus. */
+function openActivitySheet(date,existing){
+  const rec={id:existing?existing.id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+    type:existing?txt(existing.type):"",mins:existing?txt(existing.mins):"",
+    effort:existing?txt(existing.effort):"",note:existing?txt(existing.note):""};
+  const wrap=el("div");
+  const types=el("div",{className:"rpe-grid"});
+  const typeBtns=ACT_TYPES.map(t=>{
+    const b=el("button",{type:"button",attrs:{"aria-pressed":String(rec.type===t)}},t);
+    b.onclick=()=>{rec.type=t;paint();};
+    types.append(b);return b;
+  });
+  const mins=el("input",{type:"text",value:rec.mins,maxLength:4,
+    attrs:{inputmode:"numeric",autocomplete:"off","aria-label":"Minutes",placeholder:"Optional"}});
+  mins.oninput=()=>{rec.mins=mins.value.replace(/\D/g,"");};
+  const seg=el("div",{className:"seg"});
+  const effBtns=ACT_EFFORT.map(([k,label])=>{
+    const b=el("button",{type:"button",attrs:{"aria-pressed":String(rec.effort===k)}},label);
+    b.onclick=()=>{rec.effort=rec.effort===k?"":k;paint();};
+    seg.append(b);return b;
+  });
+  const note=el("input",{type:"text",value:rec.note,
+    attrs:{autocomplete:"off","aria-label":"Note",placeholder:"Optional"}});
+  note.oninput=()=>{rec.note=note.value;};
+  const save=el("button",{className:"primary"},"Save");
+  const paint=()=>{
+    typeBtns.forEach((b,i)=>b.setAttribute("aria-pressed",String(rec.type===ACT_TYPES[i])));
+    effBtns.forEach((b,i)=>b.setAttribute("aria-pressed",String(rec.effort===ACT_EFFORT[i][0])));
+    save.disabled=!rec.type;
+  };
+  save.onclick=()=>{
+    if(!rec.type)return;
+    upsertActivity(date,{id:rec.id,type:rec.type,mins:rec.mins,effort:rec.effort,
+      note:rec.note.trim(),at:existing&&existing.at?existing.at:new Date().toISOString()});
+    sheetClose();renderMain();toast("Activity saved");
+  };
+  const lbl=t=>el("label",{className:"lbl actlbl"},t);
+  wrap.append(types,lbl("Minutes"),mins,lbl("How hard did it feel?"),seg,lbl("Note"),note);
+  const row=el("div",{className:"sheet-actions"});
+  const cancel=el("button",{className:"ghost"},"Cancel");cancel.onclick=sheetClose;
+  row.append(cancel,save);wrap.append(row);
+  if(existing){
+    const del=el("button",{className:"quietaction"},"Remove this activity");
+    del.onclick=()=>{removeActivity(date,rec.id);sheetClose();renderMain();toast("Activity removed");};
+    wrap.append(el("div",{className:"actdel"},del));
+  }
+  paint();
+  sheetOpen(existing?"Edit activity":"Other activity",
+    `${fmtDate(date)} · anything outside the programme. It never counts as a workout or changes the schedule.`,
+    wrap);
+}
+function activityList(date){
+  const list=activitiesOn(date);
+  if(!list.length)return null;
+  const box=el("div",{className:"actlist"});
+  list.forEach(a=>{
+    const b=el("button",{className:"actrow",attrs:{"aria-label":`Edit ${txt(a.type)} activity`}},[
+      el("span",{className:"act-main"},[el("strong",{},txt(a.type)),
+        activityWords(a)?" · "+activityWords(a):""]),
+      txt(a.note)?el("span",{className:"act-note"},txt(a.note)):null]);
+    b.onclick=()=>openActivitySheet(date,a);
+    box.append(b);
+  });
+  return box;
+}
+
 /* ---------- the date view ----------
    Opening a date shows the list first and focus second: focus-first is faster
    mid-session but disorienting on open, and reviewing a logged workout wants the list,
@@ -3705,6 +3832,13 @@ function dateHead(s){
     reopen.onclick=confirmReopen;
     quiet.append(claim,reopen);
   }
+  /* Never on a future date: an activity is something that happened. */
+  if((daysBetween(todayISO(),STATE.date)||0)<=0){
+    const act=el("button",{className:"quietaction"},
+      activitiesOn(STATE.date).length?"Add another activity":"Log other activity");
+    act.onclick=()=>openActivitySheet(STATE.date,null);
+    quiet.append(act);
+  }
   if(action.children.length)box.append(action);
   if(quiet.children.length)box.append(quiet);
   return box;
@@ -3822,9 +3956,10 @@ function weekStrip(today){
     const cell=el("button",{className:"cal-cell",attrs:{
       "data-state":mark,"data-today":String(iso===today),
       "data-missed":String(!!missed&&missed.date===iso),
-      "aria-label":`${fmtDate(iso)} — ${CAL_STATE_WORDS[mark]}`}},[
+      "aria-label":calLabel(iso,mark)}},[
       el("span",{className:"cc-num tnum"},String(Number(iso.slice(8,10)))),
       el("span",{className:"cc-mark",attrs:{"aria-hidden":"true"}},CAL_GLYPH[mark]||"")]);
+    if(calendarAct(iso))cell.append(el("span",{className:"cc-act",attrs:{"aria-hidden":"true"}}));
     cell.onclick=()=>gotoDate(iso,"home");
     grid.append(cell);
   }
@@ -3857,10 +3992,12 @@ function calendarRange(){
   let first=list.length?addDays(list[0].sched.anchorMonday,-7):mondayOf(today);
   let last=list.length?addDays(list[list.length-1].until,6):addDays(mondayOf(today),13);
   /* A session logged outside the block still has to be findable. */
-  sessionIndex().byDate.forEach((_,date)=>{
+  const reach=date=>{
     if(date<first)first=mondayOf(date);
     if(date>last)last=addDays(mondayOf(date),6);
-  });
+  };
+  sessionIndex().byDate.forEach((_,date)=>reach(date));
+  activityDates().forEach(reach);
   if(mondayOf(today)<first)first=mondayOf(today);
   if(addDays(mondayOf(today),6)>last)last=addDays(mondayOf(today),6);
   return {first,last};
@@ -3877,6 +4014,12 @@ function calendarMark(iso){
   return scheduleForDate(iso)?"scheduled":"none";
 }
 const CAL_GLYPH={sealed:"✓",part:"◐",claimed:"○",scheduled:"",none:""};
+/* Not a state: an activity rides on top of whatever the date already is, so a golf day
+   that was also a rest day, or a session day with a run before it, shows both. */
+function calendarAct(iso){return activitiesOn(iso).length>0;}
+function calLabel(iso,mark){
+  return `${fmtDate(iso)} — ${CAL_STATE_WORDS[mark]}${calendarAct(iso)?", other activity":""}`;
+}
 /* The one number the tendon protocol tracks over time, and the calendar is the only
    place a trend in it would ever be visible. Shown only when the athlete tracks it at
    all: an athlete who does not sees no mark and no legend entry, not a greyed one. */
@@ -3898,6 +4041,8 @@ function calendarLegend(){
   item("part","logged, not finished");
   item("claimed","started");
   item("scheduled","scheduled");
+  box.append(el("span",{className:"cl-item"},[
+    el("span",{className:"cl-act",attrs:{"aria-hidden":"true"}}),"other activity"]));
   if(SETTINGS.painOnWaking)box.append(el("span",{className:"cl-item"},[
     el("span",{className:"cl-pain",attrs:{"data-level":"mid","aria-hidden":"true"}}),
     painLbl(" on waking").toLowerCase()]));
@@ -3932,9 +4077,10 @@ function renderCalendar(){
       const pain=calendarPain(iso);
       const cell=el("button",{className:"cal-cell",attrs:{
         "data-state":mark,"data-today":String(iso===today),
-        "aria-label":`${fmtDate(iso)} — ${CAL_STATE_WORDS[mark]}`}},[
+        "aria-label":calLabel(iso,mark)}},[
         el("span",{className:"cc-num tnum"},String(Number(iso.slice(8,10)))),
         el("span",{className:"cc-mark",attrs:{"aria-hidden":"true"}},CAL_GLYPH[mark]||"")]);
+      if(calendarAct(iso))cell.append(el("span",{className:"cc-act",attrs:{"aria-hidden":"true"}}));
       if(pain>0)cell.append(el("span",{className:"cc-pain",
         attrs:{"data-level":pain>=4?"high":"mid","aria-hidden":"true"}}));
       cell.onclick=()=>gotoDate(iso,"calendar");

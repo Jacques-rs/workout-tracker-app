@@ -3234,6 +3234,40 @@ console.log("\nProgramme: block start is a row, and editing it is one tap");
   app.anchorEditing = false;
 }
 
+console.log("\nother activity");
+{
+  loadFixture("program.v2.sample.json");
+  app.setView("list");
+  const date = app.STATE.date;
+  const mark0 = app.calendarMark(date);
+  const sessKeys = () => [...store.keys()].filter(k => k.startsWith("tp_sess_v1::"));
+  const before = sessKeys().length;
+  is(app.activitiesOn(date), [], "a date starts with no activity");
+  app.upsertActivity(date, { id: "a1", type: "Golf", mins: "240", effort: "hard", note: "", at: "t" });
+  app.upsertActivity(date, { id: "a2", type: "Run", mins: "30", effort: "easy", note: "", at: "t" });
+  is(app.activitiesOn(date).map(a => a.type), ["Golf", "Run"], "a date holds several, in order");
+  app.upsertActivity(date, { id: "a1", type: "Hike", mins: "90", effort: "moderate", note: "", at: "t" });
+  is(app.activitiesOn(date).map(a => a.type), ["Hike", "Run"], "saving an existing one edits it in place");
+  assert(store.has("tp_act_v1::" + date), "stored under its own personal key");
+  is(sessKeys().length, before, "and never writes a session");
+  is(app.calendarMark(date), mark0, "it never changes what the date's state is");
+  assert(app.calendarAct(date), "but the calendar knows it is there");
+  assert(/other activity/.test(app.calLabel(date, mark0)), "and says so to a screen reader");
+  assert(/other activity/.test(app.calendarLegend().text), "the legend explains the dot");
+  assert(app.activityDates().includes(date), "the date is findable for the calendar range");
+  assert(cards().some(n => /Hike/.test(n.text)), "the date view lists it");
+  assert(/Add another activity/.test(cards()[0].text), "and offers another");
+  app.startSession();
+  assert(!/Hike|activity/i.test(JSON.stringify(app.buildSessionExport())), "an activity never reaches a session export");
+  app.removeActivity(date, "a1"); app.removeActivity(date, "a2");
+  is(app.activitiesOn(date), [], "removing the last one empties the date");
+  assert(!store.has("tp_act_v1::" + date), "and drops its key");
+  assert(!app.activityDates().includes(date), "so the date is no longer marked");
+  store.set("tp_act_v1::2026-01-02", "{not json");
+  is(app.activitiesOn("2026-01-02"), [], "a corrupt record reads as none rather than throwing");
+  store.delete("tp_act_v1::2026-01-02");
+}
+
 console.log("\nno file-format or folder wording on screen");
 {
   /* Sync carries the files now, so JSON and athlete/ paths are words for the coaching
