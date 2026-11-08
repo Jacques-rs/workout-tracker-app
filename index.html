@@ -387,7 +387,7 @@
      day are a claim made in one picker, the date is the calendar, the check-in is at the
      top of the date view, and settings live on the Account screen. */
   header{position:sticky;top:0;z-index:20;background:var(--bg);padding:var(--s4) 0 var(--s2)}
-  header::after{content:"";position:absolute;left:0;right:0;bottom:-16px;height:16px;
+  header:not(.pagebar)::after{content:"";position:absolute;left:0;right:0;bottom:-16px;height:16px;
     background:linear-gradient(var(--bg),var(--bg-fade));pointer-events:none}
   .row{display:flex;gap:var(--s2);align-items:center}
   .grow{flex:1 1 auto;min-width:0}
