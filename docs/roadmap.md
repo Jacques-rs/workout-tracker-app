@@ -36,11 +36,10 @@ synced.
 
 Each of these is a real feature with a cost worth naming, not an oversight.
 
-- **Off-programme workouts** (a pickup session, a race, a swim). A workout with no `(week, day)`
-  and no prescribed rows means either `tp-session-3` grows a variant or `review-workout-log`
-  receives a session it cannot compare against. Worth doing; worth not doing accidentally.
-- **Rest-day notes.** A rest day offers the next session and the claim picker. A place to write
-  "travelled, walked 8km" is small, but needs a store that can never be mistaken for a workout.
+- **Other activity reaching the coach.** Activities live on the device only (`tp_act_v1::`). The coach
+  needs its own contract (`tp-activity-1`, never a `tp-session-3` variant, so `review-workout-log`
+  never compares one to a prescription), account sync, a link-checked `coach_*` function with a
+  pgTAP test, `coach_sync.py` support and a skill update, plus inclusion in the account copy.
 - **A structured per-day weekday.** The reader already accepts `{label, weekday}` day entries;
   emitting them is a `program-builder` change and must land in lockstep.
 - **A prescribed per-set array.** Ramping sets stay in the `load` string ("60/70/80 kg"). Only
