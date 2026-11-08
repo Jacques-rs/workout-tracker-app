@@ -13,6 +13,9 @@ __pycache__/
 # NEVER commit — this repo is public.
 .env
 .env.*
+# coach_sync.py login: rotating coach refresh token. NEVER commit.
+.coach-session.json
+.coach-session.json.tmp
 
 # --- Athlete data: NEVER commit. The GitHub repo is public. ---
 # Deny-by-default: EVERYTHING under athlete/ is ignored, and only the shared,
