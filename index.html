@@ -381,6 +381,34 @@
   .cl-pain{display:inline-block;width:16px;height:2px;flex:0 0 auto;border-radius:2px;
     background:var(--warn)}
 
+  /* ---------- the clients screen ----------
+     A coach's read-only view of a linked athlete. It borrows the calendar's cells and the
+     Overview card's rail and badge, so a coach reads the same marks the athlete does. */
+  .cl-live{display:flex;align-items:center;gap:6px}
+  /* Amber, because "this screen is updating now" is the one live thing on it. */
+  .cl-live[data-state="ready"]::before{content:"";width:7px;height:7px;flex:0 0 auto;
+    border-radius:50%;background:var(--accent)}
+  .cl-live[data-state="offline"],.cl-live[data-state="error"]{color:var(--warn)}
+  .cl-head{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s2);
+    flex-wrap:wrap}
+  .cl-when{color:var(--muted);font-size:var(--t-sm)}
+  .cl-sub{margin-top:var(--s1);color:var(--muted);font-size:var(--t-sm)}
+  .cl-sub strong{color:var(--ink);font-weight:700}
+  .cl-progress{margin-top:var(--s1);font-size:var(--t-sm);font-weight:700;color:var(--accent-ink)}
+  .cl-progress[data-state="done"]{color:var(--good)}
+  .cl-checkin{margin-top:var(--s3);display:flex;flex-wrap:wrap;gap:var(--s2)}
+  .cl-note{margin-top:var(--s2);color:var(--ink-dim);font-size:var(--t-sm);line-height:1.45;
+    white-space:pre-wrap;overflow-wrap:anywhere}
+  .cl-sets{margin:var(--s2) 0 0;padding:0;list-style:none;display:grid;gap:2px;
+    font-size:var(--t-sm);color:var(--ink-dim)}
+  .cl-sets li{overflow-wrap:anywhere}
+  .cl-sets .tnum{display:inline-block;min-width:1.6em;color:var(--muted);font-weight:700}
+  .cl-grid{display:grid;grid-template-columns:24px repeat(var(--days,4),minmax(0,1fr));gap:2px}
+  .cl-grid .cal-cell{aspect-ratio:auto;min-height:36px}
+  .cl-dow{font-size:var(--t-xs);font-weight:700;color:var(--muted);text-align:center;
+    padding-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cl-empty{color:var(--muted);font-size:var(--t-sm)}
+
   /* ---------- header ----------
      The date view's own two rows: a way back to the hub and a context line on row 1, the
      Overview/Log toggle and the done count on row 2. Nothing is decided here — week and
@@ -992,10 +1020,10 @@
   /* ---------- tab bar ----------
      The same frosted strip as the date view's action bar, so the two read as one place. */
   .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:30;max-width:720px;margin:0 auto;
-    display:grid;grid-template-columns:repeat(4,1fr);background:var(--footer-bg);
+    display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);background:var(--footer-bg);
     backdrop-filter:blur(12px);border-top:1px solid var(--line);
     padding:var(--s1) var(--s2) calc(var(--s1) + env(safe-area-inset-bottom))}
-  .tabbar[hidden]{display:none}
+  .tabbar[hidden],.tabbar button[hidden]{display:none}
   .tabbar button{position:relative;display:grid;justify-items:center;gap:2px;min-height:var(--h-field);
     padding:6px 0;border:0;background:transparent;border-radius:var(--r-sm);
     color:var(--muted);font-size:var(--t-xs);font-weight:700}
@@ -1008,6 +1036,12 @@
   .tb-dot{position:absolute;top:5px;left:calc(50% + 8px);width:8px;height:8px;border-radius:50%;
     background:var(--accent);box-shadow:0 0 0 2px var(--bg)}
   .tb-dot[hidden]{display:none}
+  /* Five tabs at 320 leave "Programme" a 60px column: the bar gives back its side padding
+     and the labels a half-point, rather than truncating a word. */
+  @media (max-width:359px){
+    .tabbar{padding-left:2px;padding-right:2px}
+    .tabbar button{font-size:10.5px}
+  }
   .fgroup[hidden]{display:none}
   /* Beats .footer-bar button{flex:0 0 auto} above, which would otherwise size Prev and
      Next to their labels and leave the pair lopsided. */
@@ -1077,11 +1111,13 @@
   <main class="page-body" id="pageBody" aria-live="polite"></main>
 </div>
 
-<!-- The four top-level screens. Not on the date view, which owns the bottom edge. -->
+<!-- The top-level screens. Not on the date view, which owns the bottom edge. Clients shows
+     only for an account that coaches someone. -->
 <nav class="tabbar" id="tabBar" aria-label="Main" hidden>
   <button id="tabHome"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-6.5 8 6.5V20H4z"/></svg>Today</button>
   <button id="tabCalendar"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Calendar</button>
   <button id="tabProgramme"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6.5h12M8 12h12M8 17.5h12M4 6.5h.01M4 12h.01M4 17.5h.01"/></svg>Programme<i class="tb-dot" id="tabDot" hidden></i></button>
+  <button id="tabClients" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c.9-3.2 3.3-4.8 6-4.8s5.1 1.6 6 4.8M15.5 5.6a3.2 3.2 0 0 1 0 5.8M17.5 14.9c1.6.6 2.8 2.1 3.4 4.6"/></svg>Clients</button>
   <button id="tabAccount"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.6"/><path d="M5 20c1.2-3.6 4-5.2 7-5.2s5.8 1.6 7 5.2"/></svg>Account</button>
 </nav>
 
@@ -1166,6 +1202,7 @@
 <script src="./js/settings-store.js"></script>
 <script src="./js/consent-store.js"></script>
 <script src="./js/account-data.js"></script>
+<script src="./js/coach-store.js"></script>
 <script src="./js/profile-ui.js"></script>
 <script>
 "use strict";
@@ -1214,9 +1251,11 @@ let PROGRAM=null, STATE={week:1,day:null,block:"",date:todayISO(),focus:0,setEdi
      date       the date view and the focus logger
      programme  the private library, the block anchor, import
      account    the account, sync state, and the device/account settings split
+     clients    a coach's linked athletes, read-only (`coach` says which one and how deep)
    `from` is where a jump to the date view came from, so back returns there rather than
    always to the hub — one level, because there is nothing deeper to remember. */
-const APP={surface:"profile",route:"entry",sub:null,source:null,from:"home"};
+const APP={surface:"profile",route:"entry",sub:null,source:null,from:"home",
+  coach:{athlete:null,session:null,week:0,day:""}};
 let SAMPLE_PROGRAM=null;
 let OVERVIEW_SCROLL=0;
 
@@ -1284,7 +1323,7 @@ function cachedAccess(){return !!window.TPAuth&&!!window.TPAuth.canAccessCached&
 /* One place decides which surface is visible, and it is the only place that touches the
    `hidden` flags — five screens toggled from five different handlers is how the old
    layout ended up with no flow. */
-const PAGE_TITLES={calendar:"Calendar",programme:"Programme",account:"Account"};
+const PAGE_TITLES={calendar:"Calendar",programme:"Programme",account:"Account",clients:"Clients"};
 /* Account's sub-screens: a title, and whether what is on it follows the account or stays
    on this phone — the one thing every sub-screen's info button says. */
 const ACCOUNT_SUBS={
@@ -1299,9 +1338,10 @@ const ACCOUNT_SUBS={
    the same page chrome, with a back arrow, and nothing else to show or hide. A tab tap
    passes none, so the Account tab always lands on the menu. */
 function showRoute(route,sub){
-  const known=["entry","home","calendar","date","programme","account"];
+  const known=["entry","home","calendar","date","programme","account","clients"];
   APP.route=known.indexOf(route)>=0?route:"entry";
   APP.sub=APP.route==="account"&&ACCOUNT_SUBS[sub]?sub:null;
+  if(APP.route!=="clients")APP.coach={athlete:null,session:null,week:0,day:""};
   /* Derived, not stored: the import and clear paths ask whether we came from a page or
      from the date view, and this is the one place that answer is computed. */
   APP.surface=APP.route==="date"?"workout":"profile";
@@ -1317,8 +1357,9 @@ function showRoute(route,sub){
   $("#tabBar").hidden=!tabs;
   document.body.classList.toggle("has-tabs",tabs);
   paintTabs();
-  $("#pageBack").hidden=!APP.sub;
-  if(page){
+  $("#pageBack").hidden=!(APP.sub||APP.route==="clients"&&coachCanGoBack());
+  /* The clients screen titles itself, because its title is a name that arrives later. */
+  if(page&&APP.route!=="clients"){
     const t=$("#pageTitle"),sc=ACCOUNT_SUBS[APP.sub];
     t.textContent="";
     t.append(sc?sc.title:PAGE_TITLES[APP.route]);
@@ -1332,6 +1373,8 @@ function showRoute(route,sub){
   if(APP.route==="calendar")renderCalendar();
   if(APP.route==="programme")renderProgrammePage();
   if(APP.route==="account")renderAccountPage();
+  if(APP.route==="clients")renderClientsPage();
+  syncCoachWatch();
 }
 /* Surface-level entry point: "workout" is the date view, anything else resolves to the
    hub for a known owner and the sign-in gate otherwise. The gate is not the home. */
@@ -1347,7 +1390,8 @@ function programmeUpdateWaiting(){
   const active=st.items.find(i=>i.id===st.activeId);
   return !!(active&&!active.current);
 }
-const TABS={home:"#tabHome",calendar:"#tabCalendar",programme:"#tabProgramme",account:"#tabAccount"};
+const TABS={home:"#tabHome",calendar:"#tabCalendar",programme:"#tabProgramme",
+  clients:"#tabClients",account:"#tabAccount"};
 /* Attributes only, so it is safe from the profile module's every-tick refresh. */
 function paintTabs(){
   Object.keys(TABS).forEach(r=>{
@@ -1355,6 +1399,7 @@ function paintTabs(){
     b.setAttribute("aria-current",r===APP.route?"page":"false");
   });
   $("#tabDot").hidden=!programmeUpdateWaiting();
+  $("#tabClients").hidden=!(window.TPCoach&&TPCoach.isCoach());
 }
 function openHome(){showRoute("home");scrollTop();}
 function openCalendarPage(){showRoute("calendar");}
@@ -2722,6 +2767,14 @@ async function boot(){
   if(window.TPConsent){
     TPConsent.init({onChange:consentChanged});
     TPConsent.subscribe(()=>maybeAskConsent());
+  }
+  /* A coach's clients. Their data is read on demand and never stored on this phone. */
+  if(window.TPCoach){
+    TPCoach.init();
+    TPCoach.subscribe(()=>{
+      paintTabs();
+      if(APP.route==="clients")renderClientsPage();
+    });
   }
   if(window.TPSessions)TPSessions.init({
     readLocalSessions:readPersonalSessions,
@@ -4281,6 +4334,306 @@ function renderAccountSub(host,sub){
   host.append(body);
 }
 
+/* ---------- the clients screen ----------
+   A coach's read-only window onto linked athletes, read through TPCoach — the coach_*
+   functions check the link and blank health readings the athlete has not consented to
+   share. Zero inputs, so a poll may rebuild it whole. Everything here reads a tp-session
+   payload or a library programme handed in, never STATE or PROGRAM: those are the coach's
+   own training. `APP.coach` is the depth — a client, then one session or one planned day. */
+function coachClients(){return window.TPCoach?TPCoach.getState().clients:[];}
+/* Watched only while its screen is showing on a visible page; every other route stops it. */
+function syncCoachWatch(){
+  if(!window.TPCoach)return;
+  const showing=APP.route==="clients"&&APP.coach.athlete&&document.visibilityState!=="hidden";
+  if(showing)TPCoach.watch(APP.coach.athlete);else TPCoach.unwatch();
+}
+function openClientsPage(){
+  const list=coachClients();
+  /* One client is the usual case, and in the gym that is one tap to their session. */
+  APP.coach={athlete:list.length===1?list[0].id:null,session:null,week:0,day:""};
+  showRoute("clients");scrollTop();
+}
+function openClient(id){APP.coach={athlete:id,session:null,week:0,day:""};showRoute("clients");scrollTop();}
+function openClientSession(id){APP.coach={...APP.coach,session:id,week:0,day:""};showRoute("clients");scrollTop();}
+function openClientDay(week,day){APP.coach={...APP.coach,session:null,week,day};showRoute("clients");scrollTop();}
+function coachCanGoBack(){
+  const c=APP.coach;
+  return !!(c.session||c.day)||(!!c.athlete&&coachClients().length>1);
+}
+function coachBack(){
+  const c=APP.coach;
+  if(c.session||c.day)openClient(c.athlete);
+  else{APP.coach={athlete:null,session:null,week:0,day:""};showRoute("clients");scrollTop();}
+}
+function setPageTitle(words){const t=$("#pageTitle");if(t)t.textContent=words;}
+/* What the athlete is called in their own programme, before an email address. */
+function clientName(client,data){
+  const named=(data&&data.sessions||[]).map(r=>txt(r.payload&&r.payload.athlete)).find(Boolean)||
+    (data&&data.programs||[]).map(p=>txt(p.payload&&p.payload.meta&&p.payload.meta.athlete)).find(Boolean);
+  return named||txt(client&&client.email).split("@")[0]||"Client";
+}
+function coachAgo(iso){
+  const t=new Date(txt(iso)).getTime();
+  if(!Number.isFinite(t))return "";
+  const sec=Math.max(0,Math.round((Date.now()-t)/1000));
+  if(sec<60)return "just now";
+  if(sec<3600)return Math.floor(sec/60)+" min ago";
+  if(sec<6*3600)return Math.floor(sec/3600)+" h ago";
+  const day=isoOf(new Date(t));
+  return (day===todayISO()?"today":fmtDateLong(day))+" "+fmtTime(iso);
+}
+/* A payload entry is the exercise as it was prescribed that day, denormalised into the log
+   — so it goes through the same exerciseHead() as the athlete's own cards. */
+function coachExercise(entry){
+  const p=entry&&entry.prescribed||{};
+  return {name:txt(entry&&entry.exercise)||"Exercise",category:entry&&entry.category,
+    sets:txt(p.sets),reps:txt(p.reps),load:txt(p.load),rpe:txt(p.rpe)};
+}
+function coachEntryState(entry){
+  if(!entry)return "todo";
+  if(entry.done)return "done";
+  const sets=Array.isArray(entry.sets)?entry.sets:[];
+  return sets.length||txt(entry.load)||txt(entry.reps)||txt(entry.rpe)?"part":"todo";
+}
+function coachProgress(payload){
+  const list=Array.isArray(payload&&payload.entries)?payload.entries:[];
+  const states=list.map(coachEntryState);
+  return {total:list.length,done:states.filter(x=>x==="done").length,
+    touched:states.filter(x=>x!=="todo").length};
+}
+function coachProgressState(p){return p.total&&p.done===p.total?"done":p.touched?"part":"todo";}
+function coachPainLabel(payload){return txt(payload&&payload.tracking&&payload.tracking.painLabel)||"Pain";}
+/* `tracking` absent means a v1 log, where every field was collected. */
+function coachTracks(payload,key){
+  const t=payload&&payload.tracking;
+  return !t||typeof t!=="object"||t[key]!==false;
+}
+/* One logged set, in the order a coach scans it: load × reps, effort, pain, then the note. */
+function coachSetLine(r,payload){
+  const bits=[];
+  const load=txt(r.load),reps=txt(r.reps);
+  if(load||reps)bits.push(load&&reps?`${load} × ${reps}`:load||reps);
+  if(txt(r.rpe))bits.push("RPE "+txt(r.rpe));
+  if(coachTracks(payload,"painPerExercise")&&txt(r.painDuring))
+    bits.push(coachPainLabel(payload).toLowerCase()+" "+txt(r.painDuring));
+  if(txt(r.note))bits.push(txt(r.note));
+  return bits.join(" · ")||"Logged, no values";
+}
+function coachEntryCard(entry,payload){
+  const ex=coachExercise(entry),cat=catOf(ex),st=coachEntryState(entry);
+  const sets=Array.isArray(entry.sets)?entry.sets:[];
+  const c=el("div",{className:"card"+(st==="done"?" done":"")});
+  if(cat)c.style.setProperty("--cat",cat.color);
+  c.append(el("span",{className:"rail"}));
+  const body=el("div",{className:"grow"});
+  body.append(...exerciseHead(ex));
+  const flat=[txt(entry.load),txt(entry.reps),txt(entry.rpe)&&"RPE "+txt(entry.rpe)].filter(Boolean).join(" · ");
+  const line=st==="todo"?"Not started"
+    :sets.length?`${sets.length} set${sets.length===1?"":"s"} logged`+(st==="done"?"":" · in progress")
+    :st==="done"?(flat||"Skipped — no sets logged"):flat;
+  body.append(el("div",{className:"ov-status",attrs:{"data-state":st}},line));
+  if(sets.length)body.append(el("ol",{className:"cl-sets"},sets.map(r=>
+    el("li",{},[el("span",{className:"tnum",attrs:{"aria-label":"Set "+(r.set||"")}},String(r.set||"")),
+      coachSetLine(r,payload)]))));
+  if(txt(entry.notes))body.append(el("div",{className:"cl-note"},txt(entry.notes)));
+  c.append(el("div",{className:"ov-row"},[body,
+    el("span",{className:"ov-badge",attrs:{"data-state":st,"aria-hidden":"true"}},STATE_BADGE[st])]));
+  return c;
+}
+/* The check-in as chips, only what was filled — a coach is looking for the one red flag. */
+function coachCheckin(payload){
+  const s=payload&&payload.session||{};
+  const chips=[];
+  if(txt(s.readiness))chips.push("Readiness "+txt(s.readiness));
+  if(coachTracks(payload,"sleep")&&txt(s.sleep))chips.push("Sleep "+txt(s.sleep));
+  if(coachTracks(payload,"bodyweight")&&txt(s.bodyweightKg))chips.push(txt(s.bodyweightKg)+" kg");
+  const waking=txt(s.amPainOnWaking)||txt(s.amPainNextDay);
+  if(coachTracks(payload,"painOnWaking")&&waking)chips.push(coachPainLabel(payload)+" on waking "+waking);
+  const box=el("div");
+  if(chips.length)box.append(el("div",{className:"cl-checkin"},chips.map(c=>el("span",{className:"pd-item"},c))));
+  if(coachTracks(payload,"hrvNote")&&txt(s.hrvNote))box.append(el("div",{className:"cl-note"},txt(s.hrvNote)));
+  if(txt(s.overall))box.append(el("div",{className:"cl-note"},txt(s.overall)));
+  return box;
+}
+function coachProgressWords(p){
+  if(!p.total)return "Nothing prescribed";
+  return `${p.done} of ${p.total} done`+(p.touched>p.done?` · ${p.touched-p.done} in progress`:"");
+}
+/* One session in full: what day it is, how far through, the check-in, every exercise. */
+function coachSessionView(rec){
+  const payload=rec.payload,p=coachProgress(payload);
+  const box=el("div");
+  box.append(el("div",{className:"cl-sub"},
+    [el("strong",{},"Week "+rec.week)," · ",dayParts(rec.day).short," · ",dayTheme(rec.day)]));
+  box.append(el("div",{className:"cl-progress",attrs:{"data-state":coachProgressState(p)}},
+    coachProgressWords(p)+(rec.updatedAt?" · last change "+coachAgo(rec.updatedAt):"")));
+  box.append(coachCheckin(payload));
+  (Array.isArray(payload.entries)?payload.entries:[]).forEach(e=>box.append(coachEntryCard(e,payload)));
+  return box;
+}
+function coachLiveLine(data){
+  const words=data.status==="ready"?"Live · checked "+fmtTime(data.checkedAt)
+    :data.status==="loading"||data.status==="idle"?"Loading…"
+    :(data.error&&data.error.message||"Could not read")+(data.checkedAt?" · "+fmtTime(data.checkedAt):"");
+  return el("div",{className:"prog-meta cl-live",attrs:{"data-state":data.status}},words);
+}
+/* The block being trained: the programme of the latest session, else the newest one. */
+function coachProgram(data){
+  const latest=data.sessions.find(r=>r.programId);
+  return latest&&data.programs.find(p=>p.id===latest.programId)||data.programs[0]||null;
+}
+function coachWeeks(program){
+  const m=Number(program&&program.payload&&program.payload.meta&&program.payload.meta.weeks);
+  const authored=((program&&program.payload&&program.payload.exercises)||[]).map(e=>Number(e.week)||1);
+  return Math.max(1,Number.isFinite(m)&&m>0?Math.floor(m):0,...authored);
+}
+/* Weeks down, programme days across — the block as the athlete claims it, rather than by
+   date, because the block's start date lives on the athlete's phone. A row behind the
+   latest claimed week with nothing in it is "missed": an outline, as on their calendar. */
+function coachBlockGrid(program,data){
+  const pay=program.payload,labels=dayLabels(pay),weeks=coachWeeks(program);
+  const mine=data.sessions.filter(r=>r.programId===program.id);
+  const current=mine.reduce((m,r)=>Math.max(m,r.week),0);
+  const today=todayISO();
+  const grid=el("div",{className:"cl-grid"});
+  grid.style.setProperty("--days",String(Math.max(1,labels.length)));
+  grid.append(el("div",{className:"cal-corner"}));
+  labels.forEach(l=>grid.append(el("div",{className:"cl-dow"},dayParts(l).num||dayParts(l).short)));
+  for(let w=1;w<=weeks;w++){
+    grid.append(el("div",{className:"cal-week"+(w===current?"":" out")},"W"+w));
+    labels.forEach(l=>{
+      const rec=mine.find(r=>r.week===w&&r.day===l);
+      const st=rec?coachProgressState(coachProgress(rec.payload)):"";
+      const mark=st==="done"?"sealed":st?"part":rec?"claimed":"scheduled";
+      const cell=el("button",{className:"cal-cell",attrs:{"data-state":mark,
+        "data-today":String(!!rec&&rec.date===today),
+        "data-missed":String(!rec&&w<current),
+        "aria-label":`Week ${w} ${dayParts(l).short}: `+(rec?coachProgressWords(coachProgress(rec.payload)):"not logged")}},
+        [el("span",{className:"cc-mark",attrs:{"aria-hidden":"true"}},CAL_GLYPH[mark]||"")]);
+      cell.onclick=()=>rec?openClientSession(rec.id):openClientDay(w,l);
+      grid.append(cell);
+    });
+  }
+  return grid;
+}
+function coachSessionRow(rec){
+  const p=coachProgress(rec.payload);
+  return menuRow(fmtDateLong(rec.date),
+    `W${rec.week} · ${dayParts(rec.day).short} · ${p.done}/${p.total}`,()=>openClientSession(rec.id));
+}
+function renderClientList(host,st){
+  setPageTitle("Clients");
+  if(!st.clients.length){
+    host.append(el("p",{className:"page-copy"},
+      st.status==="loading"?"Loading…":st.error?st.error.message:"No one is linked to you as a client."));
+    return;
+  }
+  const rows=el("div",{className:"mrows"});
+  st.clients.forEach(c=>{
+    const data=TPCoach.athlete(c.id);
+    const today=data.sessions.find(r=>r.date===todayISO());
+    rows.append(menuRow(clientName(c,data),
+      today?coachProgressWords(coachProgress(today.payload)):"",()=>openClient(c.id)));
+  });
+  host.append(rows);
+}
+function renderClientHome(host,client,data){
+  /* The name is the page title; saying it again as a heading is the same fact twice. */
+  setPageTitle(clientName(client,data));
+  host.append(coachLiveLine(data));
+  if(data.status==="loading"&&!data.sessions.length&&!data.programs.length)return;
+  const today=todayISO();
+  const now=data.sessions.find(r=>r.date===today);
+  const todayBox=el("section",{className:"panel"});
+  todayBox.append(el("div",{className:"cl-head"},[el("div",{className:"panel-title"},"Today"),
+    el("span",{className:"cl-when"},fmtDateLong(today))]));
+  if(now)todayBox.append(coachSessionView(now));
+  else{
+    todayBox.append(el("p",{className:"cl-empty"},"Nothing logged today yet."));
+    const last=data.sessions[0];
+    if(last){
+      const p=coachProgress(last.payload);
+      const go=el("button",{className:"quietaction"},
+        `Last: ${fmtDateLong(last.date)} · Week ${last.week} · ${dayParts(last.day).short} · ${p.done}/${p.total}`);
+      go.onclick=()=>openClientSession(last.id);
+      todayBox.append(el("div",{className:"ht-quiet"},go));
+    }
+  }
+  host.append(todayBox);
+  const program=coachProgram(data);
+  if(program){
+    const meta=program.payload.meta||{};
+    const block=el("section",{className:"panel"});
+    block.append(el("div",{className:"panel-title"},"Block"));
+    block.append(el("div",{className:"prog-name"},txt(meta.block)||program.title||"Programme"));
+    block.append(el("div",{className:"prog-meta"},
+      `${coachWeeks(program)} weeks · ${dayLabels(program.payload).length} days`+
+      (program.version?` · v${program.version}`:"")));
+    block.append(el("div",{className:"panel-body"},coachBlockGrid(program,data)));
+    host.append(block);
+  }
+  const past=data.sessions.filter(r=>r!==now);
+  if(past.length){
+    const recent=el("section");
+    recent.append(el("div",{className:"panel-title"},"Recent sessions"));
+    const rows=el("div",{className:"mrows panel-body"});
+    past.slice(0,APP.coach.all?past.length:8).forEach(r=>rows.append(coachSessionRow(r)));
+    recent.append(rows);
+    if(!APP.coach.all&&past.length>8){
+      const more=el("button",{className:"quietaction"},`Show all ${past.length}`);
+      more.onclick=()=>{APP.coach.all=true;renderClientsPage();};
+      recent.append(el("div",{className:"ht-quiet"},more));
+    }
+    host.append(recent);
+  }
+}
+function renderClientSession(host,client,data){
+  const rec=data.sessions.find(r=>r.id===APP.coach.session);
+  setPageTitle(clientName(client,data));
+  if(!rec){
+    host.append(el("p",{className:"page-copy"},data.status==="loading"?"Loading…":"This session is no longer in their account."));
+    return;
+  }
+  host.append(el("div",{},[el("div",{className:"prog-name"},`${relDay(rec.date)} · ${fmtDateLong(rec.date)}`),
+    coachLiveLine(data)]));
+  host.append(coachSessionView(rec));
+}
+/* A cell with nothing logged: what the programme prescribes for it. */
+function renderClientDay(host,client,data){
+  const c=APP.coach,program=coachProgram(data);
+  setPageTitle(clientName(client,data));
+  host.append(el("div",{},[el("div",{className:"prog-name"},`Week ${c.week} · ${dayParts(c.day).short}`),
+    el("div",{className:"prog-meta"},dayTheme(c.day)+" · not logged")]));
+  const exs=program?sessionExercises(program.payload,c.week,c.day):[];
+  if(!exs.length)host.append(el("p",{className:"cl-empty"},"Nothing prescribed for this day."));
+  const list=el("div");
+  exs.forEach(ex=>{
+    const card=el("div",{className:"card"}),cat=catOf(ex);
+    if(cat)card.style.setProperty("--cat",cat.color);
+    card.append(el("span",{className:"rail"}),...exerciseHead(ex));
+    list.append(card);
+  });
+  host.append(list);
+}
+function renderClientsPage(){
+  const host=$("#pageBody");if(!host||APP.route!=="clients")return;
+  host.innerHTML="";
+  $("#pageBack").hidden=!coachCanGoBack();
+  const st=window.TPCoach?TPCoach.getState():{status:"idle",error:null,clients:[]};
+  const c=APP.coach;
+  if(!c.athlete){renderClientList(host,st);return;}
+  const client=st.clients.find(x=>x.id===c.athlete);
+  if(!client){
+    setPageTitle("Clients");
+    host.append(el("p",{className:"page-copy"},"This client is no longer linked to your account."));
+    return;
+  }
+  const data=TPCoach.athlete(c.athlete);
+  if(c.session)renderClientSession(host,client,data);
+  else if(c.day)renderClientDay(host,client,data);
+  else renderClientHome(host,client,data);
+}
+
 /* ---------- exercise head (shared by Overview and Log) ----------
    The one place both surfaces draw from, so they cannot drift: category rail colour
    (set by the caller), name, and the prescription folded into one or two plain lines —
@@ -5556,8 +5909,11 @@ $("#backBtn").onclick=backFromDate;
 $("#tabHome").onclick=openHome;
 $("#tabCalendar").onclick=openCalendarPage;
 $("#tabProgramme").onclick=openProgrammePage;
+$("#tabClients").onclick=openClientsPage;
 $("#tabAccount").onclick=openAccountPage;
-$("#pageBack").onclick=openAccountPage;
+$("#pageBack").onclick=()=>{if(APP.route==="clients")coachBack();else openAccountPage();};
+/* A hidden tab stops the live poll, and coming back reads at once. */
+if(document.addEventListener)document.addEventListener("visibilitychange",syncCoachWatch);
 $("#ctxBtn").onclick=openClaimPicker;
 $("#sheetClose").onclick=sheetClose;
 $("#sheetBg").onclick=sheetClose;

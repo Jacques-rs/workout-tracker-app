@@ -168,6 +168,23 @@ programme relies on — a switch that could turn it off bought nothing. **Not no
 recorded and not asked again: a prompt that comes back between sets is how people stop reading
 prompts. Only new consent terms ask again.
 
+## Why a coach watches by polling, and keeps nothing
+
+A coach standing in the same gym wants to know how the athlete's session is going without
+interrupting it. The athlete's phone already syncs each logged set within a second of the tap, so
+"live" only needs the coach's screen to read again: it polls `coach_session_logs` every ten seconds
+while that athlete's screen is showing, and stops on any other screen or a hidden page.
+**Not Supabase Realtime**, because it delivers rows through a policy on the athlete's own table —
+exactly the coach policy `docs/backend.md` forbids — and would bypass the health-consent blanking
+that the function applies on every read.
+
+**Nothing read is stored on the coach's phone.** It is another person's training and health
+record, and the coach's device is not theirs; a reload or sign-out forgets it, and an offline
+coach sees the last read with its time, never a cache from yesterday.
+
+**The block is a weeks × days grid, not a calendar**, because the athlete's block start date lives
+on the athlete's phone. The grid is what both sides agree on: the `(week, day)` each session claims.
+
 ## Visual direction
 
 A dark "almanac": near-black ground, hairlines and typographic hierarchy instead of nested cards,

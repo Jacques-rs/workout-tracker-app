@@ -78,6 +78,9 @@ node samples/programstoretest.js
 echo "==> Running session synchronization tests"
 node samples/sessionstoretest.js
 
+echo "==> Running coach client-view tests"
+node samples/coachstoretest.js
+
 echo "==> Running account-scoped settings tests"
 node samples/settingsstoretest.js
 
