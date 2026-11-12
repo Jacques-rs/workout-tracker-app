@@ -3268,6 +3268,79 @@ console.log("\nother activity");
   store.delete("tp_act_v1::2026-01-02");
 }
 
+console.log("\nClients: a coach reads a linked athlete's session as it happens, read-only");
+{
+  const fixture = name => JSON.parse(fs.readFileSync(path.join(__dirname, name), "utf8"));
+  const today = app.todayISO();
+  const live = { ...fixture("session.v3.sample.json"), date: today };
+  const earlier = { ...fixture("session.v3.sample.json"), date: "2026-07-20", week: 1 };
+  earlier.entries = earlier.entries.map(e => ({ ...e, done: true }));
+  const programme = fixture("program.v2.sample.json");
+  const watched = [];
+  let coach = false;
+  const data = {
+    status: "ready", error: null, checkedAt: new Date().toISOString(),
+    programs: [{ id: "p1", title: "Block", version: 3, payload: programme }],
+    sessions: [
+      { id: "s-live", programId: "p1", date: today, week: live.week, day: live.day, payload: live,
+        updatedAt: new Date(Date.now() - 120000).toISOString() },
+      { id: "s-old", programId: "p1", date: earlier.date, week: 1, day: earlier.day, payload: earlier,
+        updatedAt: "2026-07-20T10:00:00Z" }]
+  };
+  sandbox.TPCoach = sandbox.window.TPCoach = {
+    getState: () => ({ status: "ready", error: null, watching: null,
+      clients: coach ? [{ id: "a1", email: "athlete@example.invalid" }] : [] }),
+    isCoach: () => coach,
+    athlete: () => data,
+    watch(id){ watched.push("watch:" + id); return true; },
+    unwatch(){ watched.push("unwatch"); }
+  };
+  app.showRoute("home");
+  is(stubFor("#tabClients").hidden, true, "no Clients tab for an account that coaches no one");
+  coach = true;
+  app.paintTabs();
+  is(stubFor("#tabClients").hidden, false, "a linked coach gets the Clients tab");
+
+  stubFor("#tabClients").onclick();
+  const page = stubFor("#pageBody");
+  is([app.APP.route, app.APP.coach.athlete], ["clients", "a1"], "one client: the tab opens straight to them");
+  is(watched.slice(-1), ["watch:a1"], "…and starts watching them");
+  is(stubFor("#pageTitle").text, "Sample Athlete", "titled with the name from their own programme");
+  is(stubFor("#pageBack").hidden, true, "with one client there is nowhere to go back to");
+  is(page.findAll(n => ["INPUT", "TEXTAREA", "SELECT"].includes(n.tagName)).length, 0, "zero inputs");
+  assert(/4 of 5 done · 1 in progress · last change 2 min ago/.test(page.text),
+    "today's progress and how recently the athlete last logged");
+  assert(/Readiness Green/.test(page.text) && /Knee on waking 4/.test(page.text), "the check-in is shown");
+  assert(/100 × 4 · RPE 9 · knee 3/.test(page.text), "each logged set, load × reps, effort and pain");
+  const cells = page.findAll(n => n.classList.contains("cal-cell"));
+  is(cells.length, 8, "the block grid has a cell per week and day");
+  is(cells.filter(c => c.getAttribute("data-state") === "sealed").length, 1, "a finished day is ticked");
+  is(cells.filter(c => c.getAttribute("data-state") === "part").length, 1, "today's is in progress");
+  assert(/Recent sessions/.test(page.text) && page.findAll(n => n.classList.contains("mrow")).length === 1,
+    "earlier sessions are listed apart from today's");
+
+  cells.find(c => c.getAttribute("data-state") === "sealed").onclick();
+  is(app.APP.coach.session, "s-old", "a logged cell opens that session");
+  is(stubFor("#pageBack").hidden, false, "…with a way back");
+  stubFor("#pageBack").onclick();
+  is([app.APP.coach.athlete, app.APP.coach.session], ["a1", null], "back returns to the client");
+  page.findAll(n => n.classList.contains("cal-cell"))[7].onclick();
+  is([app.APP.coach.week, app.APP.coach.day], [4, programme.meta.days[1]], "an empty cell opens what is planned");
+  assert(page.findAll(n => n.classList.contains("ex-name")).length > 0 && /not logged/.test(page.text),
+    "…as the programme prescribes it");
+
+  live.tracking = { ...live.tracking, painPerExercise: false, painOnWaking: false };
+  app.openClient("a1");
+  assert(!/knee 3/.test(page.text) && !/on waking/.test(page.text),
+    "health readings the athlete does not share are not shown");
+
+  app.showRoute("home");
+  is(watched.slice(-1), ["unwatch"], "leaving the screen stops the live poll");
+  is(app.APP.coach.athlete, null, "and forgets where it was");
+  delete sandbox.TPCoach; delete sandbox.window.TPCoach;
+  app.paintTabs();
+}
+
 console.log("\nno file-format or folder wording on screen");
 {
   /* Sync carries the files now, so JSON and athlete/ paths are words for the coaching

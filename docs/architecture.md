@@ -10,6 +10,7 @@
 | `js/session-store.js` | Device-first session queue and the sole `session_logs` Data API boundary. Owns retry, revision checks, conflict copies, backfill and history paging. |
 | `js/settings-store.js` | Device-first account-scoped settings boundary — the sole `user_settings` Data API caller. Owns the per-field last-write-wins merge and the offline retry. |
 | `js/consent-store.js` | Device-first health-data consent boundary — the sole `health_consents` Data API caller. Holds the athlete's append-only decisions locally and pushes them idempotently. |
+| `js/coach-store.js` | A coach's read-only view of linked athletes — the browser's only caller of the `coach_*` functions. Polls one athlete while their screen shows, and keeps what it reads in memory only. |
 | `js/account-data.js` | Sole account portability/deletion boundary. Combines the owner-scoped RPC snapshot with safe current-device state; it never exports credentials or demo data. |
 | `js/profile-ui.js` | The Account and Programme sections, plus the entry-gate states. It receives stores/callbacks and makes no backend call. |
 | `vendor/supabase-js-2.111.0.min.js` | Pinned browser SDK; origin and checksum are recorded in `vendor/README.md`. |
@@ -27,11 +28,11 @@
 The heart is a home page and tracking is date-first; `docs/design-rationale.md` holds the reasoning
 and should be read before changing any of this.
 
-`showRoute(route, sub)` knows six routes and toggles four views, one visible at a time, plus the tab
+`showRoute(route, sub)` knows seven routes and toggles four views, one visible at a time, plus the tab
 bar and the page bar's back arrow. **It is the only thing that touches their `hidden` flags** —
 never toggle a surface from a handler.
-The **tab bar** (`#tabBar`: Today · Calendar · Programme · Account) shows on `home` and the three
-pages, never on `entry` or `date` — the date view owns the bottom edge. It is the way between the
+The **tab bar** (`#tabBar`: Today · Calendar · Programme · Clients · Account) shows on `home` and the
+pages; Clients appears only while `TPCoach.isCoach()`, and the bar's columns follow the visible tabs, never on `entry` or `date` — the date view owns the bottom edge. It is the way between the
 four, so the pages have no back arrow — except an Account sub-screen (below). `paintTabs()` sets the current tab and the Programme tab's
 dot, which means the active programme has an untaken revision (`programmeUpdateWaiting()`); it sets
 attributes only, because the profile module's refresh calls it on every tick.
@@ -41,6 +42,7 @@ attributes only, because the profile module's refresh calls it on every tick.
 - **`calendar` → `#pageView`** — a continuous vertical scroll of weeks, eight grid columns (a `W1`–`Wn` label plus seven days). Dates outside the block are present but plain. A cell holds the date number and one state mark and nothing else, because at seven columns it is ~37px at 320 and ~47px at 390. An optional hairline marks a non-zero pain-on-waking reading, and only when the athlete tracks it.
 - **`date` → `#workoutView`** — the date view and the focus logger. Sticky header (two rows), `<main>`, and the action bar.
 - **`programme` → `#pageView`** — the active programme first (name, version, length, and an amber `Update available` with **Update device** when the library holds an untaken revision), the `Block start` row, then the rest of the library and a quiet **Import from a file**. Starting a workout is the hub's job, not this screen's.
+- **`clients` → `#pageView`** — a linked coach's read-only view, zero inputs. `APP.coach` is the depth: no athlete is the client list (skipped when there is one client, so the tab is one tap to their session); an athlete is their home — today's session in full (check-in chips, every exercise through `exerciseHead()`, each logged set, "last change" from the row's `updated_at`), the block as a weeks × programme-days grid of calendar cells, then recent sessions; `session` is one logged session, and `week`/`day` is a cell with nothing logged, shown as prescribed. It titles itself, because the name arrives with the data. `syncCoachWatch()`, called from `showRoute()` and on `visibilitychange`, is the only thing that starts or stops the poll.
 - **`account` → `#pageView`** — a menu: the email and the one-line sync state, then one row per setting showing its current value (Health data, Tracked fields, Appearance, Rest clock, Password, Your data), then a quiet **Sign out** and the build. A row opens a **sub-screen**, `APP.sub` (`health` / `fields` / `appearance` / `rest` / `data`, listed in `ACCOUNT_SUBS`), which is part of the `account` route rather than a route of its own: same chrome, its own title and info button saying whether it follows the account or stays on this phone, and `#pageBack` back to the menu. Any `showRoute()` without a `sub` clears it, so the Account tab always lands on the menu. Password opens the auth module's set-password dialog directly; Your data holds the account copy, deletion, and the copies not on this device.
 
 Inside the date view:
@@ -61,8 +63,8 @@ selects the local stack only for localhost/loopback and the hosted project elsew
 `auth-client.js` owns Supabase Auth calls and exposes state/actions to the rest of the app.
 `auth-ui.js` renders sign-in (password or Google), recovery and password-setup dialogs. `program-store.js` owns every
 Data API call to `programs`; `session-store.js` owns every Data API call to `session_logs`.
-`settings-store.js` owns every Data API call to `user_settings`, and `consent-store.js` every call
-to `health_consents`.
+`settings-store.js` owns every Data API call to `user_settings`, `consent-store.js` every call
+to `health_consents`, and `coach-store.js` every `coach_*` call the app makes.
 `profile-ui.js` renders the Account and Programme sections from those stores and local callbacks,
 and never calls Supabase itself. The workout script makes no direct backend call: after device
 autosave it hands an immutable `tp-session-3` snapshot to the synchronous queue boundary, and a
@@ -102,22 +104,24 @@ order in the file** — keep additions in the matching section, and if you add o
 29. **the calendar** — `renderCalendar()`, `calendarRange()`, `calendarMark()`, `calendarPain()`, `calendarLegend()`.
 30. **the programme screen** — `blockStartRow()` (the block anchor as a row; tapping the date reveals the input, the derived weekdays and the block it follows, so it can be checked rather than trusted — `profile-ui.js` places it under the active programme through its `blockStart` option), `offerBlockStart()` (the new-block start sheet), `renderProgrammePage()`.
 31. **the account screen** — `menuRow()`, `buildLabel()` (also beside the entry screen's Privacy link), `accountValues()` (each row's value), `renderAccountPage()` (the menu, or `renderAccountSub()` when `APP.sub` is set). The profile module's refresh rebuilds the menu and Your data on every tick, but never a settings sub-screen: none shows what those ticks change, and the pain label is an input a rebuild would take the keyboard from.
-32. **exercise head (shared by Overview and Log)** — `exerciseHead(ex)`, `hintChips()`. The rail colour, name and prescription line. **Change an exercise's identity here only**, so the two views cannot show two different prescriptions for one row.
-33. **overview card (read-only)** — `overviewCard(ex, s, idx)`, `statusLine()`, `summaryText()`, `painLogged()`. Zero inputs.
-34. **the focus logger's instruments** — `parseRestSeconds(ex)`, `restSeconds(s)`, `fmtClock()`, `restReading()`, `restCueDue()`/`primeCue()`/`restCue()`, `restClockNode()`; the interval timer: `parseInterval(ex)`, `intervalSpec(ex, e)`, `intervalAt(spec, sec)`, `timerSeconds(e)`, `holdScreen()`, `intervalNode()`; `startRestTick()`; `heaviestSet()`, `agoWords()`, `lastTimeNode()`, `openPreviousSheet()`; `instrumentRail()`. One interval for the whole app, and it only ever repaints.
-35. **the set editor (Log view)** — `buildSetEditor()` (recap + chips + count control + fields + actions), `setRecap()`, `collapse()`. An input's `oninput` writes and saves; it must never rebuild a container it lives in. The plate calculator — `greedyPlateBreakdown()` (pure arithmetic), `fmtKg()`, `openPlateSheet()` — lives here too: a quiet button beside the Load field, hidden (not disabled) whenever `parseNum(load)` is `null`.
-36. **summary & notes (collapsed, inside Log view)** — `buildSummaryPanel()`, the editable flat fields.
-37. **log card** — `logCard(ex, s, idx)` and its `redraw()`.
-38. **export** — `exportSets()`, `exportEntry()` (a named whitelist, not a rest-spread — see "State model" below), pure `buildSessionPayload(stored, program)` for export/backfill, `buildSessionExport()`, `exportSession()`, `copyJSON()`.
-39. **events** — wiring for markup that lives for the whole page, a guarded `keydown` listener (Escape closes the action sheet, arrows page Log view), service-worker registration, the `boot()` call. Week, day and date are not standing widgets: they are the claim picker and the calendar, built on demand.
+32. **the clients screen** — `syncCoachWatch()`, `openClientsPage()`/`openClient()`/`openClientSession()`/`openClientDay()`/`coachBack()`, `clientName()`, `coachAgo()`, `coachExercise()` (a payload entry as an exercise, so it goes through `exerciseHead()`), `coachEntryState()`/`coachProgress()`, `coachTracks()` (an absent `tracking` is a v1 log: all collected), `coachSetLine()`, `coachEntryCard()`, `coachCheckin()`, `coachSessionView()`, `coachProgram()`/`coachWeeks()`/`coachBlockGrid()`, and `renderClientsPage()` with its four bodies. Reads only what TPCoach hands it, never `STATE` or `PROGRAM`, which are the coach's own training.
+33. **exercise head (shared by Overview and Log)** — `exerciseHead(ex)`, `hintChips()`. The rail colour, name and prescription line. **Change an exercise's identity here only**, so the two views cannot show two different prescriptions for one row.
+34. **overview card (read-only)** — `overviewCard(ex, s, idx)`, `statusLine()`, `summaryText()`, `painLogged()`. Zero inputs.
+35. **the focus logger's instruments** — `parseRestSeconds(ex)`, `restSeconds(s)`, `fmtClock()`, `restReading()`, `restCueDue()`/`primeCue()`/`restCue()`, `restClockNode()`; the interval timer: `parseInterval(ex)`, `intervalSpec(ex, e)`, `intervalAt(spec, sec)`, `timerSeconds(e)`, `holdScreen()`, `intervalNode()`; `startRestTick()`; `heaviestSet()`, `agoWords()`, `lastTimeNode()`, `openPreviousSheet()`; `instrumentRail()`. One interval for the whole app, and it only ever repaints.
+36. **the set editor (Log view)** — `buildSetEditor()` (recap + chips + count control + fields + actions), `setRecap()`, `collapse()`. An input's `oninput` writes and saves; it must never rebuild a container it lives in. The plate calculator — `greedyPlateBreakdown()` (pure arithmetic), `fmtKg()`, `openPlateSheet()` — lives here too: a quiet button beside the Load field, hidden (not disabled) whenever `parseNum(load)` is `null`.
+37. **summary & notes (collapsed, inside Log view)** — `buildSummaryPanel()`, the editable flat fields.
+38. **log card** — `logCard(ex, s, idx)` and its `redraw()`.
+39. **export** — `exportSets()`, `exportEntry()` (a named whitelist, not a rest-spread — see "State model" below), pure `buildSessionPayload(stored, program)` for export/backfill, `buildSessionExport()`, `exportSession()`, `copyJSON()`.
+40. **events** — wiring for markup that lives for the whole page, a guarded `keydown` listener (Escape closes the action sheet, arrows page Log view), service-worker registration, the `boot()` call. Week, day and date are not standing widgets: they are the claim picker and the calendar, built on demand.
 
 ## State model
 
 ```js
 STATE = { week: 1, day: "Day 1 (Mon) - ...", block: "<programKey>", date: "2026-07-27", focus: 0, setEdit: null }
-APP = { surface: "profile" | "workout", route: "entry" | "home" | "calendar" | "date" | "programme" | "account",
+APP = { surface: "profile" | "workout", route: "entry" | "home" | "calendar" | "date" | "programme" | "account" | "clients",
         sub: null | "health" | "fields" | "appearance" | "rest" | "plates" | "data",
-        source: null | "personal" | "sample", from: "home" | "calendar" }
+        source: null | "personal" | "sample", from: "home" | "calendar",
+        coach: { athlete: null | uuid, session: null | uuid, week: 0 | n, day: "" | label } }
 SCHEDULE = { anchorMonday: "2026-07-27", weeks: 6, days: [{ label, weekday }] } | null
 ```
 
