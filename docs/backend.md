@@ -14,6 +14,10 @@ the no-account demo available without making it the default.
 for the network. Cloud sync adds identity, history, backup and access across installs; it is never
 a prerequisite for completing a workout.
 
+A linked coach sees each athlete's programmes and synced sessions in the app's **Clients** tab,
+read-only, about ten seconds behind the athlete's phone while both are online — through the same
+`coach_*` reads as `coach_sync.py`, and never stored on the coach's device.
+
 Sync promises **reliable backup and ordinary multi-device access, not live concurrent editing.**
 If the same workout is edited on two devices before either sees the other's changes, the app
 preserves a recoverable conflict copy rather than silently merging individual sets.

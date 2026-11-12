@@ -1,5 +1,5 @@
 /* Training Tracker service worker — offline app shell */
-const CACHE = "tp-tracker-v35";
+const CACHE = "tp-tracker-v36";
 const SHELL = [
   "./",
   "./index.html",
@@ -13,6 +13,7 @@ const SHELL = [
   "./js/settings-store.js",
   "./js/consent-store.js",
   "./js/account-data.js",
+  "./js/coach-store.js",
   "./js/profile-ui.js",
   "./program.json",
   "./manifest.webmanifest",
